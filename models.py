@@ -12,7 +12,6 @@ import random
 import sys
 
 import networkx as nx
-import matplotlib.pyplot as pyplot
 
 
 from cmodels import cGraph_fields
@@ -303,6 +302,7 @@ class MultiResolution(object):
 
             self._data[index] = MultiResolutionCorrelation(gamma, Gs)
     def print_(self):
+        import matplotlib.pyplot as pyplot
         MRCs = [ MRC for i, MRC in sorted(self._data.iteritems()) ]
 
         gammas    = [mrc.gamma     for mrc in MRCs]
@@ -322,14 +322,15 @@ class MultiResolution(object):
         pyplot.ion()
         from fitz import interactnow
 
-def random_graph(graph=None, size=10, cluster=True):
+def random_graph(graph=None, size=10, cluster=True, layout=None):
     print "making random graph"
     from networkx.generators.classic import grid_graph
     from networkx.convert import relabel_nodes
     if graph is None:
         g = grid_graph(dim=[size,size])
     g = relabel_nodes(g, dict((n,i) for i,n in enumerate(g.nodes()) ))
-    layout = nx.drawing.nx_pydot.pydot_layout(g)
+    if layout:
+        layout = nx.drawing.nx_pydot.pydot_layout(g)
 #    layout = nx.drawing.layout.shell_layout(g)
 
     if cluster:
