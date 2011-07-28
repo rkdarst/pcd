@@ -189,25 +189,28 @@ class Graph(_cobj, object):
         return - H
 
     def minimize(self, gamma):
-        print "beginning minimization"
+        print "beginning minimization (n=%s, gamma=%s)"%(self.n, gamma)
 
+        changesCombining = None
         for round_ in itertools.count():
-            print "Minimizing, round", round_
             changes = cmodels.minimize(self._struct_p, gamma)
             #print self.cmty
             #print set(self.cmty),
-            print "  cmtys, changes:", self.q, changes
+            print "  (r%2s) cmtys, changes: %4d %4d"%(round_, self.q, changes)
+
+            if changes == 0 and changesCombining == 0:
+                break
 
             # If we got no changes, then try combining communities
             # before breaking out.
-            changes2 = 0
             if changes == 0:
-                print " *combining communities:"
-                changes2 = cmodels.combine_cmtys(self._struct_p, gamma)
-                print "  cmtys, changes:", self.q, changes
+                changesCombining = cmodels.combine_cmtys(self._struct_p, gamma)
+                print "  (r%2s) cmtys, changes: %4d %4d"%(
+                                           round_, self.q, changesCombining), \
+                      "(<-- combining communities)"
             
             # If we have no changes in regular and combinations
-            if changes == 0 and changes2 == 0:
+            if changes == 0 and changesCombining == 0:
                 break
             if round_ > 50:
                 print "  Exceeding maximum number of rounds."
