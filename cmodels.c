@@ -125,8 +125,7 @@ int cmtyListCheck(Graph_t G) {
 
 
 
-
-int minimize(Graph_t G, double gamma) {
+int minimize0(Graph_t G, double gamma) {
 
   int changes=0;
   int n;
@@ -154,10 +153,68 @@ int minimize(Graph_t G, double gamma) {
       cmtyListRemove(G, newcmty, n);
 
       if (Enew < Ebest) {
+      /* printf("  Better option for particle %d: %d %d %d\n", */
+      /* 	    i, oldcmty, bestcmty, newcmty); */
+      bestcmty = newcmty;
+      Ebest = Enew;
+      }
+    }
+    //G->cmty[n] = bestcmty;
+    cmtyListAdd(G, bestcmty, n);
+    if (oldcmty != bestcmty) {
+      // Change community
+      changes += 1;
+      /* printf("particle %4d: cmty change %4d->%4d\n",  */
+      /*        i, oldcmty, bestcmty); */
+      //G->cmtyN[oldcmty]  --;
+      //G->cmtyN[bestcmty] ++;
+    }
+  }
+return (changes);
+}
+
+
+
+
+int minimize(Graph_t G, double gamma) {
+
+  int changes=0;
+  int n;
+  // Loop over particles
+  for (n=0 ; n<G->n ; n++) {
+    double deltaEbest = 0.0;
+    int bestcmty = G->cmty[n];
+
+    int oldcmty  = G->cmty[n];
+    double oldEoldCmty = energy_cmty(G, gamma, oldcmty);
+    //double Ebest = energy(G, gamma);
+    /* printf("Partile %d, old community %d\n", i, oldcmty); */
+    cmtyListRemove(G, oldcmty, n);
+    double deltaEoldCmty = energy_cmty(G, gamma, oldcmty) - oldEoldCmty;
+
+    int newcmty;
+    for (newcmty=0 ; newcmty<G->n ; newcmty++) {
+      // Try partiicle in each new cmty.  Accept the new community
+      // that has the lowest new energy.
+      if (newcmty == oldcmty)
+	continue;
+      if (G->cmtyN[newcmty] == 0) {
+	continue;
+      }
+
+      //double Enew;
+      double oldEnewCmty = energy_cmty(G, gamma, newcmty);
+      cmtyListAdd(G, newcmty, n);
+      //Enew = energy(G, gamma);
+      double deltaEnewCmty = energy_cmty(G, gamma, newcmty) - oldEnewCmty;
+      cmtyListRemove(G, newcmty, n);
+
+      if (deltaEoldCmty + deltaEnewCmty < deltaEbest) {
 	/* printf("  Better option for particle %d: %d %d %d\n", */
 	/* 	 i, oldcmty, bestcmty, newcmty); */
 	bestcmty = newcmty;
-	Ebest = Enew;
+	//Ebest = Enew;
+	deltaEbest = deltaEoldCmty + deltaEnewCmty;
       }
     }
     //G->cmty[n] = bestcmty;
