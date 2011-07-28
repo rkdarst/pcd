@@ -14,16 +14,16 @@ c_int_p = ctypes.POINTER(c_int)
 class cGraph(ctypes.Structure):
     pass
 cGraph._fields_ = [
-    ("n", c_int),
+    ("n",            c_int),
+    ("Ncmty",        c_int),
 
-    ("cmty",  c_int_p),
-    ("cmtyN", c_int_p),
+    ("cmty",         c_int_p),
     ("interactions", c_int_p),
 
-    ("cmtyi",  ctypes.POINTER(c_int_p)),
-    ("cmtyii", c_int_p),
+    ("cmtyl",        ctypes.POINTER(c_int_p)),
+    ("cmtyll",       c_int_p),
+    ("cmtyN",        c_int_p),
     
-
     #("callback", Callback),   # callback to let us get python shell from C
     #("S", ctypes.py_object),  # Pointer for function above
     ]
@@ -35,8 +35,15 @@ for name, t in cGraph._fields_:
 
 cfuncs = (
     ("test",          c_int,    (cGraph_p, )),
-    ("minimize",      c_int,    (cGraph_p, c_int)),
-    ("energy",      c_int,      (cGraph_p, c_int)),
+    ("minimize",      c_int,    (cGraph_p, c_double)),
+    ("energy",        c_double, (cGraph_p, c_double)),
+    ("energy_cmty",   c_double, (cGraph_p, c_double, c_int)),
+    ("combine_cmtys", c_int,    (cGraph_p, c_double)),
+
+    ("cmtyListAdd",      None,      (cGraph_p, c_int, c_int)),
+    ("cmtyListRemove",   None,      (cGraph_p, c_int, c_int)),
+    ("cmtyListInit",     None,      (cGraph_p, )),
+    ("cmtyListCheck",    c_int,     (cGraph_p, )),
     )
 filename = '_cmodels.so'
 C = ctypes.cdll[os.path.join(os.path.dirname(__file__), filename)]

@@ -2,14 +2,15 @@
 
 typedef struct Graph {
   int n;
+  int Ncmty;
 
   int *cmty;
-  int *cmtyN;
   int *interactions;
 
-  int **cmtyi;
-  int  *cmtyii;
+  int **cmtyl;
+  int  *cmtyll;
+  int *cmtyN;
 
   } *Graph_t;
 
-double energy(Graph_t G, int gamma);
+double energy(Graph_t G, double gamma);
