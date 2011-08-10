@@ -1,9 +1,8 @@
 # Richard Darst, July 2011
 
-import copy
-
 from math import exp, log
 
+import graphs
 import models
 import util
 
@@ -11,7 +10,7 @@ approxequal = lambda x,y: abs(x-y) < 5e-11*(x+y)
 gamma = 1.0
 
 # Initialized to one community per list
-G = models.random_graph(size=5)
+G = graphs.random_graph(size=5)
 
 # Do we have the right number of initial communites - one per particle?
 assert G.q == 25
@@ -53,7 +52,7 @@ G.cmtyCreate(randomize=False)
 G2 = G.copy()
 print id(G), id(G2), id(G.cmty), id(G2.cmty)
 for i in range(5):
-#    G.cmty[5*(i):5*(i+1)] = i
+    G.cmty[5*(i):5*(i+1)] = i
     G2.cmty[i::5] = i
     pass
 print G.cmty
@@ -62,6 +61,19 @@ G.cmtyListInit()
 G2.cmtyListInit()
 print G.entropy, G2.entropy
 print util.mutual_information(G, G2)
+
+# Mutual information test case 2 (is it nonzero?)
+G2 = G.copy()
+G .cmtyCreate(randomize=False)
+G2.cmtyCreate(randomize=True)
+G .cmtyListInit()
+G2.cmtyListInit()
+G .minimize(gamma=1)
+G2.minimize(gamma=1)
+print G .entropy
+print G2.entropy
+print util.mutual_information(G, G2)
+
 
 #M = MultiResolution(low=.01, high=100, G=G)
 #M.do()
