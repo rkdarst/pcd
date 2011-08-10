@@ -2,20 +2,25 @@
 
 from math import log, exp
 
+# logTime functions generate values evenly distributed on a log scale.
 initialTime = 1
-# 1.25892541179417 = exp(log(10) / 10)
-logConstant = 1.25892541179417
 logInterval = 10.
+logNumber   = 10
+# 1.25892541179417 = exp(log(10) / 10)
+#logConstant = 1.25892541179417
+def logConstant():
+    return exp(log(logInterval)/logNumber)
 def logTime(timeIndex=1):
-    return (initialTime * logConstant**timeIndex)
+    return (initialTime * logConstant()**timeIndex)
 def logTimeIndex(time):
-    return log(time/initialTime) / (log(10)/10)
+    return log(time/initialTime) / (log(logInterval)/logNumber)
 
 log2 = lambda x: log(x, 2)
 
 def mutual_information(G0, G1):
-    assert G0.n == G1.n
-    N = G0.n
+    """Calculate mutual information between two graphs."""
+    assert G0.N == G1.N
+    N = G0.N
 
     MI = 0.0
     for c0 in [    c for c in range(G0.Ncmty) if G0.cmtyN[c] != 0]:
@@ -26,12 +31,13 @@ def mutual_information(G0, G1):
 
             # number of shared particles?
             n_shared = 0
-            for n in    G0.cmtyll[c0, :n0]:
-                if n in G1.cmtyll[c1, :n1]:
-                    n_shared += 1
+            #for n in    G0.cmtyll[c0, :n0]:
+            #    if n in G1.cmtyll[c1, :n1]:
+            #        n_shared += 1
             s0 = set(G0.cmtyll[c0, :n0])
             s1 = set(G1.cmtyll[c1, :n1])
-            assert n_shared == len(s0 & s1)
+            n_shared = len(s0 & s1)
+            #assert n_shared == len(s0 & s1)
 
             if n_shared == 0:
                 continue
@@ -41,5 +47,6 @@ def mutual_information(G0, G1):
     return MI
 
 if __name__ == "__main__":
+    # tests
     print logTime(-10)
     print logTime(logTimeIndex(100))

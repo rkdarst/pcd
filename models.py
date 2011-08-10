@@ -10,6 +10,7 @@ import numpy
 import cPickle as pickle
 import random
 import sys
+import time
 
 import networkx as nx
 
@@ -21,17 +22,21 @@ import util
 log2 = lambda x: math.log(x, 2)
 
 class _cobj(object):
+    """Generic code to interface an object with ctypes using the darst method.
+
+    Note: work in progress.
+    """
     def _allocStruct(self, cModel):
         self._struct = cModel()
         self._struct_p = ctypes.pointer(self._struct)
 
     def _allocArray(self, name, array=None, **args):
         """Allocate an array in a way usable by both python and C.
-        
+
         `name` is the name of the array to allocate: it will be
         self.`name` and self.SD.`name`.  `**args` are arguments passed
         to `numpy.zeros` to allocate the arrays.
-        
+
         If you want to initilize the array to something, you have to
         do it afterwards, like this:
         self.lattsite[:] = S12_EMPTYSITE
@@ -50,6 +55,10 @@ class _cobj(object):
                 array.ctypes.data_as(ctypes.POINTER(
                     getattr(self._struct, name)._type_)))
         #setattr(self._struct, name, array.ctypes.data)
+    def _allocArrayPointers(self, pointerarray, array):
+        for i, row in enumerate(array):
+            pointerarray[i] = row.ctypes.data
+
     def __getattr__(self, attrname):
         """Wrapper to proxy attribute gets to the C SimData struct
         """
@@ -65,76 +74,140 @@ class _cobj(object):
             self.__dict__[attrname] = value
 
 class Graph(_cobj, object):
-    def __init__(self, graph, layout=None, randomize=True):
-        self._fillStruct(len(graph.nodes()))
-        self.n     = len(graph.nodes())
-        self.Ncmty = len(graph.nodes())
+    """Core Potts-based community detection object.
 
-        self._graph  = graph
-        self._layout = layout
+    This returns an object which can be used to do a community
+    detection on a graph.
 
+    There is an important distinction between this object, and the
+    underlying NetworkX graph object.  The NetworkX object is a
+    Pythonic representation of the graph, but can not be used for
+    minimization itself.  The Graph object is the thing which can be
+    used for minimizing.  The Graph object can be created from a
+    NetworkX object easily.  A typical use is to set up a NetworkX
+    graph from loading a file, or your other simulation, and then
+    using that to set up Graph object.
+
+    """
+    def __init__(self, N, randomize=True):
+        self._fillStruct(N)
+        self.N = N
         self.cmtyCreate(randomize=randomize)
-    def _fillStruct(self, n=None):
+        self.oneToOne = 1
+
+
+    @classmethod
+    def fromNetworkX(cls, graph, defaultweight=1,
+                     layout=None, randomize=True,
+                     diagonalweight=None):
+        """Create a Graph glass from a NetworkX graph object.
+
+        The NetworkX graph object is expected to have all edges have a
+        attribute `weight` which is set to the
+
+        `defaultweight` is the weight for all not explicitely defined
+        pairs of nodes.  Note that positive weight is repulsive and
+        negative weight is attractive.
+        """
+        G = cls(N=len(graph), randomize=randomize)
+        G._graph = graph
+        G._layout = layout
+
+        G._nodeIndex = { }
+        G._nodeLabel = { }
+
+        # Set up node indexes (since NetworkX graph object nodes are
+        # not always going to be integeras in range(0, self.N)).
+        for i, name in enumerate(sorted(graph.nodes())):
+            G._nodeIndex[name] = i
+            G._nodeLabel[i] = name
+            graph.node[name]['index'] = i
+
+        # Default weighting
+        G.interactions[:] = defaultweight
+        # Default diagonal weighting
+        if diagonalweight is not None:
+            for i in range(G.N):
+                G.interactions[i, i] = diagonalweight
+        # All explicit weighting from the graph
+        for n0 in graph.nodes():
+            for n1 in graph.neighbors(n0):
+                i0 = graph.node[n0]['index']
+                i1 = graph.node[n1]['index']
+                G.interactions[i0,i1] = graph[n0][n1]['weight']
+        # Check that the matrix is symmetric (FIXME someday: directed graphs)
+        if not numpy.all(G.interactions == G.interactions.T):
+            print "Note: interactions matrix is not symmetric"
+        return G
+
+    def _fillStruct(self, N=None):
         _cobj._allocStruct(self, cmodels.cGraph)
 
-        self._allocArray("cmtyll", shape=[n]*2)
-        self._allocArray("cmtyl", shape=n, dtype=ctypes.c_void_p)
-        for i, row in enumerate(self.cmtyll):
-#            print hex(row.ctypes.data)
-#            print row.ctypes.data_as(self._struct.cmtyi._type_)
-            self.cmtyl[i] = row.ctypes.data#_as(self._struct.cmtyi._type_)
+        self._allocArray("cmtyll", shape=[N]*2)
+        self._allocArray("cmtyl", shape=N, dtype=ctypes.c_void_p)
+        self._allocArrayPointers(self.cmtyl, self.cmtyll)
+        self._allocArray("cmty",  shape=N)
+        self._allocArray("cmtyN", shape=N)
+        self._allocArray("nodeOrder", shape=N)
+        self._allocArray("interactions", shape=(N, N))
 
-        self._allocArray("cmty",  shape=n)
-        self._allocArray("cmtyN", shape=n)
-        self._allocArray("interactions", shape=(n, n))
-
-    #def __getinitargs__(self):
-    #    return self._graph, self._layout
     def __getstate__(self):
         state = self.__dict__.copy()
         del state['_struct']
         del state['_struct_p']
+        state['__extra_attrs'] = {'N':self.N, 'oneToOne':self.oneToOne }
         #for name, type_ in self._struct._fields_:
         #    if name in state  and isinstance(state[name], numpy.ndarray):
         #        setattr(self, name, state[name])
         #        del state[name]
         return state
     def __setstate__(self, state):
-        self.__init__(state['_graph'], state['_layout'])
+        self.__init__(state['__extra_attrs']['N'])
         #self._fillStruct(n=state['n'])
         for name, type_ in self._struct._fields_:
             #print name
             if name in state and isinstance(state[name], numpy.ndarray):
                 self._allocArray(name, array=state[name])
                 del state[name]
+        self._allocArrayPointers(self.cmtyl, self.cmtyll)
+        for k, v in state['__extra_attrs'].items():
+            setattr(self, k, v)
+        del state['__extra_attrs']
         self.__dict__.update(state)
     def copy(self):
         """Return a copy of the object (not sharing data arrays).
         """
         # Right now we turn this into a string and back, in order to
         # make actual deep copies of all the arrays.
-        return pickle.loads(pickle.dumps(self))
+        new = pickle.loads(pickle.dumps(self, -1))
+        #new._allocArray('interactions', array=self.interactions)
+        return new
 
     def cmtyCreate(self, cmtys=None, randomize=True):
         """Create initial communities for a model.
+
+        By default, arrays are initialized to one particle per
+        community, in random order.
 
         cmtys=<array of length nNodes>: initialize for this initial
         array
 
         randomize=<bool>: if initial cmtys array is not given, should
         the innitial array be range(nNodes), or should it be randomized?
-
-        By default, arrays are initialized to one particle per
-        community, in random order.
         """
+        nodeOrder = numpy.arange(self.N) # order of passing through
+                                         # cmtys during minimization
+        numpy.random.shuffle(nodeOrder)  # FIXME
         if cmtys:
             pass
         else:
-            cmtys = range(self.n)
+            cmtys = numpy.arange(self.N)
             if randomize:
-                random.shuffle(cmtys)
+                numpy.random.shuffle(cmtys)
+        self.Ncmty = numpy.max(cmtys)+1
         self.cmty[:] = cmtys
-        self.cmtyN[:] = 1
+        self.nodeOrder[:] = nodeOrder
+        #self.cmtyN[:] = 1   # done in cmtyListInit()
         self.cmtyListInit()
 
     def cmtyListInit(self):
@@ -150,52 +223,91 @@ class Graph(_cobj, object):
         print "cmtyListCheck"
         errors = cmodels.cmtyListCheck(self._struct_p)
         assert errors == 0, "We have %d errors"%errors
+        assert self.q == len(set(self.cmty))
+    def cmtySet(self, n, c):
+        """Set the community of a particle"""
+        pass
 
     def viz(self):
+        """Visualize the detected communities (requires NetworkX rep)
+        """
         print "vizing"
         import matplotlib.pyplot as plt
         #from fitz import interactnow
 
-        colorMap = list(range(self.n))
+        colorMap = list(range(self.Ncmty))
         r = random.Random()
         r.seed('color mapping')
         r.shuffle(colorMap)
 
-        nx.draw(self._graph,
-                node_color=[colorMap[x] for x in self.cmty],
-                node_size=150,
-                labels = dict(zip(self._graph.nodes(), self.cmty)),
+        g = self._graph.copy()
+        for a,b,d in g.edges_iter(data=True):
+            weight = d['weight']
+            width = 1
+            print a,b,weight
+            if self.cmty[g.node[a]['index']] == self.cmty[g.node[b]['index']]:
+                newweight = 15
+                width = 5
+            elif weight < 0:
+                newweight = 6
+                width = 5
+            else:
+                newweight = 3
+            g.edge[a][b]['weight'] = newweight
+            g.edge[a][b]['width'] = width
+            #del g.edge[a][b]['weight']
+
+        cmtys = [ self.cmty[d['index']] for (n,d) in g.nodes(data=True) ]
+        nx.draw(g,
+                node_color=[colorMap[c] for c in cmtys],
+                edge_color=[d.get('color', 'green') for a,b,d in g.edges(data=True)],
+                width=[d.get('width', 1) for a,b,d in g.edges(data=True)],
+                node_size=900,
+                labels = dict((n, "%s (%s)"%(n, c))
+                              for (n, c) in zip(g.nodes(), cmtys)),
                 pos=self._layout)
         #plt.margins(tight=True)
         plt.show()
+        return g
 
     def energy(self, gamma):
-        """Return energy due to just community c"""
+        """Return total energy of the graph."""
         return cmodels.energy(self._struct_p, gamma)
     def energy_cmty(self, gamma, c):
-        """Return energy due to just community c"""
+        """Return energy due to community c."""
         return cmodels.energy_cmty(self._struct_p, gamma, c)
     @property
     def q(self):
-        "number of clusters"
-        q = len([1 for n in self.cmtyN if n>0])
-        assert q == len(set(self.cmty))
+        """Number of communities in the graph.
+
+        The C variable Ncmty is an upper bound for the number of
+        communites, but some of those communities may be empty.  This
+        attribute returns the number of non-empty communities."""
+        q = len([1 for cn in self.cmtyN if cn > 0])
+        #q = sum(self.cmtyN > 0)
+        #q = len(set(self.cmty))  #FIXME this is fast, but a bit wrong.
+        #assert q == len(set(self.cmty))
         return q
     @property
     def entropy(self):
-        N = self.n
-        H = sum( (n/float(N))*log2(n/float(N))  for n in self.cmtyN
+        """Return the entropy of this graph.
+        """
+        N = float(self.N)
+        H = sum( (n/N)*log2(n/N)  for n in self.cmtyN
                  if n!=0 )
-        return - H
+        return -H
 
     def minimize(self, gamma):
-        print "beginning minimization (n=%s, gamma=%s)"%(self.n, gamma)
+        """Minimize the communities at a certain gamma.
+
+        This function requires a good starting configuration.  To do
+        that, use self.cmtyCreate() first.
+        """
+        print "beginning minimization (n=%s, gamma=%s)"%(self.N, gamma)
 
         changesCombining = None
         for round_ in itertools.count():
-            changes = cmodels.minimize(self._struct_p, gamma)
-            #print self.cmty
-            #print set(self.cmty),
+            changes = self._minimize(gamma=gamma)
             print "  (r%2s) cmtys, changes: %4d %4d"%(round_, self.q, changes)
 
             if changes == 0 and changesCombining == 0:
@@ -204,22 +316,32 @@ class Graph(_cobj, object):
             # If we got no changes, then try combining communities
             # before breaking out.
             if changes == 0:
-                changesCombining = cmodels.combine_cmtys(self._struct_p, gamma)
+                changesCombining = self.combine_cmtys(gamma=gamma)
                 print "  (r%2s) cmtys, changes: %4d %4d"%(
                                            round_, self.q, changesCombining), \
                       "(<-- combining communities)"
-            
-            # If we have no changes in regular and combinations
+
+                self.remapCommunities(check=False)
+            # If we have no changes in regular and combinations, escape
             if changes == 0 and changesCombining == 0:
                 break
             if round_ > 50:
                 print "  Exceeding maximum number of rounds."
                 break
         #print set(self.cmty),
+    def _minimize(self, gamma):
+        return cmodels.minimize(self._struct_p, gamma)
+    def combine_cmtys(self, gamma):
+        """Attempt to combine communities if energy decreases."""
+        return cmodels.combine_cmtys(self._struct_p, gamma)
 
-    def remapCommunities(self):
+    def remapCommunities_python(self, check=True):
         """Collapse all communities into the lowest number needed to
-        represent everything."""
+        represent everything.
+
+        For example, if we have communities 0, 1, 5, 6 with nonzero
+        numbers of particles, this will change us to have communities
+        0, 1, 2, 3 only."""
         print "remapping communities"
         def find_empty_cmty():
             """Start at zero, and find the first (lowest-index) empty
@@ -227,8 +349,9 @@ class Graph(_cobj, object):
             """
             for m in range(self.Ncmty):
                 if self.cmtyN[m] == 0:
-                    assert len([ 1 for i in range(self.n)
-                                 if self.cmty[i] == m  ]) == 0
+                    # Commented out because this significantly slows things.
+                    #assert len([ 1 for i in range(self.N)
+                    #             if self.cmty[i] == m  ]) == 0
                     return m
 
         for oldCmty in range(self.Ncmty-1, -1, -1):
@@ -248,13 +371,21 @@ class Graph(_cobj, object):
             # We have established we want to move oldCmty to newCmty,
             # now do it.
             self.cmtyll[newCmty, :] = self.cmtyll[oldCmty, :]
-            for i in range(self.n):
-                if self.cmty[i] == oldCmty:
-                    self.cmty[i] = newCmty
+            #for i in range(self.N):
+            #    if self.cmty[i] == oldCmty:
+            #        self.cmty[i] = newCmty
+            self.cmty[self.cmty==oldCmty] = newCmty
             self.cmtyN[newCmty] = self.cmtyN[oldCmty]
             self.cmtyN[oldCmty] = 0
-
-        self.cmtyListCheck()
+        if check:
+            self.cmtyListCheck()
+    def remapCommunities_c(self, check=True):
+        print "remapping communities: ",
+        changes = cmodels.remap_cmtys(self._struct_p)
+        print changes, "changes"
+        if check:
+            self.cmtyListCheck()
+    remapCommunities = remapCommunities_c
 
     def _test(self):
         return cmodels.test(self._struct_p)
@@ -273,22 +404,27 @@ class MultiResolutionCorrelation(object):
         In = numpy.mean([2*mi / (G0.entropy + G1.entropy)
                          for ((G0,G1), mi) in zip(pairs, Is)])
 
-        self.gamma = gamma
-        self.q = min(G.q for G in Gs)
-        self.E = min(G.energy(gamma) for G in Gs)
-        self.entropy = numpy.mean([G.entropy for G in Gs])
+        self.gamma   = gamma
+        self.q       = numpy.mean(tuple(G.q for G in Gs))
+        self.E       = numpy.mean(tuple(G.energy(gamma) for G in Gs))
+        self.entropy = numpy.mean(tuple(G.entropy for G in Gs))
 
-        self.I = numpy.mean(Is)
-        self.VI = VI
-        self.In = In
+        self.I       = numpy.mean(Is)
+        self.VI      = VI
+        self.In      = In
 
 class MultiResolution(object):
+    """Class to do full multi-resolution analysis.
+    """
     def __init__(self, low, high):
         self.indexLow  = int(floor(util.logTimeIndex(low )))
         self.indexHigh = int(ceil (util.logTimeIndex(high)))
 
         self._data = { } #collections.defaultdict(dict)
     def do(self, Gs, trials=10):
+        """Do multi-resolution analysis on replicas Gs with `trials` each."""
+        self.replicas = len(Gs)
+        self.trials = trials
         for index in range(self.indexLow, self.indexHigh+1):
             gamma = util.logTime(index)
             #minima = [ ]
@@ -299,25 +435,47 @@ class MultiResolution(object):
                     G.cmtyCreate() # randomizes it
                     G.minimize(gamma)
                     #minima.append((G.energy(gamma), G.q))
-                    thisGs.append(copy.copy(G))
+                    thisGs.append(G.copy())
+                    #minGs.append(G.copy())
                 minG = min(thisGs, key=lambda G: G.energy)
                 minGs.append(minG)
-
-            self._data[index] = MultiResolutionCorrelation(gamma, Gs)
-    def print_(self):
-        import matplotlib.pyplot as pyplot
+            self._data[index] = MultiResolutionCorrelation(gamma, minGs)
+    def calc(self):
         MRCs = [ MRC for i, MRC in sorted(self._data.iteritems()) ]
 
-        gammas    = [mrc.gamma     for mrc in MRCs]
-        qs        = [mrc.q         for mrc in MRCs]
-        Es        = [mrc.E         for mrc in MRCs]
-        entropies = [mrc.entropy   for mrc in MRCs]
+        self.gammas    = gammas    = [mrc.gamma     for mrc in MRCs]
+        self.qs        = qs        = [mrc.q         for mrc in MRCs]
+        self.Es        = Es        = [mrc.E         for mrc in MRCs]
+        self.entropies = entropies = [mrc.entropy   for mrc in MRCs]
 
-        Is        = [mrc.I         for mrc in MRCs]
-        VIs       = [mrc.VI        for mrc in MRCs]
-        Ins       = [mrc.In        for mrc in MRCs]
+        self.Is        = Is        = [mrc.I         for mrc in MRCs]
+        self.VIs       = VIs       = [mrc.VI        for mrc in MRCs]
+        self.Ins       = Ins       = [mrc.In        for mrc in MRCs]
+        self.field_names = ("gammas", "qs", "Es", "entropies",
+                            "Is", "VIs", "Ins", )
+    def write(self, fname):
+        self.calc()
+        f = open(fname, 'w')
+        print >> f, "#", time.ctime()
+        print >> f, "# replicas:", self.replicas
+        print >> f, "# trials per replica:", self.trials
+        print >> f, "#" + " ".join(self.field_names)
+        for i in range(len(self.gammas)):
+            for name in self.field_names:
+                print >> f, getattr(self, name)[i],
+            print >> f
 
+    def viz(self):
+        import matplotlib.pyplot as pyplot
+        gammas    = self.gammas
+        qs        = self.qs
+        Es        = self.Es
+        entropies = self.entropies
 
+        Is        = self.Is
+        VIs       = self.VIs
+        Ins       = self.Ins
+        pyplot.xlim(gammas[0], gammas[-1])
         pyplot.semilogx(gammas, qs)
         pyplot.xlabel('\gamma')
         pyplot.ylabel('q')
@@ -325,34 +483,6 @@ class MultiResolution(object):
         pyplot.ion()
         from fitz import interactnow
 
-def random_graph(graph=None, size=10, cluster=True, layout=None):
-    print "making random graph"
-    from networkx.generators.classic import grid_graph
-    from networkx.convert import relabel_nodes
-    if graph is None:
-        g = grid_graph(dim=[size,size])
-    g = relabel_nodes(g, dict((n,i) for i,n in enumerate(g.nodes()) ))
-    if layout:
-        layout = nx.drawing.nx_pydot.pydot_layout(g)
-#    layout = nx.drawing.layout.shell_layout(g)
-
-    if cluster:
-        clusterGraph(g, p=.05)
-    G = Graph(g, layout=layout)
-    G.interactions[:] = 1
-    for i in g.nodes():
-        for j in g.neighbors(i):
-            G.interactions[i,j] = -10
-            G.interactions[j,i] = -10
-    return G
-        
-def clusterGraph(g, p=0.01):
-    print "re-clustering"
-    nodes = random.sample(g.nodes(), int(p*len(g)))
-    for i in nodes:
-        for n in g.neighbors(i):
-            for n2 in g.neighbors(n):
-                g.add_edge(i, n2)
 
 
 
@@ -362,25 +492,21 @@ if __name__ == "__main__":
         command = sys.argv[1]
 
     if command == "test":
-        import networkx.generators.classic
-        G = random_graph(size=5)
+
+        random.seed(169)
+        G = random_graph(size=20, layout=True)
+        random.seed(time.time())
+        G.cmtyCreate()
         G.cmtyListCheck()
         #G.test()
         G.minimize(gamma=1.0)
-        G.remapCommunities()
-        G.remapCommunities()
-        G.cmtyListCheck()
+        #G.remapCommunities()
+        #G.remapCommunities()
+        #G.cmtyListCheck()
         G.viz()
-        print G.q
 
-        print G.cmty
-        print G.cmtyN
-        #import cPickle as pickle
-        #s = pickle.dumps(G)
-        #G2 = pickle.loads(s)
-        #G2.viz()
     if command == "multi":
         Gs = [ random_graph(size=20) for _ in range(10) ]
-        M = MultiResolution(low=.1, high=10)
-        M.do(Gs=Gs, trials=1)
+        M = MultiResolution(low=.01, high=100)
+        M.do(Gs=Gs, trials=3)
         M.print_()

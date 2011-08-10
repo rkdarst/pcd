@@ -7,7 +7,7 @@ opts=-Wall -shared -fPIC
 _cmodels.so: cmodels.o SFMT.o
 	gcc ${opts} ${CFLAGS} cmodels.o SFMT.o -o _cmodels.so
 
-cmodels.o: cmodels.c
+cmodels.o: cmodels.c cmodels.h
 	gcc ${opts} ${CFLAGS} -c cmodels.c
 
 SFMT.o: SFMT.c SFMT.h
