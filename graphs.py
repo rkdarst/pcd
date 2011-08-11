@@ -6,6 +6,7 @@ There is an important distinction between the Graph class in
 models.py, and NetworkX graphs.  Most 
 """
 
+import numpy
 import os
 import random
 from xml.etree import ElementTree
@@ -16,6 +17,7 @@ import networkx.generators.random_graphs
 import networkx.convert
 
 import models
+import util
 
 def random_graph(graph=None, size=10, cluster=True, layout=None):
     """Return a random graph (models.py Graph class).
@@ -102,6 +104,21 @@ def polopa_tribes(weightAllied=-1, weightHostile=2):
     #print G.edges()
     #print G.edge['GAVEV']['OVE']
     #from fitz import interactnow
+    return g
+
+def polopa_tribes_peter(fname="highland_one.txt"):
+    fname = os.path.join(os.path.dirname(__file__),
+                         "data/highland_peter/"+fname)
+    f = open(fname)
+    f.readline() ; f.readline() ; f.readline()
+
+    lines = f.readlines()
+    lines = [ l.strip().split() for l in lines ]
+    array = [ [int(weight) for weight in row] for row in lines ]
+
+    array = numpy.asarray(array)
+    array = -array
+    g = util.networkx_from_matrix(array, ignore_values=(0, 1))
     return g
 
 def dolphins(weightFriend=-1):

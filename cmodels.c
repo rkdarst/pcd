@@ -1,3 +1,4 @@
+#include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
 
@@ -100,7 +101,7 @@ int cmtyListCheck(Graph_t G) {
    * Returns the numbers of errors found.
    */
   int errors=0;
-  int i, n, cmty;
+  int i, j, n, m, cmty;
   // Check Ncmty is indeed the maximum number of communities.
   for (cmty=0; cmty < G->N; cmty++) {
     if ( G->cmtyN[cmty] > 0   &&  cmty >= G->Ncmty ) {
@@ -137,11 +138,46 @@ int cmtyListCheck(Graph_t G) {
       }
     }
   }
-
-
+  // Check that no node is in a community more than once
+  for (cmty=0; cmty < G->Ncmty; cmty++) {
+    // For each community
+    for (i=0; i<G->cmtyN[cmty]; i++) {
+      // For each particle in the community
+      n = G->cmtyl[cmty][i];
+      for (j=0; j<G->cmtyN[cmty]; j++) {
+	// For each particle in that same community, provided they do
+	// are not the same:
+	if (i == j)
+	  continue;
+	m = G->cmtyl[cmty][j];
+	if (n == m)
+	  errors++;
+      }
+    }
+  }
   return (errors);
 }
 
+int shared_nodes_between_communities(int *cmtyl0, int *cmtyl1,
+				     int  cmtyN0, int  cmtyN1) {
+  int n_shared=0;
+  int i, j, n, m;
+  for (i=0 ; i<cmtyN0 ; i++) {
+    // For nodes in the first community
+    n = cmtyl0[i];
+    for (j=0 ; j<cmtyN1 ; j++) {
+      // For nodes in the second community
+      m = cmtyl1[j];
+      // If the nodes are the same, then increment the number of
+      // shared particles and continue.
+      if (m == n) {
+	n_shared++;
+	continue;
+      }
+    }
+  }
+  return (n_shared);
+}
 
 
 
@@ -152,7 +188,7 @@ int minimize0(Graph_t G, double gamma) {
   int i, n;
   // Loop over particles
   for (i=0 ; i<G->N ; i++) {
-    n = G->nodeOrder[i];
+    n = G->randomOrder[i];
     int oldcmty  = G->cmty[n];
     int bestcmty = G->cmty[n];
     double Ebest = energy(G, gamma);
@@ -202,14 +238,14 @@ return (changes);
 
 int minimize(Graph_t G, double gamma) {
   /* Core minimization routine.  Do one sweep, moving each particle
-   * (in order of G->nodeOrder into the community that most lowers the
+   * (in order of G->randomOrder into the community that most lowers the
    * energy.
    */
   int changes=0;
   int nindex, n;
   // Loop over particles
   for (nindex=0 ; nindex<G->N ; nindex++) {
-    n = G->nodeOrder[nindex];
+    n = G->randomOrder[nindex];
     double deltaEbest = 0.0;
     int bestcmty = G->cmty[n];
 
@@ -226,11 +262,15 @@ int minimize(Graph_t G, double gamma) {
     /*   // Try partiicle in each new cmty.  Accept the new community */
     /*   // that has the lowest new energy. */
 
-    int i;
-    for (i=0 ; i<G->N ; i++) {
-      if (G->interactions[n*G->N + i] > 0)
+    /* int m; */
+    /* for (m=0 ; m<G->N ; m++) { */
+
+    int mindex, m;
+    for (mindex=0 ; mindex<G->N ; mindex++) {
+      m = G->randomOrder2[mindex];
+      if (G->interactions[n*G->N + m] > 0)
     	continue;
-      int newcmty = G->cmty[i];
+      int newcmty = G->cmty[m];
 
       if (newcmty == oldcmty)
 	continue;
@@ -331,7 +371,8 @@ double energy_cmty(Graph_t G, double gamma, int c) {
   // for communities c
   int i, j, m;
   for (i=0 ; i<G->cmtyN[c] ; i++) {
-    // Do symmetric: both directions.
+    // Do symmetric: both directions.  Someday, this could matter for
+    // directed graphs, right now it is irrelevent.
     for (j=0 ; j<G->cmtyN[c] ; j++) {
   	if (i == j)
   	  continue;
@@ -355,11 +396,19 @@ int combine_cmtys(Graph_t G, double gamma) {
    */
   int count = 0;
   // Move particles from c2 into c1
-  int c1, c2;
+  int i1, i2, c1, c2;
   //printf("gamma: %f\n", gamma);
-  for (c1=0 ; c1<G->Ncmty-1 ; c1++) {
-    for (c2=c1+1 ; c2<G->Ncmty ; c2++) {
-      if (G->cmtyN[c1] == 0 || G->cmtyN[c2] == 0)
+  /* for (c1=0 ; c1<G->Ncmty-1 ; c1++) { */
+  /*   for (c2=c1+1 ; c2<G->Ncmty ; c2++) { */
+  for (i1=0 ; i1<G->N ; i1++) {
+    c1 = G->randomOrder[i1];
+    if (G->cmtyN[c1] == 0)
+      continue;
+    for (i2=0 ; i2<G->N ; i2++) {
+      c2 = G->randomOrder2[i2];
+      if (c1 <= c2)
+	continue;
+      if (G->cmtyN[c2] == 0)
 	continue;
       //double Eold = energy(G, gamma);
       double Eold = energy_cmty(G, gamma, c1) + energy_cmty(G, gamma, c2);
@@ -445,4 +494,27 @@ int remap_cmtys(Graph_t G) {
     changes++;
   }
   return(changes);
+}
+
+
+double mutual_information(Graph_t G0, Graph_t G1) {
+  if (G0->N != G1->N)
+    exit(55);
+  int N = G0->N;
+  double MI=0.0;
+
+  int c0, c1, n0, n1, n_shared;
+  for (c0=0 ; c0 < G0->Ncmty ; c0++) {
+    n0 = G0->cmtyN[c0];
+    for (c1=0 ; c1 < G1->Ncmty ; c1++) {
+      n1 = G1->cmtyN[c1];
+
+      n_shared = shared_nodes_between_communities(G0->cmtyl[c0], G1->cmtyl[c1],
+						  n0, n1);
+      if (n_shared == 0)
+	continue;
+      MI += (n_shared/(float)N) * log2(n_shared*N/((float)n0*n1));
+    }
+  }
+  return (MI);
 }

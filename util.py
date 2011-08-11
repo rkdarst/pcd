@@ -2,6 +2,10 @@
 
 from math import log, exp
 
+import networkx
+
+import cmodels
+
 # logTime functions generate values evenly distributed on a log scale.
 initialTime = 1
 logInterval = 10.
@@ -17,7 +21,7 @@ def logTimeIndex(time):
 
 log2 = lambda x: log(x, 2)
 
-def mutual_information(G0, G1):
+def mutual_information_python(G0, G1):
     """Calculate mutual information between two graphs."""
     assert G0.N == G1.N
     N = G0.N
@@ -45,6 +49,42 @@ def mutual_information(G0, G1):
             MI += (n_shared/float(N)) * log2(n_shared*N/float(n0*n1))
 
     return MI
+def mutual_information_c(G0, G1):
+    return cmodels.mutual_information(G0._struct_p, G1._struct_p)
+mutual_information = mutual_information_c
+
+def matrix_swap_basis(array, a, b):
+    """Swap rows a,b and columns a,b in a array."""
+    array[a,:], array[b,:] = array[b,:].copy(), array[a,:].copy()
+    array[:,a], array[:,b] = array[:,b].copy(), array[:,a].copy()
+
+def networkx_from_matrix(array, ignore_diagonal=True, ignore_values=()):
+    """Convert a interactions matrix to a networkx graph.
+
+    The values in the matrix are used as the graph edge weights.
+
+    `ignore_diagonals` (default True) means to not add graph edges
+    pointing back at the same node (self-loops).
+
+    `ignore_values` can be used to ignore certain values in the
+    matrix, making them not become edges.  This can be useful to
+    exclude the default weights for non-interacting nodes.
+    """
+    assert len(array.shape) == 2
+    assert array.shape[0] == array.shape[1]
+    assert (array == array.T).all()
+    N = array.shape[0]
+    g = networkx.Graph()
+    g.add_nodes_from(range(N))
+    for i, row in enumerate(array):
+        for j, weight in enumerate(row):
+            if ignore_diagonal and i == j:
+                continue
+            if weight in ignore_values:
+                continue
+            g.add_edge(i, j, weight=weight)
+    return g
+
 
 if __name__ == "__main__":
     # tests

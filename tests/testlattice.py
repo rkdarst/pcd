@@ -22,7 +22,7 @@ print (numpy.sum(G.interactions) - numpy.sum(G.interactions.diagonal()))/(400**2
 assert numpy.all(G.interactions - G.interactions.T == 0)
 
 MR = models.MultiResolution(low=.1, high=100)
-MR.do([G]*10, trials=10)
+MR.do([G]*5, trials=10)
 MR.write('tmp-lattice.txt')
 #MR.viz()
 

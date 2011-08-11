@@ -11,7 +11,8 @@ typedef struct Graph {
   int **cmtyl;
   int  *cmtyll;
   int *cmtyN;
-  int *nodeOrder;
+  int *randomOrder;
+  int *randomOrder2;
 
   } *Graph_t;
 

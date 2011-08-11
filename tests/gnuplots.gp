@@ -15,6 +15,10 @@ plot "tmp-polopatribes.txt" \
        using 1:2 lt 1 lw 3 t "q",  \
     "" using 1:4 lt 2 lw 3 t "H",  \
     "" using 1:5 lt 3 lw 3 t "I",  \
+    "tmp-polopatribes2.txt" \
+       using 1:2 lt 4 lw 3 t "q",  \
+    "" using 1:4 lt 5 lw 3 t "H",  \
+    "" using 1:5 lt 6 lw 3 t "I",  \
     "data/nussinov_2009_fig8_q.txt" using 1:2 lt 1 lw 1 t "q-paper", \
     "data/nussinov_2009_fig8_H.txt" using 1:2 lt 2 lw 1 t "H-paper", \
     "data/nussinov_2009_fig8_I.txt" using 1:2 lt 3 lw 1 t "I-paper"

@@ -6,7 +6,7 @@ import graphs
 import models
 import util
 
-approxequal = lambda x,y: abs(x-y) < 5e-11*(x+y)
+approxequal = lambda x,y: abs(x-y) <= 5e-6*(x+y)
 gamma = 1.0
 
 # Initialized to one community per list
@@ -42,12 +42,17 @@ G.cmtyCreate(randomize=False)
 
 # Test mutual information with itself
 mi = util.mutual_information(G, G)
-assert mi == s
+print mi, s
+assert approxequal(mi, s)
 G.minimize(gamma=gamma)
-assert approxequal(util.mutual_information(G, G), G.entropy), (util.mutual_information(G, G), G.entropy)
+assert approxequal(util.mutual_information(G, G), G.entropy), \
+       (util.mutual_information(G, G), G.entropy)
+assert approxequal(util.mutual_information_c(G, G),
+                   util.mutual_information_python(G,G))
 
 
 # Test a case where mutual information should be zero.
+# FIXME this test case does not work
 G.cmtyCreate(randomize=False)
 G2 = G.copy()
 print id(G), id(G2), id(G.cmty), id(G2.cmty)
@@ -60,9 +65,13 @@ print G2.cmty
 G.cmtyListInit()
 G2.cmtyListInit()
 print G.entropy, G2.entropy
-print util.mutual_information(G, G2)
+print util.mutual_information_python(G, G2), \
+      util.mutual_information_c(G, G2)
+assert approxequal(util.mutual_information_c(G, G2),
+                   util.mutual_information_python(G,G2))
 
 # Mutual information test case 2 (is it nonzero?)
+# FIXME this test case does not work
 G2 = G.copy()
 G .cmtyCreate(randomize=False)
 G2.cmtyCreate(randomize=True)
@@ -72,9 +81,28 @@ G .minimize(gamma=1)
 G2.minimize(gamma=1)
 print G .entropy
 print G2.entropy
-print util.mutual_information(G, G2)
-
+print util.mutual_information_python(G, G2), \
+      util.mutual_information_c(G, G2)
+assert approxequal(util.mutual_information_c(G, G2),
+                   util.mutual_information_python(G,G2))
 
 #M = MultiResolution(low=.01, high=100, G=G)
 #M.do()
 #M.print_()
+
+
+# Random tests
+for i in range(100):
+    G.cmtyCreate(randomize=True)
+    G.minimize(gamma)
+    assert 0 == G.check()
+    # energy
+    assert G.energy(gamma) \
+           == sum(G.energy_cmty(gamma, c) for c in range(G.Ncmty))
+    s = G.entropy
+    mi = util.mutual_information(G, G)
+    print mi, s
+    assert approxequal(mi, s)
+    assert approxequal(util.mutual_information_c(G, G2),
+                       util.mutual_information_python(G,G2))
+

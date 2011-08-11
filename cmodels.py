@@ -24,7 +24,8 @@ cGraph._fields_ = [
     ("cmtyl",        ctypes.POINTER(c_int_p)),
     ("cmtyll",       c_int_p),
     ("cmtyN",        c_int_p),
-    ("nodeOrder",    c_int_p),
+    ("randomOrder",  c_int_p),
+    ("randomOrder2", c_int_p),
     
     #("callback", Callback),   # callback to let us get python shell from C
     #("S", ctypes.py_object),  # Pointer for function above
@@ -43,6 +44,8 @@ cfuncs = (
     ("energy_cmty",   c_double, (cGraph_p, c_double, c_int)),
     ("combine_cmtys", c_int,    (cGraph_p, c_double)),
     ("remap_cmtys",   c_int,    (cGraph_p, )),
+    ("mutual_information",
+                      c_double, (cGraph_p, cGraph_p )),
 
     ("cmtyListAdd",      None,      (cGraph_p, c_int, c_int)),
     ("cmtyListRemove",   None,      (cGraph_p, c_int, c_int)),

@@ -148,7 +148,10 @@ class Graph(_cobj, object):
         self._allocArrayPointers(self.cmtyl, self.cmtyll)
         self._allocArray("cmty",  shape=N)
         self._allocArray("cmtyN", shape=N)
-        self._allocArray("nodeOrder", shape=N)
+        self._allocArray("randomOrder", shape=N)
+        self._allocArray("randomOrder2", shape=N)
+        self.randomOrder[:]  = numpy.arange(N)
+        self.randomOrder2[:] = numpy.arange(N)
         self._allocArray("interactions", shape=(N, N))
 
     def __getstate__(self):
@@ -195,9 +198,6 @@ class Graph(_cobj, object):
         randomize=<bool>: if initial cmtys array is not given, should
         the innitial array be range(nNodes), or should it be randomized?
         """
-        nodeOrder = numpy.arange(self.N) # order of passing through
-                                         # cmtys during minimization
-        numpy.random.shuffle(nodeOrder)  # FIXME
         if cmtys:
             pass
         else:
@@ -206,10 +206,8 @@ class Graph(_cobj, object):
                 numpy.random.shuffle(cmtys)
         self.Ncmty = numpy.max(cmtys)+1
         self.cmty[:] = cmtys
-        self.nodeOrder[:] = nodeOrder
         #self.cmtyN[:] = 1   # done in cmtyListInit()
         self.cmtyListInit()
-
     def cmtyListInit(self):
         """Initialize community list.
 
@@ -224,9 +222,21 @@ class Graph(_cobj, object):
         errors = cmodels.cmtyListCheck(self._struct_p)
         assert errors == 0, "We have %d errors"%errors
         assert self.q == len(set(self.cmty))
+        return errors
+    check = cmtyListCheck
     def cmtySet(self, n, c):
         """Set the community of a particle"""
-        pass
+        raise NotImplementedError("cmtySet not implemented yet.")
+    def randomizeOrder(self, randomize=True):
+        if not randomize:
+            # Fake mode: actually sort them
+            numpy.sort(self.randomOrder)  # FIXME
+            numpy.sort(self.randomOrder2) # FIXME
+        else:
+            numpy.random.shuffle(self.randomOrder)  # FIXME
+            numpy.random.shuffle(self.randomOrder2) # FIXME
+        #print self.randomOrder
+        #print self.randomOrder2
 
     def viz(self):
         """Visualize the detected communities (requires NetworkX rep)
@@ -307,6 +317,7 @@ class Graph(_cobj, object):
 
         changesCombining = None
         for round_ in itertools.count():
+            self.randomizeOrder()
             changes = self._minimize(gamma=gamma)
             print "  (r%2s) cmtys, changes: %4d %4d"%(round_, self.q, changes)
 
@@ -389,6 +400,14 @@ class Graph(_cobj, object):
 
     def _test(self):
         return cmodels.test(self._struct_p)
+    def make_networkx(self, ignore_values=()):
+        """Return a networkX representation of the interaction matrix.
+
+        This could be useful where """
+
+        g = util.networkx_from_matrix(self.interactions,
+                                      ignore_values=ignore_values)
+        return g
 
 class MultiResolutionCorrelation(object):
     def __init__(self, gamma, Gs):
