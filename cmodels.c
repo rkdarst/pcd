@@ -179,6 +179,26 @@ int shared_nodes_between_communities(int *cmtyl0, int *cmtyl1,
   return (n_shared);
 }
 
+int find_empty_cmty(Graph_t G) {
+  /* Find the lowest numbered empty community
+   */
+  int c;
+  for (c=0 ; c<G->Ncmty ; c++) {
+    if (G->cmtyN[c] == 0) {
+      int n;
+      // A bit of error-checking
+      for (n=0 ; n<G->N ; n++) {
+	if (G->cmty[n] == c) {
+	  printf("Inconsistent state: c=%d should be empty (n=%d)\n", c, n);
+	  exit(53);
+	}
+      } // end errorchecking
+      return(c);
+    }
+  }
+  return(-1);
+}
+
 
 
 int minimize0(Graph_t G, double gamma) {
@@ -447,25 +467,6 @@ int combine_cmtys(Graph_t G, double gamma) {
   return (count);
 }
 
-int find_empty_cmty(Graph_t G) {
-  /* Find the lowest numbered empty community
-   */
-  int c;
-  for (c=0 ; c<G->Ncmty ; c++) {
-    if (G->cmtyN[c] == 0) {
-      int n;
-      // A bit of error-checking
-      for (n=0 ; n<G->N ; n++) {
-	if (G->cmty[n] == c) {
-	  printf("Inconsistent state: c=%d should be empty (n=%d)\n", c, n);
-	  exit(53);
-	}
-      } // end errorchecking
-      return(c);
-    }
-  }
-  return(-1);
-}
 int remap_cmtys(Graph_t G) {
   /* Moves all the communities to the lowest numbered continuous
      segments.
