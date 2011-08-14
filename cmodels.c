@@ -3,6 +3,7 @@
 #include <stdlib.h>
 
 #include "cmodels.h"
+#include "SFMT.h"
 
 int test(Graph_t G) {
   /* Print some test debugging information
@@ -45,6 +46,8 @@ void cmtyListAdd(Graph_t G, int c, int n) {
   G->cmtyl[c][G->cmtyN[c]] = n;
   G->cmtyN[c]++;
   G->cmty[n] = c;
+  if (c >= G->Ncmty)
+    G->Ncmty = c+1;
 }
 void cmtyListRemove(Graph_t G, int c, int n) {
   /* Remove particle n from community c
@@ -66,6 +69,8 @@ void cmtyListRemove(Graph_t G, int c, int n) {
   }
   G->cmtyN[c]-- ;
   G->cmty[n] = -1;
+  if (c == G->Ncmty-1  &&  G->cmtyN[c] == 0 )
+    G->Ncmty--;
 }
 void cmtyListInit(Graph_t G) {
   /* Initialize the community lists.
@@ -183,7 +188,7 @@ int find_empty_cmty(Graph_t G) {
   /* Find the lowest numbered empty community
    */
   int c;
-  for (c=0 ; c<G->Ncmty ; c++) {
+  for (c=0 ; c<G->N ; c++) {
     if (G->cmtyN[c] == 0) {
       int n;
       // A bit of error-checking
@@ -310,7 +315,24 @@ int minimize(Graph_t G, double gamma) {
 	/* 	 i, oldcmty, bestcmty, newcmty); */
 	bestcmty = newcmty;
 	deltaEbest = deltaEoldCmty + deltaEnewCmty;
-      }
+      } /* else if (deltaEoldCmty + deltaEnewCmty <= deltaEbest) { */
+      /* 	// If energies are equal, we need a 50% probability of decreasing. */
+      /* 	if (genrand_real2() < .5) { */
+      /* 	  bestcmty = newcmty; */
+      /* 	  deltaEbest = deltaEoldCmty + deltaEnewCmty; */
+      /* 	} */
+      /* } */
+
+    }
+    // Is it better to move a particle into an _empty_ community?
+    if (deltaEoldCmty < deltaEbest) {
+      bestcmty = find_empty_cmty(G);
+      /* printf("Moving to new community: %d (Ncmty=%d) (%f %f %d)\n", */
+      /* 	     bestcmty, G->Ncmty, */
+      /* 	     deltaEoldCmty, deltaEbest, G->cmtyN[bestcmty]); */
+      // deltaEbest = deltaEoldCmty;  // Not needed (not used after this)
+      if (bestcmty == -1)
+    	exit(56);
     }
     cmtyListAdd(G, bestcmty, n);
     if (oldcmty != bestcmty) {
@@ -474,13 +496,16 @@ int remap_cmtys(Graph_t G) {
   int changes=0;
   int c;
   for (c=G->Ncmty-1 ; c>=0 ; c--) {
+    // For each community, starting with the highest.
     if (G->cmtyN[c] == 0)
+      // Ignore already-empty communities
       continue;
     int cNew = find_empty_cmty(G);
-    if (cNew == -1)
-      continue;
     if (cNew >= c)
-      continue;
+      break;
+    if (cNew == -1)
+      break;
+    // Do the actual remapping:
     int i;
     for(i=0 ; i<G->cmtyN[c] ; i++) {
       G->cmtyl[cNew][i] = G->cmtyl[c][i];
@@ -490,9 +515,11 @@ int remap_cmtys(Graph_t G) {
       if (G->cmty[n] == c)
 	G->cmty[n] = cNew;
     }
+    // Change cmtyN and Ncmty
     G->cmtyN[cNew] = G->cmtyN[c];
     G->cmtyN[c] = 0;
     changes++;
+    G->Ncmty--;
   }
   return(changes);
 }

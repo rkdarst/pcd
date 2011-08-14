@@ -388,6 +388,7 @@ class Graph(_cobj, object):
             self.cmty[self.cmty==oldCmty] = newCmty
             self.cmtyN[newCmty] = self.cmtyN[oldCmty]
             self.cmtyN[oldCmty] = 0
+            self.Ncmty -= 1;
         if check:
             self.cmtyListCheck()
     def remapCommunities_c(self, check=True):
