@@ -436,30 +436,84 @@ class MultiResolutionCorrelation(object):
 class MultiResolution(object):
     """Class to do full multi-resolution analysis.
     """
+    _output = None
+    _lock = None
     def __init__(self, low, high):
         self.indexLow  = int(floor(util.logTimeIndex(low )))
         self.indexHigh = int(ceil (util.logTimeIndex(high)))
 
         self._data = { } #collections.defaultdict(dict)
-    def do(self, Gs, trials=10):
+    def _do_gammaindex(self, index):
+        gamma = util.logTime(index)
+        #minima = [ ]
+        minGs = [ ]
+        for G in self._Gs:
+            if self._lock:  self._lock.acquire()
+            G = G.copy()
+            if self._lock:  self._lock.release()
+            minE = float('inf')
+            minG = None
+            for i in range(self.trials):
+                G.cmtyCreate() # randomizes it
+                G.minimize(gamma)
+                if minG is None:
+                    minE = G.energy
+                    minG = G.copy()
+                elif G.energy < minE:
+                    minE = G.energy
+                    minG = G.copy()
+            minGs.append(minG)
+        self._data[index] = MultiResolutionCorrelation(gamma, minGs)
+        if self._output is not None and self._writelock.acquire(False):
+            self.write(self._output)
+            self._writelock.release()
+    def _thread(self):
+        """Thread worker - do gammas until all are exhausted."""
+        try:
+            while True:
+                index = self._queue.get()
+                self._do_gammaindex(index)
+                self._queue.task_done()
+        except self._Empty:
+            return
+    def do(self, Gs, trials=10, output=None):
         """Do multi-resolution analysis on replicas Gs with `trials` each."""
+        self._Gs = Gs
         self.replicas = len(Gs)
         self.trials = trials
         for index in range(self.indexLow, self.indexHigh+1):
-            gamma = util.logTime(index)
-            #minima = [ ]
-            minGs = [ ]
-            for G in Gs:
-                thisGs = [ ]
-                for i in range(trials):
-                    G.cmtyCreate() # randomizes it
-                    G.minimize(gamma)
-                    #minima.append((G.energy(gamma), G.q))
-                    thisGs.append(G.copy())
-                    #minGs.append(G.copy())
-                minG = min(thisGs, key=lambda G: G.energy)
-                minGs.append(minG)
-            self._data[index] = MultiResolutionCorrelation(gamma, minGs)
+            self._do_gammaindex(index)
+            if output:
+                self.write(output)
+
+    def do_mt(self, Gs, trials=10, output=None, threads=2):
+        """Do multi-resolution analysis on replicas Gs with `trials` each.
+
+        Multi-threaded version"""
+        self._Gs = Gs
+        self.replicas = len(Gs)
+        self.trials = trials
+
+        import threading
+        import Queue
+        self._Empty = Queue.Empty
+        self._lock = threading.Lock()
+        self._writelock = threading.Lock()
+        self._queue = Queue.Queue()
+        self._output = output
+
+        for index in range(self.indexLow, self.indexHigh+1):
+            self._queue.put(index)
+
+        threadlst = [ ]
+        for tid in range(threads):
+            t = threading.Thread(target=self._thread)
+            t.daemon = True
+            t.start()
+            threadlst.append(t)
+
+        self._queue.join()
+
     def calc(self):
         MRCs = [ MRC for i, MRC in sorted(self._data.iteritems()) ]
 
