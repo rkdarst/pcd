@@ -283,12 +283,13 @@ int minimize(Graph_t G, double gamma) {
     int bestcmty = G->cmty[n];
 
     int oldcmty  = G->cmty[n];
-    double oldEoldCmty = energy_cmty(G, gamma, oldcmty);
+    //double oldEoldCmty = energy_cmty(G, gamma, oldcmty);
     //double Ebest = energy(G, gamma);
     /* printf("    i=%d, n=%d, old cmty=%d, Ncmty=%d\n", */
     /* 	   nindex, n, oldcmty, G->Ncmty); */
-    cmtyListRemove(G, oldcmty, n);
-    double deltaEoldCmty = energy_cmty(G, gamma, oldcmty) - oldEoldCmty;
+    //cmtyListRemove(G, oldcmty, n);
+    //double deltaEoldCmty = energy_cmty(G, gamma, oldcmty) - oldEoldCmty;
+    double deltaEoldCmty = - energy_cmty_n(G, gamma, oldcmty, n);
 
 
     int newcmty;
@@ -313,11 +314,12 @@ int minimize(Graph_t G, double gamma) {
       }
 
       //double Enew;
-      double oldEnewCmty = energy_cmty(G, gamma, newcmty);
-      cmtyListAdd(G, newcmty, n);
+      //double oldEnewCmty = energy_cmty(G, gamma, newcmty);
+      //cmtyListAdd(G, newcmty, n);
       //Enew = energy(G, gamma);
-      double deltaEnewCmty = energy_cmty(G, gamma, newcmty) - oldEnewCmty;
-      cmtyListRemove(G, newcmty, n);
+      //double deltaEnewCmty = energy_cmty(G, gamma, newcmty) - oldEnewCmty;
+      //cmtyListRemove(G, newcmty, n);
+      double deltaEnewCmty = energy_cmty_n(G, gamma, newcmty, n);
 
       if (deltaEoldCmty + deltaEnewCmty < deltaEbest) {
 	/* printf("  Better option for particle %d: %d %d %d\n", */
@@ -343,8 +345,10 @@ int minimize(Graph_t G, double gamma) {
       if (bestcmty == -1)
     	exit(56);
     }
-    cmtyListAdd(G, bestcmty, n);
+    //cmtyListAdd(G, bestcmty, n);
     if (oldcmty != bestcmty) {
+      cmtyListRemove(G, oldcmty, n);
+      cmtyListAdd(G, bestcmty, n);
       changes += 1;
       /* printf("particle %4d: cmty change %4d->%4d\n",  */
       /*        i, oldcmty, bestcmty); */
@@ -438,6 +442,28 @@ double energy_cmty(Graph_t G, double gamma, int c) {
   	else
   	  attractions += interaction;
     }
+  }
+  return(.5 * (attractions + gamma*repulsions));
+}
+
+double energy_cmty_n(Graph_t G, double gamma, int c, int n) {
+  /* Calculate the energy of only one community `c`, if it had node n
+   * in it.  Node n does not have to actually be in that community.
+   */
+  int attractions=0;
+  int repulsions =0;
+
+  // for communities c
+  int j, m;
+  for (j=0 ; j<G->cmtyN[c] ; j++) {
+    m = G->cmtyl[c][j];
+    if (m == n)
+      continue;
+    int interaction = G->interactions[n*G->N + m];
+    if (interaction > 0)
+      repulsions  += interaction;
+    else
+      attractions += interaction;
   }
   return(.5 * (attractions + gamma*repulsions));
 }
