@@ -18,3 +18,4 @@ typedef struct Graph {
 
 double energy(Graph_t G, double gamma);
 double energy_cmty(Graph_t G, double gamma, int c);
+double energy_cmty_n(Graph_t G, double gamma, int c, int n);

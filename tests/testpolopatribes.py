@@ -23,13 +23,15 @@ G2 = pcd.models.Graph.fromNetworkX(g_p1, defaultweight=1, diagonalweight=0)
 print G.interactions
 assert numpy.all(G.interactions - G.interactions.T == 0)
 
-G.minimize(gamma=.1)
-G2.minimize(gamma=.1)
-G.viz()
-print G._test()
-print G.interactions
-print G2.interactions
+while True:
+    G.minimize(gamma=.75)
+    #G2.minimize(gamma=.75)
+    G.viz()
+    #print G._test()
+    #print G.interactions
+    #print G2.interactions
 #from fitz import interactnow
+    break
 #exit(2)
 
 #for a,b in [random.sample(range(G.N), 2) for _ in range(1000)]:

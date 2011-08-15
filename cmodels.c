@@ -212,6 +212,9 @@ int find_empty_cmty(Graph_t G) {
   return(-1);
 }
 
+//int is_in_list()
+
+
 
 
 int minimize0(Graph_t G, double gamma) {
