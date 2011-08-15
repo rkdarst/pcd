@@ -69,8 +69,16 @@ void cmtyListRemove(Graph_t G, int c, int n) {
   }
   G->cmtyN[c]-- ;
   G->cmty[n] = -1;
-  if (c == G->Ncmty-1  &&  G->cmtyN[c] == 0 )
-    G->Ncmty--;
+  // If we just removed the greatest-numbered community
+  if (c == G->Ncmty-1  &&  G->cmtyN[c] == 0 ) {
+    // Altar Ncmty to If we just removed the greatest-numbered community
+    for (i=G->Ncmty-1 ; i>=0 ; i--) {
+      if (G->cmtyN[i] == 0)
+	G->Ncmty--;
+      else
+	break;
+    }
+  }
 }
 void cmtyListInit(Graph_t G) {
   /* Initialize the community lists.
@@ -277,25 +285,26 @@ int minimize(Graph_t G, double gamma) {
     int oldcmty  = G->cmty[n];
     double oldEoldCmty = energy_cmty(G, gamma, oldcmty);
     //double Ebest = energy(G, gamma);
-    /* printf("Partile %d, old community %d\n", i, oldcmty); */
+    /* printf("    i=%d, n=%d, old cmty=%d, Ncmty=%d\n", */
+    /* 	   nindex, n, oldcmty, G->Ncmty); */
     cmtyListRemove(G, oldcmty, n);
     double deltaEoldCmty = energy_cmty(G, gamma, oldcmty) - oldEoldCmty;
 
 
-    /* int newcmty; */
-    /* for (newcmty=0 ; newcmty<G->Ncmty ; newcmty++) { */
-    /*   // Try partiicle in each new cmty.  Accept the new community */
-    /*   // that has the lowest new energy. */
+    int newcmty;
+    for (newcmty=0 ; newcmty<G->Ncmty ; newcmty++) {
+      // Try partiicle in each new cmty.  Accept the new community
+      // that has the lowest new energy.
 
     /* int m; */
     /* for (m=0 ; m<G->N ; m++) { */
 
-    int mindex, m;
-    for (mindex=0 ; mindex<G->N ; mindex++) {
-      m = G->randomOrder2[mindex];
-      if (G->interactions[n*G->N + m] > 0)
-    	continue;
-      int newcmty = G->cmty[m];
+    /* int mindex, m; */
+    /* for (mindex=0 ; mindex<G->N ; mindex++) { */
+    /*   m = G->randomOrder2[mindex]; */
+    /*   if (G->interactions[n*G->N + m] > 0) */
+    /* 	continue; */
+    /*   int newcmty = G->cmty[m]; */
 
       if (newcmty == oldcmty)
 	continue;
@@ -341,6 +350,7 @@ int minimize(Graph_t G, double gamma) {
       /*        i, oldcmty, bestcmty); */
       //G->cmtyN[oldcmty]  --;
       //G->cmtyN[bestcmty] ++;
+      /* printf("    --> newcmty=%d\n", bestcmty); */
     }
   }
 return (changes);
@@ -520,6 +530,14 @@ int remap_cmtys(Graph_t G) {
     G->cmtyN[c] = 0;
     changes++;
     G->Ncmty--;
+  }
+  // Fix Ncmty to indicate our new max cmty number.
+  int i;
+  for (i=G->Ncmty-1 ; i>=0 ; i--) {
+    if (G->cmtyN[i] == 0)
+      G->Ncmty--;
+    else
+      break;
   }
   return(changes);
 }
