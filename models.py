@@ -347,7 +347,7 @@ class Graph(_cobj, object):
             # If we have no changes in regular and combinations, escape
             if changes == 0 and changesCombining == 0:
                 break
-            if round_ > 50:
+            if round_ > 100:
                 print "  Exceeding maximum number of rounds."
                 break
         #print set(self.cmty),
@@ -403,7 +403,7 @@ class Graph(_cobj, object):
         if check:
             self.cmtyListCheck()
     def remapCommunities_c(self, check=True):
-        print "remapping communities: ",
+        print "        remapping communities: ",
         changes = cmodels.remap_cmtys(self._struct_p)
         print changes, "changes"
         if check:
@@ -487,8 +487,12 @@ class MultiResolution(object):
                 self._queue.task_done()
         except self._Empty:
             return
-    def do(self, Gs, trials=10, output=None):
+    def do(self, Gs, trials=10, output=None, threads=1):
         """Do multi-resolution analysis on replicas Gs with `trials` each."""
+        if threads > 1:
+            return self.do_mt(Gs, trials=trials, output=output, threads=threads)
+
+
         self._Gs = Gs
         self.replicas = len(Gs)
         self.trials = trials
