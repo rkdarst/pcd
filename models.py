@@ -482,7 +482,7 @@ class MultiResolution(object):
         """Thread worker - do gammas until all are exhausted."""
         try:
             while True:
-                index = self._queue.get()
+                index = self._queue.get_nowait()
                 self._do_gammaindex(index)
                 self._queue.task_done()
         except self._Empty:
