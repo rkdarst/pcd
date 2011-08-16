@@ -51,6 +51,7 @@ cfuncs = (
     ("cmtyListRemove",   None,      (cGraph_p, c_int, c_int)),
     ("cmtyListInit",     None,      (cGraph_p, )),
     ("cmtyListCheck",    c_int,     (cGraph_p, )),
+    ("q",                c_int,     (cGraph_p, )),
     )
 print __file__
 filename = os.path.join(os.path.dirname(os.path.abspath(__file__)), '_cmodels.so')

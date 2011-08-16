@@ -215,6 +215,18 @@ int find_empty_cmty(Graph_t G) {
 //int is_in_list()
 
 
+int q(Graph_t G) {
+  /* Number of communities in graph G.
+   */
+  int q=0;
+  int c;
+  for (c=0 ; c<G->Ncmty ; c++) {
+    if (G->cmtyN[c] > 0)
+      q++;
+  }
+  return (q);
+}
+
 
 
 int minimize0(Graph_t G, double gamma) {

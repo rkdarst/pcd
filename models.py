@@ -287,17 +287,28 @@ class Graph(_cobj, object):
         """Return energy due to community c."""
         return cmodels.energy_cmty(self._struct_p, gamma, c)
     @property
-    def q(self):
+    def q_python(self):
         """Number of communities in the graph.
 
-        The C variable Ncmty is an upper bound for the number of
+        The attribute Ncmty is an upper bound for the number of
         communites, but some of those communities may be empty.  This
         attribute returns the number of non-empty communities."""
-        q = len([1 for cn in self.cmtyN if cn > 0])
+        q = len([1 for c in range(self.Ncmty) if self.cmtyN[c] > 0])
         #q = sum(self.cmtyN > 0)
         #q = len(set(self.cmty))  #FIXME this is fast, but a bit wrong.
         #assert q == len(set(self.cmty))
         return q
+    @property
+    def q_c(self):
+        """Number of communities in the graph.
+
+        The attribute Ncmty is an upper bound for the number of
+        communites, but some of those communities may be empty.  This
+        attribute returns the number of non-empty communities.
+
+        Optimized implementation in C."""
+        return cmodels.q(self._struct_p)
+    q = q_c
     @property
     def entropy(self):
         """Return the entropy of this graph.
