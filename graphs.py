@@ -14,7 +14,11 @@ from xml.etree import ElementTree
 import networkx
 from networkx.generators.classic import grid_graph
 import networkx.generators.random_graphs
-import networkx.convert
+
+try:
+    from networkx.relabel import relabel_nodes as nx_relabel_nodes
+except AttributeError:
+    from networkx.convert import relabel_nodes as nx_relabel_nodes
 
 import models
 import util
@@ -27,7 +31,7 @@ def random_graph(graph=None, size=10, cluster=True, layout=None):
     """
     if graph is None:
         g = grid_graph(dim=[size,size])
-    g = networkx.convert.relabel_nodes(
+    g = nx_relabel_nodes(
         g, dict((n,i) for i,n in enumerate(g.nodes())))
     if layout:
         layout = nx.drawing.nx_pydot.pydot_layout(g)

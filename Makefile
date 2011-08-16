@@ -2,16 +2,16 @@
 
 CFLAGS=-O3
 
-opts=-Wall -shared -fPIC
+opts=-Wall -lm -shared -fPIC
 
 _cmodels.so: cmodels.o SFMT.o
-	gcc ${opts} ${CFLAGS} -lm cmodels.o SFMT.o -o _cmodels.so
+	$(CC) ${opts} ${CFLAGS} -lm cmodels.o SFMT.o -o _cmodels.so
 
 cmodels.o: cmodels.c cmodels.h
-	gcc ${opts} ${CFLAGS} -c cmodels.c
+	$(CC) ${opts} ${CFLAGS} -c cmodels.c
 
 SFMT.o: SFMT.c SFMT.h
-	gcc ${opts} ${CFLAGS} -DMEXP=19937 -include SFMT-params.h -c SFMT.c
+	$(CC) ${opts} ${CFLAGS} -DMEXP=19937 -include SFMT-params.h -c SFMT.c
 
 #test:
 #        python tests/unittests_run.py

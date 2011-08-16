@@ -27,7 +27,7 @@ assert id(G) != id(G2)
 for name in dir(G):
     if name[:2] == '__' \
        or isinstance(getattr(G, name), types.MethodType)\
-       or name in ('_layout', 'q', ):
+       or name in ('_layout', 'q', 'q_c', 'q_python' ):
         continue
     print name, id(getattr(G, name)), id(getattr(G2, name)), \
           type(getattr(G, name))

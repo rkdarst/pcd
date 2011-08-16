@@ -600,7 +600,7 @@ double mutual_information(Graph_t G0, Graph_t G1) {
 						  n0, n1);
       if (n_shared == 0)
 	continue;
-      MI += (n_shared/(float)N) * log2(n_shared*N/((float)n0*n1));
+      MI += (n_shared/(float)N) * log2(n_shared*N/((double)n0*n1));
     }
   }
   return (MI);
