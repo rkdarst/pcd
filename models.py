@@ -449,9 +449,12 @@ class MultiResolution(object):
     """
     _output = None
     _lock = None
-    def __init__(self, low, high):
+    def __init__(self, low, high, callback=None):
+        """
+        """
         self.indexLow  = int(floor(util.logTimeIndex(low )))
         self.indexHigh = int(ceil (util.logTimeIndex(high)))
+        self.callback = callback
 
         self._data = { } #collections.defaultdict(dict)
     def _do_gammaindex(self, index):
@@ -478,6 +481,10 @@ class MultiResolution(object):
         if self._output is not None and self._writelock.acquire(False):
             self.write(self._output)
             self._writelock.release()
+        if self.callback:
+            totalminimum = min(minGs, key=lambda x: G.energy)
+            self.callback(G=totalminimum, gamma=gamma,
+                          mrc=self._data[index])
     def _thread(self):
         """Thread worker - do gammas until all are exhausted."""
         try:
