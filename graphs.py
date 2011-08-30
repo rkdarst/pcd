@@ -17,7 +17,7 @@ import networkx.generators.random_graphs
 
 try:
     from networkx.relabel import relabel_nodes as nx_relabel_nodes
-except AttributeError:
+except ImportError:
     from networkx.convert import relabel_nodes as nx_relabel_nodes
 
 import models

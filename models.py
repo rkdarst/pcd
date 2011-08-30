@@ -437,6 +437,7 @@ class MultiResolutionCorrelation(object):
 
         self.gamma   = gamma
         self.q       = numpy.mean(tuple(G.q for G in Gs))
+        self.qmin    = min(G.q for G in Gs)
         self.E       = numpy.mean(tuple(G.energy(gamma) for G in Gs))
         self.entropy = numpy.mean(tuple(G.entropy for G in Gs))
 
@@ -541,6 +542,7 @@ class MultiResolution(object):
 
         self.gammas    = gammas    = [mrc.gamma     for mrc in MRCs]
         self.qs        = qs        = [mrc.q         for mrc in MRCs]
+        self.qmins     = minss     = [mrc.qmin      for mrc in MRCs]
         self.Es        = Es        = [mrc.E         for mrc in MRCs]
         self.entropies = entropies = [mrc.entropy   for mrc in MRCs]
 
@@ -548,7 +550,7 @@ class MultiResolution(object):
         self.VIs       = VIs       = [mrc.VI        for mrc in MRCs]
         self.Ins       = Ins       = [mrc.In        for mrc in MRCs]
         self.field_names = ("gammas", "qs", "Es", "entropies",
-                            "Is", "VIs", "Ins", )
+                            "Is", "VIs", "Ins", "qmins")
     def write(self, fname):
         self.calc()
         f = open(fname, 'w')
