@@ -26,7 +26,7 @@ cGraph._fields_ = [
     ("cmtyN",        c_int_p),
     ("randomOrder",  c_int_p),
     ("randomOrder2", c_int_p),
-    
+
     #("callback", Callback),   # callback to let us get python shell from C
     #("S", ctypes.py_object),  # Pointer for function above
     ]
@@ -54,10 +54,10 @@ cfuncs = (
     ("cmtyListCheck",    c_int,     (cGraph_p, )),
     ("q",                c_int,     (cGraph_p, )),
     )
-print __file__
+
 filename = os.path.join(os.path.dirname(os.path.abspath(__file__)), '_cmodels.so')
 C = ctypes.cdll[os.path.join(os.path.dirname(__file__), filename)]
-                        
+
 for name, restype, argtypes in cfuncs:
     getattr(C, name).restype  = restype
     getattr(C, name).argtypes = argtypes
