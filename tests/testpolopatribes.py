@@ -26,7 +26,7 @@ assert numpy.all(G.interactions - G.interactions.T == 0)
 while True:
     G.minimize(gamma=.75)
     #G2.minimize(gamma=.75)
-    G.viz()
+    #G.viz()
     #print G._test()
     #print G.interactions
     #print G2.interactions
@@ -37,12 +37,12 @@ while True:
 #for a,b in [random.sample(range(G.N), 2) for _ in range(1000)]:
 #    pcd.util.matrix_swap_basis(G.interactions, a, b)
 MR = pcd.models.MultiResolution(low=.01, high=10)
-MR.do(Gs=[G]*12, trials=50)
+MR.do(Gs=[G]*12, trials=10)
 MR.write("tmp-polopatribes.txt")
 #MR.viz()
 
 #for a,b in [random.sample(range(G2.N), 2) for _ in range(1000)]:
 #    pcd.util.matrix_swap_basis(G2.interactions, a, b)
-MR = pcd.models.MultiResolution(low=.01, high=10)
-MR.do(Gs=[G2]*12, trials=50)
-MR.write("tmp-polopatribes2.txt")
+#MR = pcd.models.MultiResolution(low=.01, high=10)
+#MR.do(Gs=[G2]*12, trials=50)
+#MR.write("tmp-polopatribes2.txt")
