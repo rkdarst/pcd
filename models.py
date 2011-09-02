@@ -280,6 +280,32 @@ class Graph(_cobj, object):
         plt.show()
         return g
 
+    def savefig(self, fname, coords, **kwargs):
+        import matplotlib.figure
+        import matplotlib.backends.backend_agg
+        from matplotlib.patches import Circle
+        import matplotlib.cm as cm
+
+        colormap = dict((n, cm.gist_rainbow(self.cmty[n]/float(self.Ncmty)))
+                        for n in range(self.N))
+
+        #f = matplotlib.backends.backend_agg.Figure()
+        f = matplotlib.figure.Figure()
+        c = matplotlib.backends.backend_agg.FigureCanvasAgg(f)
+        ax = f.add_subplot(111, aspect='equal')
+
+        radius = .5
+        for n in range(self.N):
+            cir = Circle(coords[n], radius=radius, axes=ax,
+                         color=colormap.get(n, 'black'),
+                         **kwargs)
+            ax.add_patch(cir)
+
+        ax.autoscale_view(tight=True)
+        print fname
+        c.print_figure(fname, bbox_inches='tight')
+
+
     def energy(self, gamma):
         """Return total energy of the graph."""
         return cmodels.energy(self._struct_p, gamma)
@@ -562,6 +588,31 @@ class MultiResolution(object):
             for name in self.field_names:
                 print >> f, getattr(self, name)[i],
             print >> f
+    def plot(self, fname):
+        from matplotlib.backends.backend_agg import Figure, FigureCanvasAgg
+        f = Figure()
+        c = FigureCanvasAgg(f)
+        #ax = f.add_subplot(111)
+        #ax.plot(array[:,0], array[:,1]/50., label="q")
+        #ax.set_xscale('log')
+
+        ax_q  = f.add_subplot(111)
+        ax_q.set_xscale('log')
+        ax_q.set_xlabel('$\gamma$')
+        ax_q.set_ylabel('$q$')
+        ax_q.set_ylim(bottom=0)
+        ax_vi = ax_q.twinx()
+        ax_vi.set_ylabel('$VI$')
+
+        l = ax_q.plot(self.gammas, self.qs)
+        #from fitz import interactnow
+        l2 = ax_vi.plot(self.gammas, self.VIs, '--',
+                        color=l[0].get_color())
+        l2 = ax_vi.plot(self.gammas, self.Ins, '.',
+                        color=l[0].get_color())
+
+
+        c.print_figure(fname, bbox_inches='tight')
 
     def viz(self):
         import matplotlib.pyplot as pyplot
