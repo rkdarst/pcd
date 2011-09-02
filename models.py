@@ -450,6 +450,8 @@ class Graph(_cobj, object):
 class MultiResolutionCorrelation(object):
     def __init__(self, gamma, Gs):
         pairs = [ ]
+
+        Gmin = min(Gs, key=lambda G: G.energy)
         for i, G0 in enumerate(Gs):
             for j, G1 in enumerate(Gs[i+1:]):
                 pairs.append((G0, G1))
@@ -463,7 +465,7 @@ class MultiResolutionCorrelation(object):
 
         self.gamma   = gamma
         self.q       = numpy.mean(tuple(G.q for G in Gs))
-        self.qmin    = min(G.q for G in Gs)
+        self.qmin    = Gmin.q
         self.E       = numpy.mean(tuple(G.energy(gamma) for G in Gs))
         self.entropy = numpy.mean(tuple(G.entropy for G in Gs))
 
