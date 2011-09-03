@@ -312,6 +312,16 @@ class Graph(_cobj, object):
     def energy_cmty(self, gamma, c):
         """Return energy due to community c."""
         return cmodels.energy_cmty(self._struct_p, gamma, c)
+    def energy_cmty_n(self, gamma, c, n):
+        """Return energy due to particle n if it was in community c."""
+        return cmodels.energy_cmty_n(self._struct_p, gamma, c, n)
+    def energy_cmty_cmty(self, gamma, c1, c2):
+        """Total entery of interaction between two communities."""
+        # FIXME: optimize this some, do it in C.
+        E = 0.
+        for n1 in self.cmtyll[c1, :self.cmtyN[c1]]:
+            E += self.energy_cmty_n(gamma, c2, n1)
+        return E
     @property
     def q_python(self):
         """Number of communities in the graph.
@@ -351,32 +361,38 @@ class Graph(_cobj, object):
         that, use self.cmtyCreate() first.
         """
         print "beginning minimization (n=%s, gamma=%s)"%(self.N, gamma)
+        changes = 0
 
         changesCombining = None
         for round_ in itertools.count():
             self.randomizeOrder()
-            changes = self._minimize(gamma=gamma)
-            print "  (r%2s) cmtys, changes: %4d %4d"%(round_, self.q, changes)
+            changesMoving = self._minimize(gamma=gamma)
+            changes += changesMoving
+            print "  (r%2s) cmtys, changes: %4d %4d"%(round_, self.q,
+                                                      changesMoving)
 
-            if changes == 0 and changesCombining == 0:
+            if changesMoving == 0 and changesCombining == 0:
                 break
 
             # If we got no changes, then try combining communities
             # before breaking out.
-            if changes == 0:
-                changesCombining = self.combine_cmtys(gamma=gamma)
+            if changesMoving == 0:
+                #changesCombining = self.combine_cmtys(gamma=gamma)
+                changesCombining = self.combine_cmtys_subgraph(gamma=gamma)
+                changes += changesCombining
                 print "  (r%2s) cmtys, changes: %4d %4d"%(
                                            round_, self.q, changesCombining), \
                       "(<-- combining communities)"
 
                 self.remapCommunities(check=False)
             # If we have no changes in regular and combinations, escape
-            if changes == 0 and changesCombining == 0:
+            if changesMoving == 0 and changesCombining == 0:
                 break
-            if round_ > 100:
+            if round_ > 250:
                 print "  Exceeding maximum number of rounds."
                 break
         #print set(self.cmty),
+        return changes
     def _minimize(self, gamma):
         return cmodels.minimize(self._struct_p, gamma)
     def combine_cmtys(self, gamma):
@@ -446,6 +462,70 @@ class Graph(_cobj, object):
         g = util.networkx_from_matrix(self.interactions,
                                       ignore_values=ignore_values)
         return g
+
+
+    def subGraph(self, gamma, multiplier=100):
+        """Great a sub-graph of super-nodes composed of communities.
+
+        Each community is turned into a super-node, and energy of
+        interaction between communities is calculated.
+        """
+        self.remapCommunities()
+        N = self.q
+        G = self.__class__(N=N)
+        for c1 in range(N):
+            for c2 in range(c1+1, N):
+                # Find the energy of interaction between c1 and c2
+                E = self.energy_cmty_cmty(gamma, c1, c2)
+                G.interactions[c1, c2] = E*multiplier
+                G.interactions[c2, c1] = E*multiplier
+        return G
+    def loadFromSubgraph(self, G):
+        # For each community in the sub-graph
+        mapping = { }
+        for c in range(G.N):
+            for n in self.cmtyll[c, :self.cmtyN[c]]:
+                #print "w", c, n, self.cmtyll[c, :self.cmtyN[c]]
+                mapping[n] = G.cmty[c]
+        #print mapping
+        print "Subgraph changes in q: %d -> %d"%(self.q, G.q)
+        assert max(mapping) == len(mapping)-1
+        #print self.cmty
+        for n in range(self.N):
+            #print "x", n, self.cmty[n], "->", mapping[n]
+            self.cmty[n] = mapping[n]
+        #print self.cmty
+        self.cmtyListInit()
+        self.cmtyListCheck()
+    def combine_cmtys_subgraph(self, gamma, depth=0):
+        """Attempt to combine communities if energy decreases."""
+        depth = getattr(self, "depth", 0)
+        if depth > 0:
+            return 0
+        # Can't minimize if there are not enough communities.
+        if self.q == 1:
+            return 0
+        print "==== minimizing subgraph, depth:", depth
+        subG = self.subGraph(gamma=gamma, multiplier=1000)
+        subG.depth = depth + 1
+        # If entire interaction matrix is positive, combining is futile.
+        if numpy.any(subG.interactions < 0):
+            return 0
+        print subG.interactions
+        print subG.cmty
+        changes = subG.minimize(gamma=gamma)
+        # No need to try to reload subgraph if no changes.
+        if changes == 0:
+            return 0
+        print subG.cmty
+        if not numpy.any(subG.interactions < 0):
+            assert changes == 0
+        print self.cmty
+        self.loadFromSubgraph(subG)
+        print self.cmty
+        print "==== done minimizing subgraph, depth:", depth
+#        raw_input(str(changes)+'>')
+        return changes
 
 class MultiResolutionCorrelation(object):
     def __init__(self, gamma, Gs):
