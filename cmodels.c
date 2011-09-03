@@ -90,6 +90,8 @@ void cmtyListInit(Graph_t G) {
   for (c=0 ; c<G->N ; c++) {
     G->cmtyN[c] = 0;
   }
+  // Set Ncmty to zero. cmtyListAdd automatically increments this as needed.
+  G->Ncmty = 0;
   // Iterate through particles adding them to community lists
   for (n=0 ; n<G->N ; n++) {
     cmtyListAdd(G, G->cmty[n], n);
