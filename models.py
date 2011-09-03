@@ -254,7 +254,7 @@ class Graph(_cobj, object):
         for a,b,d in g.edges_iter(data=True):
             weight = d['weight']
             width = 1
-            print a,b,weight
+            #print a,b,weight
             if self.cmty[g.node[a]['index']] == self.cmty[g.node[b]['index']]:
                 newweight = 15
                 width = 5
