@@ -215,5 +215,16 @@ def _test_hierarchical_graph():
     print "   nodes:", sorted(g.nodes())
 
 
+def karate_club():
+    fname = os.path.join(os.path.dirname(__file__),
+                         "data/karate_weighted_nooffset.gml")
+    g = networkx.read_gml(fname)
+    for a,b,d in g.edges(data=True):
+        print a, b, d
+        g.edge[a][b]['weight'] = -d['value']
+    return g
+
+
+
 if __name__ == "__main__":
     print polopa_tribes()

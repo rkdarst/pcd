@@ -56,3 +56,14 @@ plot "tmp-256node.txt" \
     "data/nussinov_2009_fig2_H.txt" using 1:2       lt 2 lw 1 t "H-paper", \
     "data/nussinov_2009_fig2_I.txt" using 1:2       lt 3 lw 1 t "I-paper"
 #    "" using 1:(($3+160)/20) lt 4 lw 3 t "E",  \
+
+
+plot [] [] "tmp-karate.txt" \
+       using 1:($2/4) lt 1 lw 3 t "q/4",  \
+    "" using 1:4 lt 2 lw 3 t "H",  \
+    "" using 1:5 lt 3 lw 3 t "I",  \
+    "" using 1:6 lt 4 lw 3 t "VI"
+    "data/highland_peter/highlandRetestrw.txt" using 4:15 lt 1 lw 1 t "q-peter", \
+    "data/highland_peter/highlandRetestrw.txt" using 4:11 lt 2 lw 1 t "H-peter", \
+    "data/highland_peter/highlandRetestrw.txt" using 4:9  lt 3 lw 1 t "I-peter"
+set term png size 1024,700 ; set output "karate.png" ; replot ; set term pop

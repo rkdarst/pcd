@@ -509,20 +509,20 @@ class Graph(_cobj, object):
         subG = self.subGraph(gamma=gamma, multiplier=1000)
         subG.depth = depth + 1
         # If entire interaction matrix is positive, combining is futile.
-        if numpy.any(subG.interactions < 0):
+        if not numpy.any(subG.interactions < 0):
             return 0
-        print subG.interactions
-        print subG.cmty
+        #print subG.interactions
+        #print subG.cmty
         changes = subG.minimize(gamma=gamma)
         # No need to try to reload subgraph if no changes.
         if changes == 0:
             return 0
-        print subG.cmty
+        #print subG.cmty
         if not numpy.any(subG.interactions < 0):
             assert changes == 0
-        print self.cmty
+        #print self.cmty
         self.loadFromSubgraph(subG)
-        print self.cmty
+        #print self.cmty
         print "==== done minimizing subgraph, depth:", depth
 #        raw_input(str(changes)+'>')
         return changes
@@ -545,6 +545,7 @@ class MultiResolutionCorrelation(object):
 
         self.gamma   = gamma
         self.q       = numpy.mean(tuple(G.q for G in Gs))
+        self.q_std   = numpy.std(tuple(G.q for G in Gs), ddof=1)
         self.qmin    = Gmin.q
         self.E       = numpy.mean(tuple(G.energy(gamma) for G in Gs))
         self.entropy = numpy.mean(tuple(G.entropy for G in Gs))
@@ -553,21 +554,24 @@ class MultiResolutionCorrelation(object):
         self.VI      = VI
         self.In      = In
 
+from fitz.loginterval import LogInterval
+
 class MultiResolution(object):
     """Class to do full multi-resolution analysis.
     """
     _output = None
     _lock = None
-    def __init__(self, low, high, callback=None):
+    def __init__(self, low, high, callback=None, number=10):
         """
         """
-        self.indexLow  = int(floor(util.logTimeIndex(low )))
-        self.indexHigh = int(ceil (util.logTimeIndex(high)))
+        self._li = li = LogInterval(number=number)
+        self.indexLow  = int(floor(li.index(low )))
+        self.indexHigh = int(ceil (li.index(high)))
         self.callback = callback
 
         self._data = { } #collections.defaultdict(dict)
     def _do_gammaindex(self, index):
-        gamma = util.logTime(index)
+        gamma = self._li.value(index)
         #minima = [ ]
         minGs = [ ]
         for G in self._Gs:
@@ -670,10 +674,14 @@ class MultiResolution(object):
             for name in self.field_names:
                 print >> f, getattr(self, name)[i],
             print >> f
-    def plot(self, fname):
-        from matplotlib.backends.backend_agg import Figure, FigureCanvasAgg
-        f = Figure()
-        c = FigureCanvasAgg(f)
+    def plot(self, fname=None):
+        if fname:
+            from matplotlib.backends.backend_agg import Figure, FigureCanvasAgg
+            f = Figure()
+            c = FigureCanvasAgg(f)
+        else:
+            from matplotlib import pyplot
+            f = pyplot.gcf()
         #ax = f.add_subplot(111)
         #ax.plot(array[:,0], array[:,1]/50., label="q")
         #ax.set_xscale('log')
@@ -684,17 +692,18 @@ class MultiResolution(object):
         ax_q.set_ylabel('$q$')
         ax_q.set_ylim(bottom=0)
         ax_vi = ax_q.twinx()
-        ax_vi.set_ylabel('$VI$')
+        ax_vi.set_ylabel('$VI$ and $I_n$')
 
         l = ax_q.plot(self.gammas, self.qs)
         #from fitz import interactnow
         l2 = ax_vi.plot(self.gammas, self.VIs, '--',
                         color=l[0].get_color())
-        l2 = ax_vi.plot(self.gammas, self.Ins, '.',
+        l3 = ax_vi.plot(self.gammas, self.Ins, '.',
                         color=l[0].get_color())
+        ax_q.legend((l, l2, l3), ("$q$", "$VI$", "$I_n$"), loc=0)
 
-
-        c.print_figure(fname, bbox_inches='tight')
+        if fname:
+            c.print_figure(fname, bbox_inches='tight')
 
     def viz(self):
         import matplotlib.pyplot as pyplot
