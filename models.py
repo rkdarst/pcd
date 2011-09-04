@@ -531,7 +531,7 @@ class MultiResolutionCorrelation(object):
     def __init__(self, gamma, Gs):
         pairs = [ ]
 
-        Gmin = min(Gs, key=lambda G: G.energy)
+        Gmin = min(Gs, key=lambda G: G.energy(gamma))
         for i, G0 in enumerate(Gs):
             for j, G1 in enumerate(Gs[i+1:]):
                 pairs.append((G0, G1))
@@ -583,11 +583,12 @@ class MultiResolution(object):
             for i in range(self.trials):
                 G.cmtyCreate() # randomizes it
                 G.minimize(gamma)
+                thisE = G.energy(gamma)
                 if minG is None:
-                    minE = G.energy
+                    minE = thisE
                     minG = G.copy()
-                elif G.energy < minE:
-                    minE = G.energy
+                elif thisE < minE:
+                    minE = thisE
                     minG = G.copy()
             minGs.append(minG)
         self._data[index] = MultiResolutionCorrelation(gamma, minGs)
@@ -595,7 +596,7 @@ class MultiResolution(object):
             self.write(self._output)
             self._writelock.release()
         if self.callback:
-            totalminimum = min(minGs, key=lambda x: G.energy)
+            totalminimum = min(minGs, key=lambda x: G.energy(gamma))
             self.callback(G=totalminimum, gamma=gamma,
                           mrc=self._data[index])
     def _thread(self):
