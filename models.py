@@ -346,13 +346,17 @@ class Graph(_cobj, object):
         return cmodels.q(self._struct_p)
     q = q_c
     @property
-    def entropy(self):
+    def entropy_python(self):
         """Return the entropy of this graph.
         """
         N = float(self.N)
         H = sum( (n/N)*log2(n/N)  for n in self.cmtyN
                  if n!=0 )
         return -H
+    @property
+    def entropy_c(self):
+        return cmodels.entropy(self._struct_p)
+    entropy = entropy_c
 
     def minimize(self, gamma):
         """Minimize the communities at a certain gamma.

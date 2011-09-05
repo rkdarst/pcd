@@ -53,6 +53,7 @@ cfuncs = (
     ("cmtyListInit",     None,      (cGraph_p, )),
     ("cmtyListCheck",    c_int,     (cGraph_p, )),
     ("q",                c_int,     (cGraph_p, )),
+    ("entropy",          c_double,  (cGraph_p, )),
     )
 
 filename = os.path.join(os.path.dirname(os.path.abspath(__file__)), '_cmodels.so')

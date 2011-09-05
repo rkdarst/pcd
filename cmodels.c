@@ -228,7 +228,18 @@ int q(Graph_t G) {
   }
   return (q);
 }
-
+double entropy(Graph_t G) {
+  double N = (double)G->N;
+  double H = 0;
+  int c;
+  for (c=0; c<G->Ncmty ; c++) {
+    int n = G->cmtyN[c];
+    if (n == 0)
+      continue;
+    H += n/N * log2(n/N);
+  }
+  return -H;
+}
 
 
 int minimize0(Graph_t G, double gamma) {
