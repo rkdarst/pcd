@@ -383,8 +383,8 @@ class Graph(_cobj, object):
             # If we got no changes, then try combining communities
             # before breaking out.
             if changesMoving == 0:
-                #changesCombining = self.combine_cmtys(gamma=gamma)
-                changesCombining = self.combine_cmtys_subgraph(gamma=gamma)
+                changesCombining = self.combine_cmtys(gamma=gamma)
+                #changesCombining = self.combine_cmtys_subgraph(gamma=gamma)
                 changes += changesCombining
                 print "  (r%2s) cmtys, changes: %4d %4d"%(
                                            round_, self.q, changesCombining), \
@@ -546,7 +546,8 @@ class MultiResolutionCorrelation(object):
         VI = numpy.mean([G0.entropy + G1.entropy - 2*mi
                          for ((G0,G1), mi) in zip(pairs, Is)])
         In = numpy.mean([2*mi / (G0.entropy + G1.entropy)
-                         for ((G0,G1), mi) in zip(pairs, Is)])
+                         for ((G0,G1), mi) in zip(pairs, Is)
+                         if G0.q!=1 or G0.q!=1])
 
         self.gamma   = gamma
         self.q       = numpy.mean(tuple(G.q for G in Gs))

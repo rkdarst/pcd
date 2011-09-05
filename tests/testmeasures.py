@@ -20,22 +20,34 @@ assert G.q == len(set(G.cmty))
 G.cmtyCreate(randomize=False)
 
 # Test energies
+# energy = sum(energy_cmty)
 assert G.energy(gamma) == sum(G.energy_cmty(gamma, c) for c in range(G.Ncmty))
 G.minimize(gamma)
 assert G.energy(gamma) == sum(G.energy_cmty(gamma, c) for c in range(G.Ncmty))
-G.cmtyCreate(randomize=False)
+# test energy_cmty vs energy_cmty_n
+for c in range(G.Ncmty):
+    assert G.energy_cmty(gamma, c) == sum(G.energy_cmty_n(gamma, c, n)
+                                          for n in G.cmtyContents(c))
+# test energy_cmty_cmty
+# FIXME: how can this be tested well?
+
+
 
 # Test entropies
 # Evenly distribution
+G.cmtyCreate(randomize=False)
+assert G.entropy_python == G.entropy_c
 s = G.entropy
 calculatedS = -(25 * (1/25.) * log(1/25., 2))
 #print s, calculatedS, s-calculatedS
-assert round(s-calculatedS, 10)==0, "Etropy calculation: %s"%((s, calculatedS))
+assert round(s-calculatedS, 10)==0, ("Entropy calculation: %s %s"%
+                                     (s, calculatedS))
 # Spiked distribution, all in one community, entropy should be zero.
 
 G.cmty[:] = 0
 G.cmtyListInit()
 assert G.entropy == 0
+assert G.entropy_python == G.entropy_c
 
 # Reset to normal
 G.cmtyCreate(randomize=False)
