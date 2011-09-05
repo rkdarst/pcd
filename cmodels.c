@@ -144,7 +144,7 @@ int cmtyListCheck(Graph_t G) {
   }
   // Then go and check list -> raw values.  This will break once you
   // can have one node in multiple communities.
-  assert(! G->oneToOne);
+  assert(G->oneToOne);
   for (cmty=0; cmty < G->Ncmty; cmty++) {
     for (i=0; i<G->cmtyN[cmty]; i++) {
       n = G->cmtyl[cmty][i];
