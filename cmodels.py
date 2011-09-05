@@ -43,6 +43,7 @@ cfuncs = (
     ("energy",        c_double, (cGraph_p, c_double)),
     ("energy_cmty",   c_double, (cGraph_p, c_double, c_int)),
     ("energy_cmty_n", c_double, (cGraph_p, c_double, c_int, c_int)),
+    ("energy_cmty_cmty", c_double, (cGraph_p, c_double, c_int, c_int)),
     ("combine_cmtys", c_int,    (cGraph_p, c_double)),
     ("remap_cmtys",   c_int,    (cGraph_p, )),
     ("mutual_information",

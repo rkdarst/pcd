@@ -227,6 +227,8 @@ class Graph(_cobj, object):
     def cmtySet(self, n, c):
         """Set the community of a particle"""
         raise NotImplementedError("cmtySet not implemented yet.")
+    def cmtyContents(self, c):
+        return self.cmtyll[c, :self.cmtyN[c]]
     def randomizeOrder(self, randomize=True):
         if not randomize:
             # Fake mode: actually sort them
@@ -316,12 +318,12 @@ class Graph(_cobj, object):
         """Return energy due to particle n if it was in community c."""
         return cmodels.energy_cmty_n(self._struct_p, gamma, c, n)
     def energy_cmty_cmty(self, gamma, c1, c2):
-        """Total entery of interaction between two communities."""
-        # FIXME: optimize this some, do it in C.
-        E = 0.
-        for n1 in self.cmtyll[c1, :self.cmtyN[c1]]:
-            E += self.energy_cmty_n(gamma, c2, n1)
-        return E
+        """Total entery of interaction between two communities.
+
+        This can be used for making the supernode graph, but is not
+        used in normal energy calculations as this is not included in
+        normal energy calculations."""
+        return cmodels.energy_cmty_cmty(self._struct_p, gamma, c1, c2)
     @property
     def q_python(self):
         """Number of communities in the graph.
@@ -488,8 +490,7 @@ class Graph(_cobj, object):
         # For each community in the sub-graph
         mapping = { }
         for c in range(G.N):
-            for n in self.cmtyll[c, :self.cmtyN[c]]:
-                #print "w", c, n, self.cmtyll[c, :self.cmtyN[c]]
+            for n in self.cmtyContents(c):
                 mapping[n] = G.cmty[c]
         #print mapping
         print "Subgraph changes in q: %d -> %d"%(self.q, G.q)

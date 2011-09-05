@@ -496,6 +496,16 @@ double energy_cmty_n(Graph_t G, double gamma, int c, int n) {
   return(.5 * (attractions + gamma*repulsions));
 }
 
+double energy_cmty_cmty(Graph_t G, double gamma, int c1, int c2) {
+  double E=0;
+  int i1, n1;
+  for (i1=0 ; i1 < G->cmtyN[c1] ; i1++) {
+    n1 = G->cmtyl[c1][i1];
+    E += energy_cmty_n(G, gamma, c2, n1);
+  }
+  return (E);
+}
+
 int combine_cmtys(Graph_t G, double gamma) {
   /* Attempt to merge communities to get a lower energy assignment.
    * Pairwise attempt to merge all.
