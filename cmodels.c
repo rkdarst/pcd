@@ -1,3 +1,4 @@
+#include <assert.h>
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -143,6 +144,7 @@ int cmtyListCheck(Graph_t G) {
   }
   // Then go and check list -> raw values.  This will break once you
   // can have one node in multiple communities.
+  assert(! G->oneToOne);
   for (cmty=0; cmty < G->Ncmty; cmty++) {
     for (i=0; i<G->cmtyN[cmty]; i++) {
       n = G->cmtyl[cmty][i];
@@ -172,6 +174,9 @@ int cmtyListCheck(Graph_t G) {
   }
   return (errors);
 }
+
+
+
 
 int shared_nodes_between_communities(int *cmtyl0, int *cmtyl1,
 				     int  cmtyN0, int  cmtyN1) {
@@ -229,6 +234,10 @@ int q(Graph_t G) {
   return (q);
 }
 double entropy(Graph_t G) {
+  /* Information entropy of community allocation of graph G
+   * Requires graph to be one-to-one.
+   */
+  assert(G->oneToOne);
   double N = (double)G->N;
   double H = 0;
   int c;
@@ -241,8 +250,121 @@ double entropy(Graph_t G) {
   return -H;
 }
 
+double mutual_information(Graph_t G0, Graph_t G1) {
+  assert(G0->N == G1->N);
+  int N = G0->N;
+  double MI=0.0;
 
-int minimize0(Graph_t G, double gamma) {
+  int c0, c1, n0, n1, n_shared;
+  for (c0=0 ; c0 < G0->Ncmty ; c0++) {
+    n0 = G0->cmtyN[c0];
+    for (c1=0 ; c1 < G1->Ncmty ; c1++) {
+      n1 = G1->cmtyN[c1];
+
+      n_shared = shared_nodes_between_communities(G0->cmtyl[c0], G1->cmtyl[c1],
+						  n0, n1);
+      if (n_shared == 0)
+	continue;
+      MI += (n_shared/(float)N) * log2(n_shared*N/((double)n0*n1));
+    }
+  }
+  return (MI);
+}
+
+
+
+double energy(Graph_t G, double gamma) {
+  /* Calculate energy using community lists.  Much faster.
+   */
+  int attractions=0;
+  int repulsions =0;
+  int c, n;
+  //cmtyListInit(G);
+
+  for (c=0 ; c<G->Ncmty ; c++) {
+    // for communities c
+    int i, j, m;
+    for (i=0 ; i<G->cmtyN[c] ; i++) {
+      // Do symmetric: both directions.
+      for (j=0 ; j<G->cmtyN[c] ; j++) {
+	if (i == j)
+	  continue;
+	n = G->cmtyl[c][i];
+	m = G->cmtyl[c][j];
+	assert(n != m);
+	int interaction = G->interactions[n*G->N + m];
+	if (interaction > 0)
+	  repulsions  += interaction;
+	else
+	  attractions += interaction;
+      }
+    }
+  }
+  return(.5 * (attractions + gamma*repulsions));
+}
+
+double energy_cmty(Graph_t G, double gamma, int c) {
+  /* Calculate the energy of only one community `c`.
+   */
+  int attractions=0;
+  int repulsions =0;
+  int n;
+
+  // for communities c
+  int i, j, m;
+  for (i=0 ; i<G->cmtyN[c] ; i++) {
+    // Do symmetric: both directions.  Someday, this could matter for
+    // directed graphs, right now it is irrelevent.
+    for (j=0 ; j<G->cmtyN[c] ; j++) {
+  	if (i == j)
+  	  continue;
+  	n = G->cmtyl[c][i];
+  	m = G->cmtyl[c][j];
+	assert(n != m);
+  	int interaction = G->interactions[n*G->N + m];
+  	if (interaction > 0)
+  	  repulsions  += interaction;
+  	else
+  	  attractions += interaction;
+    }
+  }
+  return(.5 * (attractions + gamma*repulsions));
+}
+
+double energy_cmty_n(Graph_t G, double gamma, int c, int n) {
+  /* Calculate the energy of only one community `c`, if it had node n
+   * in it.  Node n does not have to actually be in that community.
+   */
+  int attractions=0;
+  int repulsions =0;
+
+  // for communities c
+  int j, m;
+  for (j=0 ; j<G->cmtyN[c] ; j++) {
+    m = G->cmtyl[c][j];
+    if (m == n)
+      continue;
+    int interaction = G->interactions[n*G->N + m];
+    if (interaction > 0)
+      repulsions  += interaction;
+    else
+      attractions += interaction;
+  }
+  return(.5 * (attractions + gamma*repulsions));
+}
+
+double energy_cmty_cmty(Graph_t G, double gamma, int c1, int c2) {
+  double E=0;
+  int i1, n1;
+  for (i1=0 ; i1 < G->cmtyN[c1] ; i1++) {
+    n1 = G->cmtyl[c1][i1];
+    E += energy_cmty_n(G, gamma, c2, n1);
+  }
+  return (E);
+}
+
+
+int minimize_naive(Graph_t G, double gamma) {
   /* OBSELETE minimization routine.
    */
   int changes=0;
@@ -294,9 +416,6 @@ int minimize0(Graph_t G, double gamma) {
 return (changes);
 }
 
-
-
-
 int minimize(Graph_t G, double gamma) {
   /* Core minimization routine.  Do one sweep, moving each particle
    * (in order of G->randomOrder into the community that most lowers the
@@ -307,27 +426,35 @@ int minimize(Graph_t G, double gamma) {
   // Loop over particles
   for (nindex=0 ; nindex<G->N ; nindex++) {
     n = G->randomOrder[nindex];
+    // Keep a record of the running best community to move to.
+    // Default to current community (no moving).
     double deltaEbest = 0.0;
     int bestcmty = G->cmty[n];
 
+    // Store our old community and energy change when we remove a
+    // particle from the old community.  We see if (energy from
+    // removing from old community + energy from adding to new
+    // community) is less than deltaEbest to see where we should move.
     int oldcmty  = G->cmty[n];
-    //double oldEoldCmty = energy_cmty(G, gamma, oldcmty);
-    //double Ebest = energy(G, gamma);
-    /* printf("    i=%d, n=%d, old cmty=%d, Ncmty=%d\n", */
-    /* 	   nindex, n, oldcmty, G->Ncmty); */
-    //cmtyListRemove(G, oldcmty, n);
-    //double deltaEoldCmty = energy_cmty(G, gamma, oldcmty) - oldEoldCmty;
     double deltaEoldCmty = - energy_cmty_n(G, gamma, oldcmty, n);
 
 
+    // Try particle in each new cmty.  Accept the new community
+    // that has the lowest new energy.
+    // There are various ways of doing this inner loop:
+
+    // Method 1 (all other communities) //
     int newcmty;
     for (newcmty=0 ; newcmty<G->Ncmty ; newcmty++) {
-      // Try partiicle in each new cmty.  Accept the new community
-      // that has the lowest new energy.
 
+    // Method 2 (only interacting cmtys, fixed order) //
     /* int m; */
     /* for (m=0 ; m<G->N ; m++) { */
+    /*   if (G->interactions[n*G->N + m] > 0) */
+    /* 	continue; */
+    /*   int newcmty = G->cmty[m]; */
 
+    // Method 3 (only interacting cmtys, random order) //
     /* int mindex, m; */
     /* for (mindex=0 ; mindex<G->N ; mindex++) { */
     /*   m = G->randomOrder2[mindex]; */
@@ -341,54 +468,31 @@ int minimize(Graph_t G, double gamma) {
 	continue;
       }
 
-      //double Enew;
-      //double oldEnewCmty = energy_cmty(G, gamma, newcmty);
-      //cmtyListAdd(G, newcmty, n);
-      //Enew = energy(G, gamma);
-      //double deltaEnewCmty = energy_cmty(G, gamma, newcmty) - oldEnewCmty;
-      //cmtyListRemove(G, newcmty, n);
       double deltaEnewCmty = energy_cmty_n(G, gamma, newcmty, n);
 
+      // Our conditional on if we want to move to this new place.  If
+      // we do, update our bestcmty and deltaEbest to say so.
       if (deltaEoldCmty + deltaEnewCmty < deltaEbest) {
-	/* printf("  Better option for particle %d: %d %d %d\n", */
-	/* 	 i, oldcmty, bestcmty, newcmty); */
 	bestcmty = newcmty;
 	deltaEbest = deltaEoldCmty + deltaEnewCmty;
-      } /* else if (deltaEoldCmty + deltaEnewCmty <= deltaEbest) { */
-      /* 	// If energies are equal, we need a 50% probability of decreasing. */
-      /* 	if (genrand_real2() < .5) { */
-      /* 	  bestcmty = newcmty; */
-      /* 	  deltaEbest = deltaEoldCmty + deltaEnewCmty; */
-      /* 	} */
-      /* } */
-
+      }
     }
     // Is it better to move a particle into an _empty_ community?
     if (deltaEoldCmty < deltaEbest) {
       bestcmty = find_empty_cmty(G);
-      /* printf("Moving to new community: %d (Ncmty=%d) (%f %f %d)\n", */
-      /* 	     bestcmty, G->Ncmty, */
-      /* 	     deltaEoldCmty, deltaEbest, G->cmtyN[bestcmty]); */
       // deltaEbest = deltaEoldCmty;  // Not needed (not used after this)
-      if (bestcmty == -1)
-    	exit(56);
+      assert(bestcmty != -1);
     }
-    //cmtyListAdd(G, bestcmty, n);
     if (oldcmty != bestcmty) {
       cmtyListRemove(G, oldcmty, n);
       cmtyListAdd(G, bestcmty, n);
       changes += 1;
-      /* printf("particle %4d: cmty change %4d->%4d\n",  */
-      /*        i, oldcmty, bestcmty); */
-      //G->cmtyN[oldcmty]  --;
-      //G->cmtyN[bestcmty] ++;
-      /* printf("    --> newcmty=%d\n", bestcmty); */
     }
   }
-return (changes);
+  return (changes);
 }
 
-double energy1(Graph_t G, double gamma) {
+double energy_naive(Graph_t G, double gamma) {
   /* Naive energy loop, looping over all pairs of particles.  SLOW.
    */
   int attractions=0;
@@ -411,100 +515,6 @@ double energy1(Graph_t G, double gamma) {
   return(.5 * (attractions + gamma*repulsions));
 }
 
-
-
-double energy(Graph_t G, double gamma) {
-  /* Calculate energy using community lists.  Much faster.
-   */
-  int attractions=0;
-  int repulsions =0;
-  int c, n;
-  //cmtyListInit(G);
-
-  for (c=0 ; c<G->Ncmty ; c++) {
-    // for communities c
-    int i, j, m;
-    for (i=0 ; i<G->cmtyN[c] ; i++) {
-      // Do symmetric: both directions.
-      for (j=0 ; j<G->cmtyN[c] ; j++) {
-	if (i == j)
-	  continue;
-	n = G->cmtyl[c][i];
-	m = G->cmtyl[c][j];
-	if (n == m) {
-	  exit(60);
-	}
-	int interaction = G->interactions[n*G->N + m];
-	if (interaction > 0)
-	  repulsions  += interaction;
-	else
-	  attractions += interaction;
-      }
-    }
-  }
-  return(.5 * (attractions + gamma*repulsions));
-}
-
-double energy_cmty(Graph_t G, double gamma, int c) {
-  /* Calculate the energy of only one community `c`.
-   */
-  int attractions=0;
-  int repulsions =0;
-  int n;
-
-  // for communities c
-  int i, j, m;
-  for (i=0 ; i<G->cmtyN[c] ; i++) {
-    // Do symmetric: both directions.  Someday, this could matter for
-    // directed graphs, right now it is irrelevent.
-    for (j=0 ; j<G->cmtyN[c] ; j++) {
-  	if (i == j)
-  	  continue;
-  	n = G->cmtyl[c][i];
-  	m = G->cmtyl[c][j];
-	if (n == m)
-	  exit(60);
-  	int interaction = G->interactions[n*G->N + m];
-  	if (interaction > 0)
-  	  repulsions  += interaction;
-  	else
-  	  attractions += interaction;
-    }
-  }
-  return(.5 * (attractions + gamma*repulsions));
-}
-
-double energy_cmty_n(Graph_t G, double gamma, int c, int n) {
-  /* Calculate the energy of only one community `c`, if it had node n
-   * in it.  Node n does not have to actually be in that community.
-   */
-  int attractions=0;
-  int repulsions =0;
-
-  // for communities c
-  int j, m;
-  for (j=0 ; j<G->cmtyN[c] ; j++) {
-    m = G->cmtyl[c][j];
-    if (m == n)
-      continue;
-    int interaction = G->interactions[n*G->N + m];
-    if (interaction > 0)
-      repulsions  += interaction;
-    else
-      attractions += interaction;
-  }
-  return(.5 * (attractions + gamma*repulsions));
-}
-
-double energy_cmty_cmty(Graph_t G, double gamma, int c1, int c2) {
-  double E=0;
-  int i1, n1;
-  for (i1=0 ; i1 < G->cmtyN[c1] ; i1++) {
-    n1 = G->cmtyl[c1][i1];
-    E += energy_cmty_n(G, gamma, c2, n1);
-  }
-  return (E);
-}
 
 int combine_cmtys(Graph_t G, double gamma) {
   /* Attempt to merge communities to get a lower energy assignment.
@@ -607,24 +617,3 @@ int remap_cmtys(Graph_t G) {
 }
 
 
-double mutual_information(Graph_t G0, Graph_t G1) {
-  if (G0->N != G1->N)
-    exit(55);
-  int N = G0->N;
-  double MI=0.0;
-
-  int c0, c1, n0, n1, n_shared;
-  for (c0=0 ; c0 < G0->Ncmty ; c0++) {
-    n0 = G0->cmtyN[c0];
-    for (c1=0 ; c1 < G1->Ncmty ; c1++) {
-      n1 = G1->cmtyN[c1];
-
-      n_shared = shared_nodes_between_communities(G0->cmtyl[c0], G1->cmtyl[c1],
-						  n0, n1);
-      if (n_shared == 0)
-	continue;
-      MI += (n_shared/(float)N) * log2(n_shared*N/((double)n0*n1));
-    }
-  }
-  return (MI);
-}

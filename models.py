@@ -103,11 +103,20 @@ class Graph(_cobj, object):
         """Create a Graph glass from a NetworkX graph object.
 
         The NetworkX graph object is expected to have all edges have a
-        attribute `weight` which is set to the
+        attribute `weight` which is set to the interaction between the
+        nodes.  Note that negative weight is attractive, positive
+        weight is repulsive.
 
         `defaultweight` is the weight for all not explicitely defined
         pairs of nodes.  Note that positive weight is repulsive and
-        negative weight is attractive.
+        negative weight is attractive.  `diagonalweight` is the weight
+        of all diagonals on the matirx.
+
+        `layout` is a mapping nodeid->(x,y) which is used in the
+        .viz() method.
+
+        `randomize` is passed to the constructor, randomizes node
+        initial assignments.
         """
         G = cls(N=len(graph), randomize=randomize)
         G._graph = graph
@@ -141,6 +150,7 @@ class Graph(_cobj, object):
         return G
 
     def _fillStruct(self, N=None):
+        """Fill C structure."""
         _cobj._allocStruct(self, cmodels.cGraph)
 
         self._allocArray("cmtyll", shape=[N]*2)
@@ -155,6 +165,7 @@ class Graph(_cobj, object):
         self._allocArray("interactions", shape=(N, N))
 
     def __getstate__(self):
+        """Get state for pickling"""
         state = self.__dict__.copy()
         del state['_struct']
         del state['_struct_p']
@@ -165,6 +176,7 @@ class Graph(_cobj, object):
         #        del state[name]
         return state
     def __setstate__(self, state):
+        """Set state when unpickling"""
         self.__init__(state['__extra_attrs']['N'])
         #self._fillStruct(n=state['n'])
         for name, type_ in self._struct._fields_:
@@ -181,35 +193,36 @@ class Graph(_cobj, object):
         """Return a copy of the object (not sharing data arrays).
         """
         # Right now we turn this into a string and back, in order to
-        # make actual deep copies of all the arrays.
+        # make actual deep copies of all the arrays.  FIXME.
         new = pickle.loads(pickle.dumps(self, -1))
         #new._allocArray('interactions', array=self.interactions)
         return new
 
-    def cmtyCreate(self, cmtys=None, randomize=True):
+    def cmtyCreate(self, cmtys=None, randomize=None):
         """Create initial communities for a model.
 
         By default, arrays are initialized to one particle per
         community, in random order.
 
-        cmtys=<array of length nNodes>: initialize for this initial
-        array
+        `cmtys`=<array of length nNodes>: initialize with this initial
+        array.  Default: None
 
-        randomize=<bool>: if initial cmtys array is not given, should
-        the innitial array be range(nNodes), or should it be randomized?
+        `randomize`=<bool>: Randomize the initial community
+        assignments.  Default: True for cmtys=None, False otherwise.
         """
-        if cmtys:
-            pass
-        else:
+        if cmtys is None:
             cmtys = numpy.arange(self.N)
-            if randomize:
-                numpy.random.shuffle(cmtys)
-        self.Ncmty = numpy.max(cmtys)+1
+            randomize = True
+        else:
+            randomize = False
+        if randomize:
+            numpy.random.shuffle(cmtys)
         self.cmty[:] = cmtys
+        #self.Ncmty = numpy.max(cmtys)+1 done in cmtyListInit()
         #self.cmtyN[:] = 1   # done in cmtyListInit()
         self.cmtyListInit()
     def cmtyListInit(self):
-        """Initialize community list.
+        """Initialize the efficient community lists.
 
         The community list (self.cmtyll[community_index, ...]) is a
         data structure optimized for the community lookups.  This
@@ -217,33 +230,39 @@ class Graph(_cobj, object):
         """
         print "cmtyListInit"
         cmodels.cmtyListInit(self._struct_p)
-    def cmtyListCheck(self):
+    def cmtySet(self, n, c):
+        """Set the community of a particle."""
+        raise NotImplementedError("cmtySet not implemented yet.")
+    def cmtyContents(self, c):
+        """Array of all nodes in community c."""
+        return self.cmtyll[c, :self.cmtyN[c]]
+    def check(self):
+        """Do an internal consistency check."""
         print "cmtyListCheck"
         errors = cmodels.cmtyListCheck(self._struct_p)
         assert errors == 0, "We have %d errors"%errors
         assert self.q == len(set(self.cmty))
         return errors
-    check = cmtyListCheck
-    def cmtySet(self, n, c):
-        """Set the community of a particle"""
-        raise NotImplementedError("cmtySet not implemented yet.")
-    def cmtyContents(self, c):
-        return self.cmtyll[c, :self.cmtyN[c]]
-    def randomizeOrder(self, randomize=True):
+    def _gen_random_order(self, randomize=True):
+        """Generate random orders to use for iterations."""
         if not randomize:
             # Fake mode: actually sort them
-            numpy.sort(self.randomOrder)  # FIXME
-            numpy.sort(self.randomOrder2) # FIXME
+            numpy.sort(self.randomOrder)
+            numpy.sort(self.randomOrder2)
         else:
-            numpy.random.shuffle(self.randomOrder)  # FIXME
-            numpy.random.shuffle(self.randomOrder2) # FIXME
-        #print self.randomOrder
-        #print self.randomOrder2
+            numpy.random.shuffle(self.randomOrder)
+            numpy.random.shuffle(self.randomOrder2)
 
-    def viz(self):
-        """Visualize the detected communities (requires NetworkX rep)
+    def viz(self, show=True, fname=None):
+        """Visualize the detected communities.
+
+        This uses matplotlib to visualize the graphs.  You must have a
+        networkx representation of the graph stored at `self._graph`.
+
+        If `show` is True (default), use pyplot.show() to make an
+        visual display.  If `fname` is a string, save a copy of the
+        graph to that file.
         """
-        print "vizing"
         import matplotlib.pyplot as plt
         #from fitz import interactnow
 
@@ -279,10 +298,17 @@ class Graph(_cobj, object):
                               for (n, c) in zip(g.nodes(), cmtys)),
                 pos=self._layout)
         #plt.margins(tight=True)
-        plt.show()
+        if show:
+            plt.show()
+        if fname:
+            plt.savefig(fname, bbox_inches='tight')
         return g
 
     def savefig(self, fname, coords, **kwargs):
+        """Save a copy of layout to `fname`.
+
+        `coords` is a mapping of node index to (x,y) position.
+        """
         import matplotlib.figure
         import matplotlib.backends.backend_agg
         from matplotlib.patches import Circle
@@ -357,6 +383,8 @@ class Graph(_cobj, object):
         return -H
     @property
     def entropy_c(self):
+        """Return the entropy of this graph.  Optimized impl. in C.
+        """
         return cmodels.entropy(self._struct_p)
     entropy = entropy_c
 
@@ -371,7 +399,7 @@ class Graph(_cobj, object):
 
         changesCombining = None
         for round_ in itertools.count():
-            self.randomizeOrder()
+            self._gen_random_order()
             changesMoving = self._minimize(gamma=gamma)
             changes += changesMoving
             print "  (r%2s) cmtys, changes: %4d %4d"%(round_, self.q,
@@ -449,13 +477,13 @@ class Graph(_cobj, object):
             self.cmtyN[oldCmty] = 0
             self.Ncmty -= 1;
         if check:
-            self.cmtyListCheck()
+            self.check()
     def remapCommunities_c(self, check=True):
         print "        remapping communities: ",
         changes = cmodels.remap_cmtys(self._struct_p)
         print changes, "changes"
         if check:
-            self.cmtyListCheck()
+            self.check()
     remapCommunities = remapCommunities_c
 
     def _test(self):
@@ -470,7 +498,7 @@ class Graph(_cobj, object):
         return g
 
 
-    def subGraph(self, gamma, multiplier=100):
+    def supernodeGraph(self, gamma, multiplier=100):
         """Great a sub-graph of super-nodes composed of communities.
 
         Each community is turned into a super-node, and energy of
@@ -486,7 +514,7 @@ class Graph(_cobj, object):
                 G.interactions[c1, c2] = E*multiplier
                 G.interactions[c2, c1] = E*multiplier
         return G
-    def loadFromSubgraph(self, G):
+    def loadFromSupernodeGraph(self, G):
         # For each community in the sub-graph
         mapping = { }
         for c in range(G.N):
@@ -501,33 +529,31 @@ class Graph(_cobj, object):
             self.cmty[n] = mapping[n]
         #print self.cmty
         self.cmtyListInit()
-        self.cmtyListCheck()
-    def combine_cmtys_subgraph(self, gamma, depth=0):
+        #self.check()
+    def combine_cmtys_supernodes(self, gamma, maxdepth=1):
         """Attempt to combine communities if energy decreases."""
         depth = getattr(self, "depth", 0)
-        if depth > 0:
+        if depth >= maxdepth:
             return 0
         # Can't minimize if there are not enough communities.
         if self.q == 1:
             return 0
         print "==== minimizing subgraph, depth:", depth
-        subG = self.subGraph(gamma=gamma, multiplier=1000)
+        subG = self.supernodeGraph(gamma=gamma, multiplier=1000)
         subG.depth = depth + 1
         # If entire interaction matrix is positive, combining is futile.
         if not numpy.any(subG.interactions < 0):
             return 0
-        #print subG.interactions
-        #print subG.cmty
         changes = subG.minimize(gamma=gamma)
         # No need to try to reload subgraph if no changes.
         if changes == 0:
             return 0
-        #print subG.cmty
+        # A bit of error checking (note: we should never even get here
+        # since this is conditinod out above).
         if not numpy.any(subG.interactions < 0):
             assert changes == 0
-        #print self.cmty
-        self.loadFromSubgraph(subG)
-        #print self.cmty
+        # Reload
+        self.loadFromSupernodeGraph(subG)
         print "==== done minimizing subgraph, depth:", depth
 #        raw_input(str(changes)+'>')
         return changes
@@ -560,7 +586,7 @@ class MultiResolutionCorrelation(object):
         self.VI      = VI
         self.In      = In
 
-from fitz.loginterval import LogInterval
+from util import LogInterval
 
 class MultiResolution(object):
     """Class to do full multi-resolution analysis.
@@ -744,12 +770,12 @@ if __name__ == "__main__":
         G = random_graph(size=20, layout=True)
         random.seed(time.time())
         G.cmtyCreate()
-        G.cmtyListCheck()
+        G.check()
         #G.test()
         G.minimize(gamma=1.0)
         #G.remapCommunities()
         #G.remapCommunities()
-        #G.cmtyListCheck()
+        #G.check()
         G.viz()
 
     if command == "multi":

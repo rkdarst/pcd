@@ -4,7 +4,7 @@ import timeit
 
 def setup():
     G = models.random_graph(size=5)
-    G.cmtyListCheck()
+    G.check()
 
 
 def make_setup(size=5, **kwargs):

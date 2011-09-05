@@ -38,23 +38,28 @@ for name, t in cGraph._fields_:
 
 cfuncs = (
     ("test",          c_int,    (cGraph_p, )),
-    ("minimize0",     c_int,    (cGraph_p, c_double)),
-    ("minimize",      c_int,    (cGraph_p, c_double)),
-    ("energy",        c_double, (cGraph_p, c_double)),
-    ("energy_cmty",   c_double, (cGraph_p, c_double, c_int)),
-    ("energy_cmty_n", c_double, (cGraph_p, c_double, c_int, c_int)),
-    ("energy_cmty_cmty", c_double, (cGraph_p, c_double, c_int, c_int)),
-    ("combine_cmtys", c_int,    (cGraph_p, c_double)),
-    ("remap_cmtys",   c_int,    (cGraph_p, )),
-    ("mutual_information",
-                      c_double, (cGraph_p, cGraph_p )),
 
     ("cmtyListAdd",      None,      (cGraph_p, c_int, c_int)),
     ("cmtyListRemove",   None,      (cGraph_p, c_int, c_int)),
     ("cmtyListInit",     None,      (cGraph_p, )),
     ("cmtyListCheck",    c_int,     (cGraph_p, )),
+
     ("q",                c_int,     (cGraph_p, )),
     ("entropy",          c_double,  (cGraph_p, )),
+    ("mutual_information",
+                         c_double, (cGraph_p, cGraph_p )),
+
+    ("energy_naive",  c_double, (cGraph_p, c_double)),
+    ("energy",        c_double, (cGraph_p, c_double)),
+    ("energy_cmty",   c_double, (cGraph_p, c_double, c_int)),
+    ("energy_cmty_n", c_double, (cGraph_p, c_double, c_int, c_int)),
+    ("energy_cmty_cmty", c_double, (cGraph_p, c_double, c_int, c_int)),
+
+    ("minimize_naive",c_int,    (cGraph_p, c_double)),
+    ("minimize",      c_int,    (cGraph_p, c_double)),
+    ("combine_cmtys", c_int,    (cGraph_p, c_double)),
+    ("remap_cmtys",   c_int,    (cGraph_p, )),
+
     )
 
 filename = os.path.join(os.path.dirname(os.path.abspath(__file__)), '_cmodels.so')

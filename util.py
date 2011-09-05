@@ -6,18 +6,35 @@ import networkx
 
 import cmodels
 
-# logTime functions generate values evenly distributed on a log scale.
-initialTime = 1
-logInterval = 10.
-logNumber   = 10
-# 1.25892541179417 = exp(log(10) / 10)
-#logConstant = 1.25892541179417
-def logConstant():
-    return exp(log(logInterval)/logNumber)
-def logTime(timeIndex=1):
-    return (initialTime * logConstant()**timeIndex)
-def logTimeIndex(time):
-    return log(time/initialTime) / (log(logInterval)/logNumber)
+# This class is copied from fitz.loginterval
+class LogInterval(object):
+    """
+    interval - how many
+    """
+    # How many
+    interval = 10
+    def __init__(self, interval=10, number=10, initial=1,
+                 low=None, high=None):
+        self.interval = interval
+        self.initial = initial
+        self.number = number
+        #self.every = interval
+        self.expConstant = exp(log(interval) / number)
+    def value(self, index):
+        return self.initial * self.expConstant**index
+    def index(self, value):
+        return log(value/self.initial) / (log(self.interval)/self.number)
+
+    def iter(start, maxValue=None):
+        index = startAt
+        while True:
+            value = self.value(index)
+            yield value
+            index += 1
+
+            if maxValue is not None and maxValue > index :
+                break
+
 
 log2 = lambda x: log(x, 2)
 

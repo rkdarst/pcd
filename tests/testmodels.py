@@ -16,7 +16,7 @@ import util
 
 # Initialized to one community per list
 G = graphs.random_graph(size=5)
-G.cmtyListCheck()
+G.check()
 
 # Test copying
 G2 = G.copy()
@@ -35,21 +35,21 @@ for name in dir(G):
     v2 = getattr(G2, name)
     assert id(v1) != id(v2), name
 # Continue testing copying.  Make sure that 
-G .cmtyListCheck()
-G2.cmtyListCheck()
+G .check()
+G2.check()
 G .cmtyCreate(randomize=True)
 G2.cmtyCreate(randomize=True)
 assert (G.cmty != G2.cmty).any()
 assert (G.cmtyl != G2.cmtyl).any()
 #from fitz import interactnow
 #sys.exit(1)
-G .cmtyListCheck()
-G2.cmtyListCheck()
+G .check()
+G2.check()
 G .minimize(1.0)
 G2.minimize(.01) # use different gammas, otherwise it is too likely to
                  # be identical results
-G .cmtyListCheck()
-G2.cmtyListCheck()
+G .check()
+G2.check()
 assert (G.cmty != G2.cmty).any()
 assert (G.cmtyl != G2.cmtyl).any()
 
@@ -57,28 +57,28 @@ assert (G.cmtyl != G2.cmtyl).any()
 #
 # Test related to cmty list data structures
 #
-G.cmtyListCheck()
+G.check()
 
 # Test that cmtyListCheck does find errors:
 G.cmty[:] = 0
 print "***Ignore errors below, this is a test of errorchecking***"
-try:                    G.cmtyListCheck()
+try:                    G.check()
 except AssertionError:
     print "***Ignore errors above, this is a test of errocchecking***"
 else:        raise AssertionError("cmtyListCheck did not detect an error "
                                   "when there should be one.")
 G.cmtyListInit()
-G.cmtyListCheck()
+G.check()
 
 # Test various ways of manipulating the lists
 G.minimize(1.0)
-G.cmtyListCheck()
+G.check()
 
 G.minimize(0)
-G.cmtyListCheck()
+G.check()
 
 G.remapCommunities()
-G.cmtyListCheck()
+G.check()
 
 
 # Test to/from networkX
