@@ -32,7 +32,7 @@ int test(Graph_t G) {
     int j;
     printf("  ");
     for (j=0 ; j<G->N ; j++) {
-      printf("%2d ", G->interactions[i*G->N+j]);
+      printf("%2d ", G->imatrix[i*G->N+j]);
     }
     printf("\n");
   }
@@ -292,7 +292,7 @@ double energy(Graph_t G, double gamma) {
 	n = G->cmtyl[c][i];
 	m = G->cmtyl[c][j];
 	assert(n != m);
-	int interaction = G->interactions[n*G->N + m];
+	imatrix_t interaction = G->imatrix[n*G->N + m];
 	if (interaction > 0)
 	  repulsions  += interaction;
 	else
@@ -321,7 +321,7 @@ double energy_cmty(Graph_t G, double gamma, int c) {
   	n = G->cmtyl[c][i];
   	m = G->cmtyl[c][j];
 	assert(n != m);
-  	int interaction = G->interactions[n*G->N + m];
+  	int interaction = G->imatrix[n*G->N + m];
   	if (interaction > 0)
   	  repulsions  += interaction;
   	else
@@ -344,7 +344,7 @@ double energy_cmty_n(Graph_t G, double gamma, int c, int n) {
     m = G->cmtyl[c][j];
     if (m == n)
       continue;
-    int interaction = G->interactions[n*G->N + m];
+    int interaction = G->imatrix[n*G->N + m];
     if (interaction > 0)
       repulsions  += interaction;
     else
@@ -450,7 +450,7 @@ int minimize(Graph_t G, double gamma) {
     // Method 2 (only interacting cmtys, fixed order) //
     /* int m; */
     /* for (m=0 ; m<G->N ; m++) { */
-    /*   if (G->interactions[n*G->N + m] > 0) */
+    /*   if (G->imatrix[n*G->N + m] > 0) */
     /* 	continue; */
     /*   int newcmty = G->cmty[m]; */
 
@@ -458,7 +458,7 @@ int minimize(Graph_t G, double gamma) {
     /* int mindex, m; */
     /* for (mindex=0 ; mindex<G->N ; mindex++) { */
     /*   m = G->randomOrder2[mindex]; */
-    /*   if (G->interactions[n*G->N + m] > 0) */
+    /*   if (G->imatrix[n*G->N + m] > 0) */
     /* 	continue; */
     /*   int newcmty = G->cmty[m]; */
 
@@ -504,7 +504,7 @@ double energy_naive(Graph_t G, double gamma) {
       if (m == n)
 	continue;
       if (G->cmty[m] == G->cmty[n]) {
-	int interaction = G->interactions[n*G->N + m];
+	imatrix_t interaction = G->imatrix[n*G->N + m];
 	if (interaction > 0)
 	  repulsions  += interaction;
 	else

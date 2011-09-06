@@ -27,7 +27,7 @@ G2.minimize(gamma=gamma)
 
 
 print
-print subG.interactions
+print subG.imatrix
 print subG._minimize(gamma=gamma)
 print subG._minimize(gamma=gamma)
 print subG.minimize(gamma=gamma)

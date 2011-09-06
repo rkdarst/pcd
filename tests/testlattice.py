@@ -16,10 +16,10 @@ for a,b,d in g.edges(data=True):
     d['weight'] = -1
 
 G = models.Graph.fromNetworkX(g, defaultweight=1)
-print (numpy.sum(G.interactions) - numpy.sum(G.interactions.diagonal()))/(400**2-400.)
+print (numpy.sum(G.imatrix) - numpy.sum(G.imatrix.diagonal()))/(400**2-400.)
 #exit()
 
-assert numpy.all(G.interactions - G.interactions.T == 0)
+assert numpy.all(G.imatrix - G.imatrix.T == 0)
 
 MR = models.MultiResolution(low=.1, high=100)
 MR.do([G]*5, trials=10)

@@ -133,19 +133,19 @@ class Graph(_cobj, object):
             graph.node[name]['index'] = i
 
         # Default weighting
-        G.interactions[:] = defaultweight
+        G.imatrix[:] = defaultweight
         # Default diagonal weighting
         if diagonalweight is not None:
             for i in range(G.N):
-                G.interactions[i, i] = diagonalweight
+                G.imatrix[i, i] = diagonalweight
         # All explicit weighting from the graph
         for n0 in graph.nodes():
             for n1 in graph.neighbors(n0):
                 i0 = graph.node[n0]['index']
                 i1 = graph.node[n1]['index']
-                G.interactions[i0,i1] = graph[n0][n1]['weight']
+                G.imatrix[i0,i1] = graph[n0][n1]['weight']
         # Check that the matrix is symmetric (FIXME someday: directed graphs)
-        if not numpy.all(G.interactions == G.interactions.T):
+        if not numpy.all(G.imatrix == G.imatrix.T):
             print "Note: interactions matrix is not symmetric"
         return G
 
@@ -162,7 +162,7 @@ class Graph(_cobj, object):
         self._allocArray("randomOrder2", shape=N)
         self.randomOrder[:]  = numpy.arange(N)
         self.randomOrder2[:] = numpy.arange(N)
-        self._allocArray("interactions", shape=(N, N))
+        self._allocArray("imatrix", shape=(N, N))
 
     def __getstate__(self):
         """Get state for pickling"""
@@ -195,7 +195,7 @@ class Graph(_cobj, object):
         # Right now we turn this into a string and back, in order to
         # make actual deep copies of all the arrays.  FIXME.
         new = pickle.loads(pickle.dumps(self, -1))
-        #new._allocArray('interactions', array=self.interactions)
+        #new._allocArray('imatrix', array=self.imatrix)
         return new
 
     def cmtyCreate(self, cmtys=None, randomize=None):
@@ -493,7 +493,7 @@ class Graph(_cobj, object):
 
         This could be useful where """
 
-        g = util.networkx_from_matrix(self.interactions,
+        g = util.networkx_from_matrix(self.imatrix,
                                       ignore_values=ignore_values)
         return g
 
@@ -511,8 +511,8 @@ class Graph(_cobj, object):
             for c2 in range(c1+1, N):
                 # Find the energy of interaction between c1 and c2
                 E = self.energy_cmty_cmty(gamma, c1, c2)
-                G.interactions[c1, c2] = E*multiplier
-                G.interactions[c2, c1] = E*multiplier
+                G.imatrix[c1, c2] = E*multiplier
+                G.imatrix[c2, c1] = E*multiplier
         return G
     def loadFromSupernodeGraph(self, G):
         # For each community in the sub-graph
@@ -542,7 +542,7 @@ class Graph(_cobj, object):
         subG = self.supernodeGraph(gamma=gamma, multiplier=1000)
         subG.depth = depth + 1
         # If entire interaction matrix is positive, combining is futile.
-        if not numpy.any(subG.interactions < 0):
+        if not numpy.any(subG.imatrix < 0):
             return 0
         changes = subG.minimize(gamma=gamma)
         # No need to try to reload subgraph if no changes.
@@ -550,7 +550,7 @@ class Graph(_cobj, object):
             return 0
         # A bit of error checking (note: we should never even get here
         # since this is conditinod out above).
-        if not numpy.any(subG.interactions < 0):
+        if not numpy.any(subG.imatrix < 0):
             assert changes == 0
         # Reload
         self.loadFromSupernodeGraph(subG)

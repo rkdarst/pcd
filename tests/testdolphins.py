@@ -10,7 +10,7 @@ G.minimize(.1)
 #G.viz()
 #exit(2)
 
-print G.interactions
+print G.imatrix
 
 #G.minimize(gamma=10)
 #G.viz()

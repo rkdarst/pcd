@@ -89,7 +89,7 @@ coords, L = fractalsquare(4)
 
 G = models.Graph(N=len(coords))
 
-set_imatrix(G.interactions, coords, periodic=L)
+set_imatrix(G.imatrix, coords, periodic=L)
 
 import matplotlib.cm as cm
 import matplotlib.figure

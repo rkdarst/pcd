@@ -11,6 +11,8 @@ c_void_p = ctypes.c_void_p
 c_int = ctypes.c_int
 c_int_p = ctypes.POINTER(c_int)
 
+imatrix_t = c_int_p
+
 class cGraph(ctypes.Structure):
     pass
 cGraph._fields_ = [
@@ -19,7 +21,7 @@ cGraph._fields_ = [
     ("oneToOne",     c_int),
 
     ("cmty",         c_int_p),
-    ("interactions", c_int_p),
+    ("imatrix",      imatrix_t),
 
     ("cmtyl",        ctypes.POINTER(c_int_p)),
     ("cmtyll",       c_int_p),

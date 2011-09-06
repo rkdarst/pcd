@@ -110,7 +110,7 @@ for i in range(10):
     G1 = G2.copy()
     # Do a bunch of swaps
     for a,b in [random.sample(range(G1.N), 2) for _ in range(100)]:
-        util.matrix_swap_basis(G1.interactions, a, b)
+        util.matrix_swap_basis(G1.imatrix, a, b)
     assert is_isomorphic(G1.make_networkx(), G2.make_networkx(), weighted=True)
 
 # Test rearranging of rows and columns (more aggressive)
@@ -122,5 +122,5 @@ for i in range(10):
     G1 = G.copy()
     # Do a bunch of swaps
     for a,b in [random.sample(range(G1.N), 2) for _ in range(100)]:
-        util.matrix_swap_basis(G1.interactions, a, b)
+        util.matrix_swap_basis(G1.imatrix, a, b)
     assert is_isomorphic(G1.make_networkx(), G.make_networkx(), weighted=False)

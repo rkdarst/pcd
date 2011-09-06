@@ -1,12 +1,14 @@
 /* Richard Darst, July 2011 */
 
+typedef int imatrix_t;
+
 typedef struct Graph {
   int N;
   int Ncmty;
   int oneToOne;
 
   int *cmty;
-  int *interactions;
+  imatrix_t *imatrix;
 
   int **cmtyl;
   int  *cmtyll;
