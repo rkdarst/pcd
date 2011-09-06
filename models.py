@@ -412,7 +412,7 @@ class Graph(_cobj, object):
             # before breaking out.
             if changesMoving == 0:
                 changesCombining = self.combine_cmtys(gamma=gamma)
-                #changesCombining = self.combine_cmtys_subgraph(gamma=gamma)
+                #changesCombining = self.combine_cmtys_supernodes(gamma=gamma)
                 changes += changesCombining
                 print "  (r%2s) cmtys, changes: %4d %4d"%(
                                            round_, self.q, changesCombining), \
