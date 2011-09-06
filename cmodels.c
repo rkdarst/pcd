@@ -273,6 +273,31 @@ double mutual_information(Graph_t G0, Graph_t G1) {
 
 
 
+double energy_naive(Graph_t G, double gamma) {
+  /* Naive energy loop, looping over all pairs of particles.  SLOW.
+   */
+  int attractions=0;
+  int repulsions =0;
+  int n;
+  for (n=0 ; n<G->N ; n++) {
+    int m;
+    for (m=0 ; m<G->N ; m++) {
+      if (m == n)
+	continue;
+      if (G->cmty[m] == G->cmty[n]) {
+	imatrix_t interaction = G->imatrix[n*G->N + m];
+	if (interaction > 0)
+	  repulsions  += interaction;
+	else
+	  attractions += interaction;
+      }
+    }
+  }
+  return(.5 * (attractions + gamma*repulsions));
+}
+
+
+
 double energy(Graph_t G, double gamma) {
   /* Calculate energy using community lists.  Much faster.
    */
@@ -490,29 +515,6 @@ int minimize(Graph_t G, double gamma) {
     }
   }
   return (changes);
-}
-
-double energy_naive(Graph_t G, double gamma) {
-  /* Naive energy loop, looping over all pairs of particles.  SLOW.
-   */
-  int attractions=0;
-  int repulsions =0;
-  int n;
-  for (n=0 ; n<G->N ; n++) {
-    int m;
-    for (m=0 ; m<G->N ; m++) {
-      if (m == n)
-	continue;
-      if (G->cmty[m] == G->cmty[n]) {
-	imatrix_t interaction = G->imatrix[n*G->N + m];
-	if (interaction > 0)
-	  repulsions  += interaction;
-	else
-	  attractions += interaction;
-      }
-    }
-  }
-  return(.5 * (attractions + gamma*repulsions));
 }
 
 
