@@ -36,20 +36,25 @@ def glencoords():
     return numpy.asarray(values)
 
 def fractalsquare(sep):
-    """Make a fractal square with a side length of 2^sep
+    """Make a fractal square with parameter `sep`
+
+    Number of nodes per side is 2^sep.
+
+    Largest separation between nodes is sep.
     """
     if sep == 0:
-        return numpy.asarray([[0,0]])
+        return numpy.asarray([[0,0]]), 1
     else:
-        sq = fractalsquare(sep=sep-1)
+        sq, L = fractalsquare(sep=sep-1)
         # Offset it by size of smaller square plus the new spacing
-        offset = max(c[0] for c in sq) + sep
+        offset = L
+        L = L + L
         new = numpy.concatenate((sq,
                                  sq+(0, offset),
                                  sq+(offset, 0),
                                  sq+(offset, offset),
                                  ))
-        return new
+        return new, L+1
 
 
 def e_lj(d):
@@ -80,11 +85,11 @@ def set_imatrix(imatrix, coords, periodic=None):
 
 
 #coords = glencoords()
-coords = fractalsquare(4)
+coords, L = fractalsquare(4)
 
 G = models.Graph(N=len(coords))
 
-set_imatrix(G.interactions, coords, periodic=max(c[0] for c in coords)+1)
+set_imatrix(G.interactions, coords, periodic=L)
 
 import matplotlib.cm as cm
 import matplotlib.figure
@@ -96,7 +101,7 @@ def callback(G, gamma, **kwargs):
 
     G.savefig(fname, coords=coords)
 
-MR = models.MultiResolution(.01, 10000, callback=callback)
+MR = models.MultiResolution(.00001, 10000, callback=callback)
 MR.do([G]*10, trials=10, threads=2)
 MR.calc()
 MR.plot("imgs.png")
