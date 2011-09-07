@@ -1,0 +1,7 @@
+This comes from Z. Nussinov and P. Ronhovde's community detection code
+and data, in this file:
+  http://physics.wustl.edu/zohar/communitydetection/RNMRA_11-12-09.zip
+available from
+  http://physics.wustl.edu/zohar/communitydetection/
+
+Retrieved 2011-09-03
