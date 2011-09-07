@@ -397,6 +397,29 @@ class Graph(_cobj, object):
         return cmodels.entropy(self._struct_p)
     entropy = entropy_c
 
+    def minimize_trials(self, gamma, trials):
+        """Minimize system using .minimize() and `trials` trials.
+        """
+        minE = float('inf')
+        #minG = None
+        minCmtys = self.cmty.copy()
+
+        for i in range(trials):
+            self.cmtyCreate() # randomizes it
+            changes = self.minimize(gamma)
+            thisE = self.energy(gamma)
+            #if minG is None:
+            #    minE = thisE
+            #    minG = self.copy()
+            if thisE < minE:
+                minE = thisE
+                #minG = self.copy()
+                minCmtys[:] = self.cmty
+
+        self.cmty[:] = minCmtys
+        self.cmtyListInit()  # reload the lists from cmty assignments
+        return changes
+
     def minimize(self, gamma):
         """Minimize the communities at a certain gamma.
 
@@ -602,46 +625,58 @@ class MultiResolution(object):
     """
     _output = None
     _lock = None
-    def __init__(self, low, high, callback=None, number=10):
-        """
+    def __init__(self, low, high, callback=None, number=10,
+                 output=None, ):
+        """Create a multiresolution helper system.
+
+        `low`, `high`: lowest and highest gammas to use.
+
+        `callback`: a callback to run with the optimum configuration
+        after each gamma run.
+
+        `number`: resoluation of gammas, there are this many gammas
+        logarithmically distributed over each order of magnitude.
+
+        `output`: save table of gamma, q, H, etc, to this file.
         """
         self._li = li = LogInterval(number=number)
         self.indexLow  = int(floor(li.index(low )))
         self.indexHigh = int(ceil (li.index(high)))
         self.callback = callback
+        self._output = output
 
         self._data = { } #collections.defaultdict(dict)
     def _do_gammaindex(self, index):
+        """Worker thread for gammas.
+
+        For one index, look up the respective gamma and do that analysis.
+        """
         gamma = self._li.value(index)
-        #minima = [ ]
         minGs = [ ]
         for G in self._Gs:
             if self._lock:  self._lock.acquire()
             G = G.copy()
             if self._lock:  self._lock.release()
-            minE = float('inf')
-            minG = None
-            for i in range(self.trials):
-                G.cmtyCreate() # randomizes it
-                G.minimize(gamma)
-                thisE = G.energy(gamma)
-                if minG is None:
-                    minE = thisE
-                    minG = G.copy()
-                elif thisE < minE:
-                    minE = thisE
-                    minG = G.copy()
-            minGs.append(minG)
+            G.minimize_trials(gamma, trials=self.trials)
+            minGs.append(G)
+
+        # Do the information theory VI, MI, In, etc, stuff on our
+        # minimized replicas.
         self._data[index] = MultiResolutionCorrelation(gamma, minGs)
+        # Save output to a file.
         if self._output is not None and self._writelock.acquire(False):
             self.write(self._output)
             self._writelock.release()
+        # Run callback if we have it.
         if self.callback:
             totalminimum = min(minGs, key=lambda x: G.energy(gamma))
             self.callback(G=totalminimum, gamma=gamma,
                           mrc=self._data[index])
     def _thread(self):
-        """Thread worker - do gammas until all are exhausted."""
+        """Thread worker - do gammas until all are exhausted.
+
+        One of these are spawned for each thread, they run until all
+        gammas have been finished."""
         try:
             while True:
                 index = self._queue.get_nowait()
@@ -649,24 +684,25 @@ class MultiResolution(object):
                 self._queue.task_done()
         except self._Empty:
             return
-    def do(self, Gs, trials=10, output=None, threads=1):
+    def do(self, Gs, trials=10, threads=1):
         """Do multi-resolution analysis on replicas Gs with `trials` each."""
+        # If multiple threads requested, do that version instead:
         if threads > 1:
-            return self.do_mt(Gs, trials=trials, output=output, threads=threads)
+            return self.do_mt(Gs, trials=trials, threads=threads)
 
-
+        # Non threaded version:
         self._Gs = Gs
         self.replicas = len(Gs)
         self.trials = trials
         for index in range(self.indexLow, self.indexHigh+1):
             self._do_gammaindex(index)
-            if output:
+            if self._output:
                 self.write(output)
 
-    def do_mt(self, Gs, trials=10, output=None, threads=2):
+    def do_mt(self, Gs, trials=10, threads=2):
         """Do multi-resolution analysis on replicas Gs with `trials` each.
 
-        Multi-threaded version"""
+        Multi-threaded version."""
         self._Gs = Gs
         self.replicas = len(Gs)
         self.trials = trials
@@ -677,7 +713,6 @@ class MultiResolution(object):
         self._lock = threading.Lock()
         self._writelock = threading.Lock()
         self._queue = Queue.Queue()
-        self._output = output
 
         for index in range(self.indexLow, self.indexHigh+1):
             self._queue.put(index)
@@ -706,6 +741,7 @@ class MultiResolution(object):
         self.field_names = ("gammas", "qs", "Es", "entropies",
                             "Is", "VIs", "Ins", "qmins")
     def write(self, fname):
+        """Save multi-resolution data to a file."""
         self.calc()
         f = open(fname, 'w')
         print >> f, "#", time.ctime()
