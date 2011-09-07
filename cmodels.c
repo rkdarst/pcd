@@ -522,6 +522,7 @@ int combine_cmtys(Graph_t G, double gamma) {
   /* Attempt to merge communities to get a lower energy assignment.
    * Pairwise attempt to merge all.
    */
+  assert(G->oneToOne);
   int count = 0;
   // Move particles from c2 into c1
   int i1, i2, c1, c2;
@@ -532,45 +533,56 @@ int combine_cmtys(Graph_t G, double gamma) {
     c1 = G->randomOrder[i1];
     if (G->cmtyN[c1] == 0)
       continue;
+
+    int bestcmty = c1;
+    double deltaEbest = 0;
+
     for (i2=0 ; i2<G->N ; i2++) {
       c2 = G->randomOrder2[i2];
       if (c1 <= c2)
 	continue;
       if (G->cmtyN[c2] == 0)
 	continue;
-      //double Eold = energy(G, gamma);
-      double Eold = energy_cmty(G, gamma, c1) + energy_cmty(G, gamma, c2);
+      /* //double Eold = energy(G, gamma); */
+      /* double Eold = energy_cmty(G, gamma, c1) + energy_cmty(G, gamma, c2);*/
 
-      int c1oldN = G->cmtyN[c1];
-      int c2oldN = G->cmtyN[c2];
-      //Move all from c2 into c1
-      int i;
-      for (i=0 ; i<c2oldN ; i++) {
-	G->cmtyl[c1][i+c1oldN] = G->cmtyl[c2][i];
-	G->cmty[G->cmtyl[c2][i]] = c1;
+
+      // Calculate change of energy if we moved c1 into c2
+      double deltaE = 0;
+      int j1, n1;
+      for (j1=0 ; j1 < G->cmtyN[c1] ; j1++) {
+      	n1 = G->cmtyl[c1][j1];
+      	deltaE += energy_cmty_n(G, gamma, c2, n1);
       }
-      // FIX - breaks for multiple community
-      G->cmtyN[c1] = c1oldN + c2oldN;
-      G->cmtyN[c2] = 0;
-
-      // Do we accept?
-      //double Enew = energy(G, gamma);
-      double Enew = energy_cmty(G, gamma, c1);
-      if (Enew <= Eold) {
-	count++;
-	continue;
+      for (j1=0 ; j1 < G->cmtyN[c2] ; j1++) {
+      	n1 = G->cmtyl[c2][j1];
+      	deltaE += energy_cmty_n(G, gamma, c1, n1);
       }
 
-      // Put it all back
-      for (i=0 ; i<c2oldN ; i++) {
-	G->cmtyl[c2][i] = G->cmtyl[c1][i+c1oldN];
-	G->cmty[G->cmtyl[c2][i]] = c2;
+      // Do we accept this change?
+      if (deltaE < deltaEbest) {
+	bestcmty = c2;
+	deltaEbest = deltaE;
       }
-      // FIX - breaks for multiple community
-      G->cmtyN[c1] = c1oldN;
-      G->cmtyN[c2] = c2oldN;
-
     }
+
+    // No change
+    if (c1 == bestcmty)
+      continue;
+
+    int c1oldN = G->cmtyN[c1];
+    int c2oldN = G->cmtyN[bestcmty];
+    //Move all from bestcmty into c1
+    int i;
+    for (i=0 ; i<c2oldN ; i++) {
+      G->cmtyl[c1][i+c1oldN] = G->cmtyl[bestcmty][i];
+      G->cmty[G->cmtyl[bestcmty][i]] = c1;
+    }
+    // FIX - breaks for multiple community
+    G->cmtyN[c1] = c1oldN + c2oldN;
+    G->cmtyN[bestcmty] = 0;
+
+
   }
   return (count);
 }
