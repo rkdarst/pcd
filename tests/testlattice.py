@@ -5,9 +5,6 @@ import numpy
 
 import networkx
 import util
-util.logNumber
-util.logNumber = 10
-
 
 from networkx.generators.classic import grid_graph
 
@@ -21,7 +18,7 @@ print (numpy.sum(G.imatrix) - numpy.sum(G.imatrix.diagonal()))/(400**2-400.)
 
 assert numpy.all(G.imatrix - G.imatrix.T == 0)
 
-MR = models.MultiResolution(low=.1, high=100)
+MR = models.MultiResolution(low=.1, high=100, number=10)
 MR.do([G]*5, trials=10)
 MR.write('tmp-lattice.txt')
 #MR.viz()

@@ -9,7 +9,7 @@ def setup():
 
 def make_setup(size=5, **kwargs):
     lines = [ ]
-    lines.append('from models import random_graph')
+    lines.append('from graphs import random_graph')
     lines.append('G = random_graph(size=%s)'%size)
     return '\n'.join(lines)
 

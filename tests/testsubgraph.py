@@ -18,9 +18,9 @@ G._minimize(gamma=gamma)
 G._minimize(gamma=gamma)
 G._minimize(gamma=gamma)
 G.remapCommunities()
-G.viz()
+#G.viz()
 print G.q
-subG = G.subGraph(gamma=gamma, multiplier=1000)
+subG = G.supernodeGraph(gamma=gamma, multiplier=1000)
 
 G2 = G.copy()
 G2.minimize(gamma=gamma)
@@ -32,4 +32,4 @@ print subG._minimize(gamma=gamma)
 print subG._minimize(gamma=gamma)
 print subG.minimize(gamma=gamma)
 
-G.loadFromSubgraph(subG)
+G.loadFromSupernodeGraph(subG)
