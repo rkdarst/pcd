@@ -245,7 +245,7 @@ double entropy(Graph_t G) {
     int n = G->cmtyN[c];
     if (n == 0)
       continue;
-    H += n/N * log2(n/N);
+    H += n/N * log2((double)(n/N));
   }
   return -H;
 }
@@ -265,7 +265,7 @@ double mutual_information(Graph_t G0, Graph_t G1) {
 						  n0, n1);
       if (n_shared == 0)
 	continue;
-      MI += (n_shared/(float)N) * log2(n_shared*N/((double)n0*n1));
+      MI += (n_shared/(float)N) * log2((double)(n_shared*N/((double)n0*n1)));
     }
   }
   return (MI);
