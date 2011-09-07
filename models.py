@@ -149,6 +149,15 @@ class Graph(_cobj, object):
             print "Note: interactions matrix is not symmetric"
         return G
 
+    @classmethod
+    def from_imatrix(cls, imatrix):
+        """Create a graph structure from a matrix of interactions.
+        """
+        # This should be improved sometime.
+        G = cls(N=imatrix.shape[0])
+        G.imatrix[:] = imatrix
+        return G
+
     def _fillStruct(self, N=None):
         """Fill C structure."""
         _cobj._allocStruct(self, cmodels.cGraph)
