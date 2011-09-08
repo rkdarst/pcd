@@ -276,8 +276,8 @@ double mutual_information(Graph_t G0, Graph_t G1) {
 double energy_naive(Graph_t G, double gamma) {
   /* Naive energy loop, looping over all pairs of particles.  SLOW.
    */
-  int attractions=0;
-  int repulsions =0;
+  imatrix_t attractions=0;
+  imatrix_t repulsions =0;
   int n;
   for (n=0 ; n<G->N ; n++) {
     int m;
@@ -301,8 +301,8 @@ double energy_naive(Graph_t G, double gamma) {
 double energy(Graph_t G, double gamma) {
   /* Calculate energy using community lists.  Much faster.
    */
-  int attractions=0;
-  int repulsions =0;
+  imatrix_t attractions=0;
+  imatrix_t repulsions =0;
   int c, n;
   //cmtyListInit(G);
 
@@ -331,8 +331,8 @@ double energy(Graph_t G, double gamma) {
 double energy_cmty(Graph_t G, double gamma, int c) {
   /* Calculate the energy of only one community `c`.
    */
-  int attractions=0;
-  int repulsions =0;
+  imatrix_t attractions=0;
+  imatrix_t repulsions =0;
   int n;
 
   // for communities c
@@ -346,7 +346,7 @@ double energy_cmty(Graph_t G, double gamma, int c) {
   	n = G->cmtyl[c][i];
   	m = G->cmtyl[c][j];
 	assert(n != m);
-  	int interaction = G->imatrix[n*G->N + m];
+  	imatrix_t interaction = G->imatrix[n*G->N + m];
   	if (interaction > 0)
   	  repulsions  += interaction;
   	else
@@ -360,8 +360,8 @@ double energy_cmty_n(Graph_t G, double gamma, int c, int n) {
   /* Calculate the energy of only one community `c`, if it had node n
    * in it.  Node n does not have to actually be in that community.
    */
-  int attractions=0;
-  int repulsions =0;
+  imatrix_t attractions=0;
+  imatrix_t repulsions =0;
 
   // for communities c
   int j, m;
@@ -369,7 +369,7 @@ double energy_cmty_n(Graph_t G, double gamma, int c, int n) {
     m = G->cmtyl[c][j];
     if (m == n)
       continue;
-    int interaction = G->imatrix[n*G->N + m];
+    imatrix_t interaction = G->imatrix[n*G->N + m];
     if (interaction > 0)
       repulsions  += interaction;
     else
@@ -523,7 +523,7 @@ int combine_cmtys(Graph_t G, double gamma) {
    * Pairwise attempt to merge all.
    */
   assert(G->oneToOne);
-  int count = 0;
+  int changes = 0;
   // Move particles from c2 into c1
   int i1, i2, c1, c2;
   //printf("gamma: %f\n", gamma);
@@ -581,10 +581,10 @@ int combine_cmtys(Graph_t G, double gamma) {
     // FIX - breaks for multiple community
     G->cmtyN[c1] = c1oldN + c2oldN;
     G->cmtyN[bestcmty] = 0;
-
+    changes += 1;
 
   }
-  return (count);
+  return (changes);
 }
 
 int remap_cmtys(Graph_t G) {
