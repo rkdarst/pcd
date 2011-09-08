@@ -1,6 +1,7 @@
 # Richard Darst/Glen Hocky, August 2011
 
 import os
+import sys
 
 import numpy
 
@@ -83,32 +84,45 @@ def set_imatrix(imatrix, coords, periodic=None):
         dist = numpy.sum(delta, axis=1)
         dist = numpy.sqrt(dist)
         e = e_lj(dist)
-        imatrix[n1, :] = e * 100
+        imatrix[n1, :] = e
     numpy.seterr(**orig_settings)
 
 
+# Mode 1:
 #coords = glencoords()
 coords, L = fractalsquare(4)
-
+G = models.Graph.from_dist_and_efunc(coords,
+                                     #lambda x: e_lj(x)*100,
+                                     e_lj,
+                                     periodic=L)
 G = models.Graph(N=len(coords))
-
 set_imatrix(G.imatrix, coords, periodic=L)
+
+
+sys.path.append('/home/richard')
+import fractal
+del sys.path[-1]
+
+# Mode 2
+L = 16
+imatrix, coords = fractal.fractalsquare2(L=L)
+print imatrix
+print coords
+G = G.from_imatrix(imatrix)
+
+G.minimize(gamma=0)
+G.savefig('img.png', coords=coords)
 
 if not os.path.exists('imgs'):
     print "Creating dir:",os.path.join(os.getcwd(),'imgs')
     os.mkdir('imgs')
 
-import matplotlib.cm as cm
-import matplotlib.figure
-import matplotlib.backends.backend_agg
-
 def callback(G, gamma, **kwargs):
     G.remapCommunities(check=False)
-    fname = 'imgs/gamma%07.3f.png'%gamma
-
+    fname = 'imgs/gamma%011.5f.png'%gamma
     G.savefig(fname, coords=coords)
 
-MR = models.MultiResolution(.00001, 10000, callback=callback)
-MR.do([G]*10, trials=10, threads=2)
+MR = models.MultiResolution(.001, 100, callback=callback, number=20)
+MR.do([G]*10, trials=250, threads=2)
 MR.calc()
 MR.plot("imgs.png")
