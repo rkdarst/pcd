@@ -157,6 +157,30 @@ class Graph(_cobj, object):
         G = cls(N=imatrix.shape[0])
         G.imatrix[:] = imatrix
         return G
+    @classmethod
+    def from_coords_and_efunc(cls, coords, efunc, periodic=None):
+        """Create graph structure from coordinates+energy function.
+
+        This helper class method is used to create an imatrix from a
+        list of coordinates ( [[x0,y0,...], [x1,y1,...], ...]) and a
+        efunc, which maps distance -> energy_of_interaction at that
+        distance.  The efunc must be able to be applied to an array.
+
+        If `periodic` is given, it is used as a periodic boundary
+        length: either a number or a [Lx, Ly, ...] array.
+        """
+        G = cls(N=coords.shape[0])
+
+        for n1 in range(len(coords)):
+            delta = coords[n1] - coords
+            if periodic:
+                delta -=  numpy.round(delta/float(periodic))*periodic
+            delta = delta**2
+            dist = numpy.sum(delta, axis=1)
+            dist = numpy.sqrt(dist)
+            G.imatrix[n1, :] = efunc(dist)
+        return G
+
 
     def _fillStruct(self, N=None):
         """Fill C structure."""
