@@ -425,19 +425,14 @@ class Graph(_cobj, object):
         """Minimize system using .minimize() and `trials` trials.
         """
         minE = float('inf')
-        #minG = None
         minCmtys = self.cmty.copy()
 
         for i in range(trials):
             self.cmtyCreate() # randomizes it
             changes = self.minimize(gamma)
             thisE = self.energy(gamma)
-            #if minG is None:
-            #    minE = thisE
-            #    minG = self.copy()
             if thisE < minE:
                 minE = thisE
-                #minG = self.copy()
                 minCmtys[:] = self.cmty
 
         self.cmty[:] = minCmtys
