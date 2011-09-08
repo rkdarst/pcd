@@ -91,7 +91,7 @@ def set_imatrix(imatrix, coords, periodic=None):
 # Mode 1:
 #coords = glencoords()
 coords, L = fractalsquare(4)
-G = models.Graph.from_dist_and_efunc(coords,
+G = models.Graph.from_coords_and_efunc(coords,
                                      #lambda x: e_lj(x)*100,
                                      e_lj,
                                      periodic=L)

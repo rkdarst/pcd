@@ -26,6 +26,7 @@ plot [] [] "tmp-polopatribes.txt" \
     "data/nussinov_2009_fig8_q.txt" using 1:2 lt 1 lw 1 t "q-paper"
     "data/nussinov_2009_fig8_H.txt" using 1:2 lt 2 lw 1 t "H-paper", \
     "data/nussinov_2009_fig8_I.txt" using 1:2 lt 3 lw 1 t "I-paper"
+set term png size 1024,700 ; set output "tribes-compare.png" ; replot ; set term pop
 
 plot [] [-5000:] "tmp-polopatribes.txt" \
        using 1:($3*16) lt 4 lw 3 t "E",  \
@@ -52,6 +53,8 @@ plot "tmp-256node.txt" \
        using 1:($2/10) lt 1 lw 3 t "q/10",  \
     "" using 1:4       lt 2 lw 3 t "H",  \
     "" using 1:5       lt 3 lw 3 t "I",  \
+    "" using 1:6       lt 4 lw 3 t "VI",  \
+    "" using 1:7       lt 5 lw 3 t "In",  \
     "data/nussinov_2009_fig2_q.txt" using 1:($2/10) lt 1 lw 1 t "(q/10)-paper", \
     "data/nussinov_2009_fig2_H.txt" using 1:2       lt 2 lw 1 t "H-paper", \
     "data/nussinov_2009_fig2_I.txt" using 1:2       lt 3 lw 1 t "I-paper"

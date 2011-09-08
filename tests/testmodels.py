@@ -124,3 +124,11 @@ for i in range(10):
     for a,b in [random.sample(range(G1.N), 2) for _ in range(100)]:
         util.matrix_swap_basis(G1.imatrix, a, b)
     assert is_isomorphic(G1.make_networkx(), G.make_networkx(), weighted=False)
+
+
+# Assert that gamma=0 and we get only one community at the end
+# (everything collapses to one cmty at gamma=0)
+G.cmtyCreate()
+G.minimize(gamma=0)
+assert G.q == 1
+
