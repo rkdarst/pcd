@@ -73,6 +73,8 @@ def e_inverse_6(d):
 
 
 def set_imatrix(imatrix, coords, periodic=None):
+    orig_settings = numpy.seterr()
+    numpy.seterr(all="ignore")
     for n1 in range(len(coords)):
         delta = coords[n1] - coords
         if periodic:
@@ -82,6 +84,7 @@ def set_imatrix(imatrix, coords, periodic=None):
         dist = numpy.sqrt(dist)
         e = e_lj(dist)
         imatrix[n1, :] = e * 100
+    numpy.seterr(**orig_settings)
 
 
 #coords = glencoords()
@@ -90,6 +93,10 @@ coords, L = fractalsquare(4)
 G = models.Graph(N=len(coords))
 
 set_imatrix(G.imatrix, coords, periodic=L)
+
+if not os.path.exists('imgs'):
+    print "Creating dir:",os.path.join(os.getcwd(),'imgs')
+    os.mkdir('imgs')
 
 import matplotlib.cm as cm
 import matplotlib.figure
