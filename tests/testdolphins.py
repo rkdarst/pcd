@@ -1,5 +1,8 @@
 # Richard Darst, August 2011
 
+from numpy import random
+random.seed(0)
+
 import pcd.models
 import pcd.graphs
 
