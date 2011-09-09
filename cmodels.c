@@ -387,6 +387,13 @@ double energy_cmty_cmty(Graph_t G, double gamma, int c1, int c2) {
   }
   return (E);
 }
+double energy_n(Graph_t G, double gamma, int n) {
+  /* Energy of particle n in its own community.
+   */
+  assert(G->oneToOne);
+  int c = G->cmty[n];
+  return energy_cmty_n(G, gamma, c, n);
+}
 
 
 int minimize_naive(Graph_t G, double gamma) {

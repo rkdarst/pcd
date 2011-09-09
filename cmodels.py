@@ -56,6 +56,7 @@ cfuncs = (
     ("energy_cmty",   c_double, (cGraph_p, c_double, c_int)),
     ("energy_cmty_n", c_double, (cGraph_p, c_double, c_int, c_int)),
     ("energy_cmty_cmty", c_double, (cGraph_p, c_double, c_int, c_int)),
+    ("energy_n",      c_double, (cGraph_p, c_double, c_int)),
 
     ("minimize_naive",c_int,    (cGraph_p, c_double)),
     ("minimize",      c_int,    (cGraph_p, c_double)),

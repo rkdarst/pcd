@@ -383,6 +383,9 @@ class Graph(_cobj, object):
         used in normal energy calculations as this is not included in
         normal energy calculations."""
         return cmodels.energy_cmty_cmty(self._struct_p, gamma, c1, c2)
+    def energy_n(self, gamma, n):
+        """Energy of particle n in its own community."""
+        return cmodels.energy_n(self._struct_p, gamma, n)
     @property
     def q_python(self):
         """Number of communities in the graph.
