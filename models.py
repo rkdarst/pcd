@@ -337,7 +337,7 @@ class Graph(_cobj, object):
             plt.savefig(fname, bbox_inches='tight')
         return g
 
-    def savefig(self, fname, coords,radii=None,base_radius=0.5,**kwargs):
+    def savefig(self, fname, coords,radii=None,base_radius=0.5,periodic=None,**kwargs):
         """Save a copy of layout to `fname`.
 
         `coords` is a mapping of node index to (x,y) position.
@@ -363,12 +363,20 @@ class Graph(_cobj, object):
 
         for n in range(self.N):
             cir = Circle(coords[n], radius=radii[n], axes=ax,
-                         color=colormap.get(n, 'black'),
-                         **kwargs)
+                         color=colormap.get(n, 'black'),**kwargs)
             ax.add_patch(cir)
+            if periodic:
+                greaterthanl=( coords[n] + radii[n] > periodic )
+                lessthanzero=( coords[n] - radii[n] < 0        )
+                if greaterthanl.sum() or lessthanzero.sum():
+                    cir = Circle(coords[n]-periodic*greaterthanl+periodic*lessthanzero, radius=radii[n], axes=ax,color=colormap.get(n, 'black'),**kwargs)
+                    ax.add_patch(cir)
 
         ax.autoscale_view(tight=True)
         print fname
+        if periodic:
+            ax.set_xlim(0,periodic)
+            ax.set_ylim(0,periodic)
         c.print_figure(fname, bbox_inches='tight')
 
 

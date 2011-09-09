@@ -78,12 +78,12 @@ if not os.path.exists('imgs'):
     os.mkdir('imgs')
 
 G.minimize(gamma=0)
-G.savefig('imgs/amorphous_gamma0.svg', coords=coords,radii=radii,base_radius=0.4)
+G.savefig('imgs/amorphous_gamma0.svg', coords=coords,radii=radii,base_radius=0.4,periodic=L)
 
 def callback(G, gamma, **kwargs):
     G.remapCommunities(check=False)
     fname = 'imgs/amorphous_gamma%011.5f.svg'%gamma
-    G.savefig(fname, coords=coords,radii=radii,base_radius=0.4)
+    G.savefig(fname, coords=coords,radii=radii,base_radius=0.4,periodic=L)
 
 MR = models.MultiResolution(.001, 100, callback=callback, number=10)
 MR.do([G]*10, trials=20, threads=2)
