@@ -337,10 +337,11 @@ class Graph(_cobj, object):
             plt.savefig(fname, bbox_inches='tight')
         return g
 
-    def savefig(self, fname, coords, **kwargs):
+    def savefig(self, fname, coords,radii=None,base_radius=0.5,**kwargs):
         """Save a copy of layout to `fname`.
 
         `coords` is a mapping of node index to (x,y) position.
+        `radii` is a list of relative sizes with the same length as `coords`. Smallest particles should be size 1
         """
         import matplotlib.figure
         import matplotlib.backends.backend_agg
@@ -355,9 +356,13 @@ class Graph(_cobj, object):
         c = matplotlib.backends.backend_agg.FigureCanvasAgg(f)
         ax = f.add_subplot(111, aspect='equal')
 
-        radius = .5
+        if type(radii)==type(None):
+            radii=numpy.ones(self.N)*base_radius
+        else:
+            radii=radii*base_radius
+
         for n in range(self.N):
-            cir = Circle(coords[n], radius=radius, axes=ax,
+            cir = Circle(coords[n], radius=radii[n], axes=ax,
                          color=colormap.get(n, 'black'),
                          **kwargs)
             ax.add_patch(cir)

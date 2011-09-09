@@ -66,6 +66,7 @@ ntypeb=len(coords)-ntypea
 sigma1=numpy.concatenate(( numpy.ones(ntypea),1.1*numpy.ones(ntypeb) ))
 sigma2=numpy.concatenate(( 1.1*numpy.ones(ntypea),1.4*numpy.ones(ntypeb) ))
 sigmas=numpy.array((sigma1,sigma2))
+radii=numpy.concatenate(( numpy.ones(ntypea),1.4*numpy.ones(ntypeb) ))
 
 imatrix=get_imatrix(coords,sigmas,ntypea,periodic=L)
 
@@ -77,12 +78,12 @@ if not os.path.exists('imgs'):
     os.mkdir('imgs')
 
 G.minimize(gamma=0)
-G.savefig('imgs/amorphous_gamma0.png', coords=coords)
+G.savefig('imgs/amorphous_gamma0.svg', coords=coords,radii=radii,base_radius=0.4)
 
 def callback(G, gamma, **kwargs):
     G.remapCommunities(check=False)
-    fname = 'imgs/amorphous_gamma%011.5f.png'%gamma
-    G.savefig(fname, coords=coords)
+    fname = 'imgs/amorphous_gamma%011.5f.svg'%gamma
+    G.savefig(fname, coords=coords,radii=radii,base_radius=0.4)
 
 MR = models.MultiResolution(.001, 100, callback=callback, number=10)
 MR.do([G]*10, trials=20, threads=2)
