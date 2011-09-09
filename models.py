@@ -787,6 +787,7 @@ class MultiResolution(object):
         #ax.set_xscale('log')
 
         ax_vi  = f.add_subplot(111)
+        ax_vi.set_xscale('log')
         ax_q = ax_vi.twinx()
 
         #old style. next is q on left, vi on right
@@ -801,7 +802,6 @@ class MultiResolution(object):
         l = ax_q.plot(self.gammas, self.qs,':',c='black')
 
         ax_q.legend((l2, l3,l), ("$VI$", "$I_n$","$q$"), loc=0)
-        ax_q.set_xscale('log')
         ax_q.set_xlabel('$\gamma$')
         ax_q.set_ylabel('$q$')
         ax_q.set_ylim(bottom=0)
