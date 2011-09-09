@@ -17,6 +17,13 @@ def readgro(gro_file,dimensions=2):
     length=box[0]
     return length,ntypea,configuration
 
+def e_r6_i(d,sigma,epsilon=1):
+    energy = -epsilon*(sigma/d)**6
+    energy += 0.5*epsilon
+    energy *= 1000
+    intn = numpy.round(energy)
+    return intn
+
 def e_softsphere_i(d,sigma,epsilon=1):
     energy = epsilon*(sigma/d)**12
     energy += 0.5*epsilon
@@ -24,10 +31,9 @@ def e_softsphere_i(d,sigma,epsilon=1):
     intn = numpy.round(energy)
     return intn
 
-def e_lj(d):
-    d *= 2**(1/6.)
-    energy = 4 * (1/d**12. - 1/d**6.)
-    energy += 0.5
+def e_lj_i(d,sigma,epsilon=1):
+    energy = 4*epsilon*( (sigma/d)**12 - (sigma/d)**6 )
+    energy += 0.5*epsilon
     energy *= 1000
     intn = numpy.round(energy)
     return intn
@@ -37,7 +43,7 @@ def get_imatrix(coords,sigmas,ntypea,periodic=None):
     orig_settings = numpy.seterr()
     numpy.seterr(all="ignore")
     for n1 in range(len(coords)):
-        atomtype=int(n1>=ntypea)
+        atomtype=int(n1>=ntypea) #typa a = 0 type b = 1
         delta = coords[n1] - coords
         if periodic:
             delta -=  numpy.round(delta/float(periodic))*periodic
@@ -45,7 +51,8 @@ def get_imatrix(coords,sigmas,ntypea,periodic=None):
         dist = numpy.sum(delta, axis=1)
         dist = numpy.sqrt(dist)
         sigma=sigmas[atomtype] 
-        e = e_softsphere_i(dist,sigma)
+#        e = e_lj_i(dist,sigma)
+        e = e_r6_i(dist,sigma)
         imatrix[n1, :] = e
     numpy.seterr(**orig_settings)
     return imatrix
@@ -65,19 +72,19 @@ imatrix=get_imatrix(coords,sigmas,ntypea,periodic=L)
 G = models.Graph(N=len(coords))
 G = G.from_imatrix(imatrix)
 
-G.minimize(gamma=0)
-G.savefig('img.png', coords=coords)
-
 if not os.path.exists('imgs'):
     print "Creating dir:",os.path.join(os.getcwd(),'imgs')
     os.mkdir('imgs')
+
+G.minimize(gamma=0)
+G.savefig('imgs/amorphous_gamma0.png', coords=coords)
 
 def callback(G, gamma, **kwargs):
     G.remapCommunities(check=False)
     fname = 'imgs/amorphous_gamma%011.5f.png'%gamma
     G.savefig(fname, coords=coords)
 
-MR = models.MultiResolution(.001, 100, callback=callback, number=20)
-MR.do([G]*10, trials=250, threads=2)
+MR = models.MultiResolution(.001, 100, callback=callback, number=10)
+MR.do([G]*10, trials=20, threads=2)
 MR.calc()
-MR.plot("imgs.png")
+MR.plot("imgs/amorphous_mr.png")
