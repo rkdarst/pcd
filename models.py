@@ -786,21 +786,27 @@ class MultiResolution(object):
         #ax.plot(array[:,0], array[:,1]/50., label="q")
         #ax.set_xscale('log')
 
-        ax_q  = f.add_subplot(111)
+        ax_vi  = f.add_subplot(111)
+        ax_q = ax_vi.twinx()
+
+        #old style. next is q on left, vi on right
+        #ax_q  = f.add_subplot(111)
+        #ax_vi = ax_q.twinx()
+
+        #from fitz import interactnow
+        l2 = ax_vi.plot(self.gammas, self.VIs,
+                        color='blue')
+        l3 = ax_vi.plot(self.gammas, self.Ins, '--',
+                        color='red')
+        l = ax_q.plot(self.gammas, self.qs,':',c='black')
+
+        ax_q.legend((l2, l3,l), ("$VI$", "$I_n$","$q$"), loc=0)
         ax_q.set_xscale('log')
         ax_q.set_xlabel('$\gamma$')
         ax_q.set_ylabel('$q$')
         ax_q.set_ylim(bottom=0)
-        ax_vi = ax_q.twinx()
-        ax_vi.set_ylabel('$VI$ and $I_n$')
 
-        l = ax_q.plot(self.gammas, self.qs)
-        #from fitz import interactnow
-        l2 = ax_vi.plot(self.gammas, self.VIs, '--',
-                        color=l[0].get_color())
-        l3 = ax_vi.plot(self.gammas, self.Ins, '.',
-                        color=l[0].get_color())
-        ax_q.legend((l, l2, l3), ("$q$", "$VI$", "$I_n$"), loc=0)
+        ax_vi.set_ylabel('$VI$ and $I_n$')
 
         if fname:
             c.print_figure(fname, bbox_inches='tight')
