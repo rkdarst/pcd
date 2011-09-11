@@ -337,19 +337,43 @@ class Graph(_cobj, object):
             plt.savefig(fname, bbox_inches='tight')
         return g
 
-    def savefig(self, fname, coords,radii=None,base_radius=0.5,periodic=None,**kwargs):
+    def savefig(self, fname, coords,
+                radii=None, base_radius=0.5, periodic=None, energies=None,
+                nodes='circles',
+                **kwargs):
         """Save a copy of layout to `fname`.
 
         `coords` is a mapping of node index to (x,y) position.
-        `radii` is a list of relative sizes with the same length as `coords`. Smallest particles should be size 1
+
+        `nodes` can be either 'circles' or 'squares', and switches
+        between drawing circles for nodes, or drawing a square on the
+        background indicating the community of that site (mostly
+        useful for square lattices).
+
+        `radii` is a list of relative sizes with the same length as
+        `coords`. Smallest particles should be size 1.  `base_radius`
+        is a mulitplier for all radii.
+
+        `energies`, if given, will place a small circle in the center
+        of each node to indicate its relative energy.  `energies`
+        should be an n-length array indicating energy of each
+        particle.
+
+        `periodic`, if given, is the (square) box length and used to
+        add periodic images of particles when needed.
         """
         import matplotlib.figure
         import matplotlib.backends.backend_agg
-        from matplotlib.patches import Circle
+        from matplotlib.patches import Circle, Rectangle
         import matplotlib.cm as cm
+        import matplotlib.colors as colors
 
-        colormap = dict((n, cm.gist_rainbow(self.cmty[n]/float(self.Ncmty)))
-                        for n in range(self.N))
+        #colormap = dict((n, cm.gist_rainbow(self.cmty[n]/float(self.Ncmty)))
+        #                for n in range(self.N))
+        colormap = cm.get_cmap('gist_rainbow')
+        norm = colors.Normalize(vmin=0, vmax=self.Ncmty)
+        #colormap.set_clim(vmin=0, vmax=self.Ncmty)
+        get_color = lambda x: colormap(norm(x))
 
         #f = matplotlib.backends.backend_agg.Figure()
         f = matplotlib.figure.Figure()
@@ -362,15 +386,40 @@ class Graph(_cobj, object):
             radii=radii*base_radius
 
         for n in range(self.N):
-            cir = Circle(coords[n], radius=radii[n], axes=ax,
-                         color=colormap.get(n, 'black'),**kwargs)
-            ax.add_patch(cir)
-            if periodic:
+            if nodes == 'circles':
+                p = Circle(coords[n], radius=radii[n], axes=ax,
+                           #color=colormap.to_rgba(n),
+                           color=get_color(self.cmty[n]),
+                           **kwargs)
+            elif nodes == 'squares':
+                p = Rectangle(coords[n]-(base_radius,base_radius),
+                              width=2*base_radius, height=2*base_radius,
+                              axes=ax,
+                              color=get_color(self.cmty[n]),
+                              **kwargs)
+            ax.add_patch(p)
+            if periodic and nodes == 'circles':
                 greaterthanl=( coords[n] + radii[n] > periodic )
                 lessthanzero=( coords[n] - radii[n] < 0        )
-                if greaterthanl.sum() or lessthanzero.sum():
-                    cir = Circle(coords[n]-periodic*greaterthanl+periodic*lessthanzero, radius=radii[n], axes=ax,color=colormap.get(n, 'black'),**kwargs)
-                    ax.add_patch(cir)
+                if greaterthanl.any() or lessthanzero.any():
+                    p = Circle(
+                        coords[n]-periodic*greaterthanl+periodic*lessthanzero,
+                        radius=radii[n],
+                        color=get_color(self.cmty[n]),
+                        **kwargs)
+                    ax.add_patch(1)
+
+        if energies:
+            e_colormap = cm.get_cmap('RdYlBu')
+            e_norm = colors.Normalize()
+            e_norm.autoscale(energies)
+            for n in range(self.N):
+                cir = Circle(coords[n], radius=radii[n]/2, axes=ax,
+                             color=e_colormap(e_norm(energies[n])),
+                             zorder=1,
+                             **kwargs)
+                ax.add_patch(cir)
+
 
         ax.autoscale_view(tight=True)
         print fname

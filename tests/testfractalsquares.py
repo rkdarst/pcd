@@ -120,7 +120,9 @@ if not os.path.exists('imgs'):
 def callback(G, gamma, **kwargs):
     G.remapCommunities(check=False)
     fname = 'imgs/gamma%011.5f.png'%gamma
-    G.savefig(fname, coords=coords)
+    Es = [ G.energy_n(gamma, n) for n in range(G.N) ]
+    G.savefig(fname, coords=coords, energies=Es,
+              nodes='squares')
 
 MR = models.MultiResolution(.001, 100, callback=callback, number=20)
 MR.do([G]*10, trials=250, threads=2)
