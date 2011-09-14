@@ -87,5 +87,9 @@ def callback(G, gamma, **kwargs):
 
 MR = models.MultiResolution(.001, 100, callback=callback, number=10)
 MR.do([G]*10, trials=20, threads=2)
+#MR = models.MultiResolution(0.1, 1, callback=callback, number=10)
+#MR.do([G]*10, trials=10, threads=2)
 MR.calc()
+MR.write("test_amorphous_values.txt")
 MR.plot("imgs/amorphous_mr.png")
+MR.plot_nmean("imgs/amorphous_mr_nmean.png")

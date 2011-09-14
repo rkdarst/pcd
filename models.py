@@ -855,6 +855,37 @@ class MultiResolution(object):
             for name in self.field_names:
                 print >> f, getattr(self, name)[i],
             print >> f
+
+    def plot_nmean(self, fname=None):
+        if fname:
+            from matplotlib.backends.backend_agg import Figure, FigureCanvasAgg
+            f = Figure()
+            c = FigureCanvasAgg(f)
+        else:
+            from matplotlib import pyplot
+            f = pyplot.gcf()
+
+        ax_vi  = f.add_subplot(111)
+        ax_vi.set_xscale('log')
+        ax_n = ax_vi.twinx()
+
+        l2 = ax_vi.plot(self.gammas, self.VIs,
+                        color='blue')
+        l3 = ax_vi.plot(self.gammas, self.Ins, '--',
+                        color='red')
+        l = ax_n.plot(self.gammas, self.n_mean,':',c='black')
+
+        ax_n.legend((l2, l3,l), ("$VI$", "$I_n$","$\langle n \\rangle$"), loc=0)
+        ax_n.set_ylabel('$\langle n \\rangle$')
+        ax_n.set_yscale('log')
+#        ax_n.set_ylim(bottom=0)
+
+        ax_vi.set_ylabel('$VI$ and $I_n$')
+        ax_vi.set_xlabel('$\gamma$')
+
+        if fname:
+            c.print_figure(fname, bbox_inches='tight')
+
     def plot(self, fname=None):
         if fname:
             from matplotlib.backends.backend_agg import Figure, FigureCanvasAgg
@@ -883,11 +914,11 @@ class MultiResolution(object):
         l = ax_q.plot(self.gammas, self.qs,':',c='black')
 
         ax_q.legend((l2, l3,l), ("$VI$", "$I_n$","$q$"), loc=0)
-        ax_q.set_xlabel('$\gamma$')
         ax_q.set_ylabel('$q$')
         ax_q.set_ylim(bottom=0)
 
         ax_vi.set_ylabel('$VI$ and $I_n$')
+        ax_vi.set_xlabel('$\gamma$')
 
         if fname:
             c.print_figure(fname, bbox_inches='tight')
