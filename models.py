@@ -471,6 +471,17 @@ class Graph(_cobj, object):
         Optimized implementation in C."""
         return cmodels.q(self._struct_p)
     q = q_c
+    def n_counts(self):
+        """Return countsogram of community sizes."""
+        #community sizes can go from 1 - N
+        n_counts = {}
+        community_sizes=[ self.cmtyN[c] for c in range(self.Ncmty) if self.cmtyN[c] > 0 ]
+        for size in community_sizes:
+            if size in n_counts.keys():
+                n_counts[size]=n_counts[size]+1
+            else:
+                n_counts[size]=1
+        return n_counts
     @property
     def entropy_python(self):
         """Return the entropy of this graph.
@@ -695,12 +706,17 @@ class MultiResolutionCorrelation(object):
         self.q       = numpy.mean(tuple(G.q for G in Gs))
         self.q_std   = numpy.std(tuple(G.q for G in Gs), ddof=1)
         self.qmin    = Gmin.q
+
         self.E       = numpy.mean(tuple(G.energy(gamma) for G in Gs))
         self.entropy = numpy.mean(tuple(G.entropy for G in Gs))
 
         self.I       = numpy.mean(Is)
         self.VI      = VI
         self.In      = In
+
+        N = Gs[0].N
+        self.n_mean  = sum(tuple(item[0]*item[1]/float(G.q) for G in Gs for 
+                                 item in G.n_counts().items())) / ( float(len(Gs)) )
 
 from util import LogInterval
 
@@ -822,8 +838,11 @@ class MultiResolution(object):
         self.Is        = Is        = [mrc.I         for mrc in MRCs]
         self.VIs       = VIs       = [mrc.VI        for mrc in MRCs]
         self.Ins       = Ins       = [mrc.In        for mrc in MRCs]
+   
+        self.n_mean    = n_mean    = [mrc.n_mean    for mrc in MRCs]
+
         self.field_names = ("gammas", "qs", "Es", "entropies",
-                            "Is", "VIs", "Ins", "qmins")
+                            "Is", "VIs", "Ins", "qmins","n_mean")
     def write(self, fname):
         """Save multi-resolution data to a file."""
         self.calc()
