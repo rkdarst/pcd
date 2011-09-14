@@ -759,7 +759,7 @@ class Graph(_cobj, object):
         return changes
 
 class MultiResolutionCorrelation(object):
-    def __init__(self, gamma, Gs):
+    def __init__(self, gamma, Gs, nhistbins=50):
         pairs = [ ]
 
         Gmin = min(Gs, key=lambda G: G.energy(gamma))
@@ -787,7 +787,7 @@ class MultiResolutionCorrelation(object):
         self.VI      = VI
         self.In      = In
 
-        N = Gs[0].N
+        self.N       = N = Gs[0].N
         self.n_mean  = sum(tuple(item[0]*item[1]/float(G.q) for G in Gs for 
                                  item in G.n_counts().items())) / ( float(len(Gs)) )
 
@@ -796,8 +796,9 @@ class MultiResolutionCorrelation(object):
         for number,count in histdata:
             n_counts=n_counts+[number]*count
         n_counts= sorted(n_counts) 
-        
-        self.n_hist,self.n_hist_edges = numpy.histogram(n_counts, bins=50)
+     
+        edges=numpy.logspace(0,numpy.log10(N+1),num=nhistbins,endpoint=True)
+        self.n_hist,self.n_hist_edges = numpy.histogram(n_counts, bins=edges)
 
 from util import LogInterval
 
@@ -910,6 +911,7 @@ class MultiResolution(object):
     def calc(self):
         MRCs = [ MRC for i, MRC in sorted(self._data.iteritems()) ]
 
+        self.N         = N         = MRCs[0].N
         self.gammas    = gammas    = [mrc.gamma     for mrc in MRCs]
         self.qs        = qs        = [mrc.q         for mrc in MRCs]
         self.qmins     = minss     = [mrc.qmin      for mrc in MRCs]
@@ -954,7 +956,9 @@ class MultiResolution(object):
             histedges=self.n_hist_edges[i]
             ax.cla()
             ax.set_title("$\gamma=%f$"%self.gammas[i])
-            ax.bar( histedges[:-1], histdata, width=histedges[1]-histedges[0] )
+            ax.bar( histedges[:-1], histdata, width=(histedges[1:]-histedges[:-1]) )
+            ax.set_xscale('log')
+            ax.set_xlim( 0.1 , self.N )
             pp.savefig(f)
 
         pp.close()
