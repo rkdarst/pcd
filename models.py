@@ -791,6 +791,14 @@ class MultiResolutionCorrelation(object):
         self.n_mean  = sum(tuple(item[0]*item[1]/float(G.q) for G in Gs for 
                                  item in G.n_counts().items())) / ( float(len(Gs)) )
 
+        n_counts=[]
+        histdata=tuple(item for G in Gs for item in G.n_counts().items())
+        for number,count in histdata:
+            n_counts=n_counts+[number]*count
+        n_counts= sorted(n_counts) 
+        
+        self.n_hist,self.n_hist_edges = numpy.histogram(n_counts, bins=50)
+
 from util import LogInterval
 
 class MultiResolution(object):
@@ -914,6 +922,9 @@ class MultiResolution(object):
    
         self.n_mean    = n_mean    = [mrc.n_mean    for mrc in MRCs]
 
+        self.n_hist       = n_hist       = [mrc.n_hist       for mrc in MRCs]
+        self.n_hist_edges = n_hist_edges = [mrc.n_hist_edges for mrc in MRCs]
+
         self.field_names = ("gammas", "qs", "Es", "entropies",
                             "Is", "VIs", "Ins", "qmins","n_mean")
     def write(self, fname):
@@ -928,6 +939,25 @@ class MultiResolution(object):
             for name in self.field_names:
                 print >> f, getattr(self, name)[i],
             print >> f
+
+    def plot_nhists(self, fname):
+        from matplotlib.backends.backend_agg import Figure, FigureCanvasAgg
+        from matplotlib.backends.backend_pdf import PdfPages
+        f = Figure()
+        c = FigureCanvasAgg(f)
+
+        ax  = f.add_subplot(111)
+        pp = PdfPages(fname)
+
+        for i in range(len(self.n_hist)):
+            histdata=self.n_hist[i]
+            histedges=self.n_hist_edges[i]
+            ax.cla()
+            ax.set_title("$\gamma=%f$"%self.gammas[i])
+            ax.bar( histedges[:-1], histdata, width=histedges[1]-histedges[0] )
+            pp.savefig(f)
+
+        pp.close()
 
     def plot_nmean(self, fname=None):
         if fname:
