@@ -407,7 +407,7 @@ class Graph(_cobj, object):
                         radius=radii[n],
                         color=get_color(self.cmty[n]),
                         **kwargs)
-                    ax.add_patch(1)
+                    ax.add_patch(p)
 
         if energies:
             e_colormap = cm.get_cmap('RdYlBu')
