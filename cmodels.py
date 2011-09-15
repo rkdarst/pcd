@@ -13,6 +13,59 @@ c_int_p = ctypes.POINTER(c_int)
 
 imatrix_t = c_int_p
 
+class _cobj(object):
+    """Generic code to interface an object with ctypes using the darst method.
+
+    Note: work in progress.
+    """
+    def _allocStruct(self, cModel):
+        self._struct = cModel()
+        self._struct_p = ctypes.pointer(self._struct)
+
+    def _allocArray(self, name, array=None, **args):
+        """Allocate an array in a way usable by both python and C.
+
+        `name` is the name of the array to allocate: it will be
+        self.`name` and self.SD.`name`.  `**args` are arguments passed
+        to `numpy.zeros` to allocate the arrays.
+
+        If you want to initilize the array to something, you have to
+        do it afterwards, like this:
+        self.lattsite[:] = S12_EMPTYSITE
+        """
+        # This code can be hard to understand, since we can't use the
+        # name, but it is equivalent to this for the name `lattsite`:
+        ##  self.__dict__["lattsite"] = numpy.zeros(**args)
+        ##  self.SD.lattsite = self.lattsite.ctypes.data
+        # Get dtype if not already a argument
+        if 'dtype' not in args:
+            args['dtype'] = getattr(self._struct, name)._type_
+        if array is None:
+            array = numpy.zeros(**args)
+        self.__dict__[name] = array
+        setattr(self._struct, name,
+                array.ctypes.data_as(ctypes.POINTER(
+                    getattr(self._struct, name)._type_)))
+        #setattr(self._struct, name, array.ctypes.data)
+    def _allocArrayPointers(self, pointerarray, array):
+        for i, row in enumerate(array):
+            pointerarray[i] = row.ctypes.data
+
+    def __getattr__(self, attrname):
+        """Wrapper to proxy attribute gets to the C SimData struct
+        """
+        if attrname in cGraph_fields:
+            return getattr(self._struct, attrname)
+        raise AttributeError("No Such Attribute: %s"%attrname)
+    def __setattr__(self, attrname, value):
+        """Wrapper to proxy attribute sets to the C SimData struct
+        """
+        if attrname in cGraph_fields:
+            setattr(self._struct, attrname, value)
+        else:
+            self.__dict__[attrname] = value
+
+# This defines the C structure we use
 class cGraph(ctypes.Structure):
     pass
 cGraph._fields_ = [

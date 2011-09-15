@@ -4,7 +4,7 @@ import numpy
 import random
 import networkx.algorithms
 
-import pcd.models
+import pcd
 import pcd.graphs
 import pcd.util
 
@@ -17,8 +17,8 @@ assert networkx.algorithms.is_isomorphic(g, g_p2)
 assert networkx.algorithms.is_isomorphic(g, g_p1, weighted=True)
 
 
-G = pcd.models.Graph.fromNetworkX(g, defaultweight=1, diagonalweight=0)
-G2 = pcd.models.Graph.fromNetworkX(g_p1, defaultweight=1, diagonalweight=0)
+G = pcd.Graph.fromNetworkX(g, defaultweight=1, diagonalweight=0)
+G2 = pcd.Graph.fromNetworkX(g_p1, defaultweight=1, diagonalweight=0)
 print G.imatrix
 assert numpy.all(G.imatrix - G.imatrix.T == 0)
 
@@ -45,13 +45,13 @@ while True:
 
 #for a,b in [random.sample(range(G.N), 2) for _ in range(1000)]:
 #    pcd.util.matrix_swap_basis(G.imatrix, a, b)
-MR = pcd.models.MultiResolution(low=.01, high=10, number=100)
+MR = pcd.MultiResolution(low=.01, high=10, number=100)
 MR.do(Gs=[G]*12, trials=100)
 MR.write("tmp-polopatribes.txt")
 #MR.viz()
 
 #for a,b in [random.sample(range(G2.N), 2) for _ in range(1000)]:
 #    pcd.util.matrix_swap_basis(G2.imatrix, a, b)
-#MR = pcd.models.MultiResolution(low=.01, high=10)
+#MR = pcd.MultiResolution(low=.01, high=10)
 #MR.do(Gs=[G2]*12, trials=50)
 #MR.write("tmp-polopatribes2.txt")

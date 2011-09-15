@@ -145,7 +145,7 @@ class ColorMapper(object):
         # Import only if actually used here.
         import matplotlib.cm as cm
         import matplotlib.colors as mcolors
-        colors = cororizer(g)
+        colors = colorizer(g)
         self.g = g
         self.colors = colors
         self.colormap = cm.get_cmap(colormap_name)

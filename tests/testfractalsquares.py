@@ -5,7 +5,7 @@ import sys
 
 import numpy
 
-import models
+import pcd
 
 from support.fractalsquare import fractalsquare1, fractalsquare2
 
@@ -27,11 +27,11 @@ def e_inverse_6(d):
 # Mode 1:
 #coords = glencoords()
 coords, L = fractalsquare1(4)
-G = models.Graph.from_coords_and_efunc(coords,
+G = pcd.Graph.from_coords_and_efunc(coords,
                                      #lambda x: e_lj(x)*100,
                                      e_lj,
                                      periodic=L)
-G = models.Graph(N=len(coords))
+G = pcd.Graph(N=len(coords))
 
 # Mode 2
 L = 16
@@ -54,7 +54,7 @@ def callback(G, gamma, **kwargs):
     G.savefig(fname, coords=coords, energies=Es,
               nodes='circles')
 
-MR = models.MultiResolution(.001, 100, callback=callback, number=20)
+MR = pcd.MultiResolution(.001, 100, callback=callback, number=20)
 MR.do([G]*10, trials=250, threads=2)
 MR.calc()
 MR.plot("imgs.png")

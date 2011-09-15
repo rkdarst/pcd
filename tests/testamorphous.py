@@ -5,7 +5,7 @@ import sys
 
 import numpy
 
-import models
+import pcd
 
 def readgro(gro_file,dimensions=2):
     configuration_lines=open(gro_file,'r').readlines()
@@ -70,7 +70,7 @@ radii=numpy.concatenate(( numpy.ones(ntypea),1.4*numpy.ones(ntypeb) ))
 
 imatrix=get_imatrix(coords,sigmas,ntypea,periodic=L)
 
-G = models.Graph(N=len(coords))
+G = pcd.Graph(N=len(coords))
 G = G.from_imatrix(imatrix)
 
 if not os.path.exists('imgs'):
@@ -85,9 +85,9 @@ def callback(G, gamma, **kwargs):
     fname = 'imgs/amorphous_gamma%011.5f.svg'%gamma
     G.savefig(fname, coords=coords,radii=radii,base_radius=0.4,periodic=L)
 
-MR = models.MultiResolution(.001, 100, callback=callback, number=10)
+MR = pcd.MultiResolution(.001, 100, callback=callback, number=10)
 MR.do([G]*10, trials=20, threads=2)
-#MR = models.MultiResolution(0.1, 1, callback=callback, number=10)
+#MR = pcd.MultiResolution(0.1, 1, callback=callback, number=10)
 #MR.do([G]*10, trials=10, threads=2)
 MR.calc()
 MR.write("test_amorphous_values.txt")
