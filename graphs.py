@@ -225,6 +225,12 @@ def karate_club():
     return g
 
 
+def fractalsquare(L):
+    from support.fractalsquare import fractalsquare2
+    imatrix, coords = fractalsquare2(L=L)
+    G = models.Graph.from_imatrix(imatrix, layout=coords)
+    return G
+
 
 if __name__ == "__main__":
     print polopa_tribes()
