@@ -41,17 +41,50 @@ int test(Graph_t G) {
 }
 
 
-void cmtyListAdd(Graph_t G, int c, int n) {
+/*
+ * Functions which deal with the community lists:
+ * - G->cmty[n]   (direct community mapping)
+ * - G->cmtyl[c][i]
+ * - G->cmtyN[c]
+ * - G->Ncmty
+ */
+inline int cmtyListIsInCmty(Graph_t G, int c, int n) {
+  /* Return 1 if particle n is in community c.
+   *
+   * This is primarily useful for systems that have overlaps. If there
+   * are no overlaps (G->oneToOne==1), then G->cmty[n]==0 is a faster
+   * test.
+   */
+  int i;
+  for (i=0 ; i<G->cmtyN[c] ; i++) {
+    if (G->cmtyl[c][i] == n)
+      return (1);
+  }
+  return (0);
+}
+inline void cmtyListAddOverlap(Graph_t G, int c, int n) {
   /* Add particle n to community c
+   *
+   * Adapted for systems that have overlaps.
    */
   G->cmtyl[c][G->cmtyN[c]] = n;
   G->cmtyN[c]++;
-  G->cmty[n] = c;
+  /*G->cmty[n] = c;*/
   if (c >= G->Ncmty)
     G->Ncmty = c+1;
 }
-void cmtyListRemove(Graph_t G, int c, int n) {
+inline void cmtyListAdd(Graph_t G, int c, int n) {
+  /* Add particle n to community c
+   */
+  cmtyListAddOverlap(G, c, n);
+  // The difference for systems without overlaps is we keep G->cmty[n]
+  // up to date
+  G->cmty[n] = c;
+}
+inline void cmtyListRemoveOverlap(Graph_t G, int c, int n) {
   /* Remove particle n from community c
+   *
+   * Adapted for systems that have overlaps
    */
   int i;
   // Find where it is in the lists
@@ -69,7 +102,6 @@ void cmtyListRemove(Graph_t G, int c, int n) {
     //no op, just decrement counter
   }
   G->cmtyN[c]-- ;
-  G->cmty[n] = -1;
   // If we just removed the greatest-numbered community
   if (c == G->Ncmty-1  &&  G->cmtyN[c] == 0 ) {
     // Altar Ncmty to If we just removed the greatest-numbered community
@@ -81,10 +113,18 @@ void cmtyListRemove(Graph_t G, int c, int n) {
     }
   }
 }
-void cmtyListInit(Graph_t G) {
+inline void cmtyListRemove(Graph_t G, int c, int n) {
+  /* Remove particle n from community c
+   */
+  cmtyListRemoveOverlap(G, c, n);
+  // The difference for systems without overlaps is we keep G->cmty[n]
+  // up to date
+  G->cmty[n] = -1;
+}
+inline void cmtyListInit(Graph_t G) {
   /* Initialize the community lists.
    *
-   * Set G->cmtyl[c][0...i] based on G->cmty
+   * Initialize all the G->cmtyl[c][0...i] based on G->cmty[n].
    */
   int c, n;
   // Set all lists lengths to zero
@@ -180,6 +220,9 @@ int cmtyListCheck(Graph_t G) {
 
 int shared_nodes_between_communities(int *cmtyl0, int *cmtyl1,
 				     int  cmtyN0, int  cmtyN1) {
+  /* Return the number of nodes that are in both the first and second
+   * communities (set intersection)
+   */
   int n_shared=0;
   int i, j, n, m;
   for (i=0 ; i<cmtyN0 ; i++) {
@@ -379,6 +422,8 @@ double energy_cmty_n(Graph_t G, double gamma, int c, int n) {
 }
 
 double energy_cmty_cmty(Graph_t G, double gamma, int c1, int c2) {
+  /* Total energy of interaction between two communities.
+   */
   double E=0;
   int i1, n1;
   for (i1=0 ; i1 < G->cmtyN[c1] ; i1++) {
@@ -519,6 +564,87 @@ int minimize(Graph_t G, double gamma) {
       cmtyListRemove(G, oldcmty, n);
       cmtyListAdd(G, bestcmty, n);
       changes += 1;
+    }
+  }
+  return (changes);
+}
+
+
+int overlapMinimize_add(Graph_t G, double gamma) {
+  /* Do a minimization attempt, but adding particles to new
+   * overlapping communities.  However, we can't remove particles from
+   * their original communities.
+   *
+   * One principle in this function is that G->cmty[n] lists the
+   * _original_ community each particle was in.
+   *
+   * This makes a round of adding particles to communities.
+   */
+  int changes = 0;
+  G->oneToOne = 0;
+
+  int nindex, n;
+  // Loop over particles
+  for (nindex=0 ; nindex<G->N ; nindex++) {
+    n = G->randomOrder[nindex];
+
+    // Method 1 (all other communities) //
+    int cindex, c;
+    for (cindex=0 ; cindex<G->Ncmty ; cindex++) {
+      c = G->randomOrder2[cindex];
+      if (G->cmtyN[c] == 0)
+	continue;
+
+      // If this is in the original comminty, can skip it.
+      if (c == G->cmty[n])
+	continue;
+      // Skip if already in this community.
+      if (cmtyListIsInCmty(G, c, n))
+	continue;
+
+      // Should this be added to community?
+      double deltaE = energy_cmty_n(G, gamma, c, n);
+      if (deltaE < 0) {
+	cmtyListAddOverlap(G, c, n);
+	changes++;
+      }
+    }
+  }
+  return (changes);
+}
+int overlapMinimize_remove(Graph_t G, double gamma) {
+  /* Do a minimization attempt, but adding particles to new
+   * overlapping communities.  However, we can't remove particles from
+   * their original communities.
+   *
+   * One principle in this function is that G->cmty[n] lists the
+   * _original_ community each particle was in.
+   *
+   * This makes a round of removing particles from each community.
+   */
+  int changes = 0;
+  G->oneToOne = 0;
+
+  int c;
+  // Loop over communities
+  for (c=0 ; c<G->Ncmty ; c++) {
+
+    // Loop over particles within that community
+    int i, n;
+    // Method 1 (all other communities) //
+    for (i=0 ; i<G->cmtyN[c] ; i++) {
+      n = G->cmtyl[c][i];
+
+      // If this is in the original comminty, can skip the tests.
+      if (c == G->cmty[n])
+	continue;
+
+      // Should this be removed from the community?
+      double deltaE = energy_cmty_n(G, gamma, c, n);
+      if (deltaE > 0) {
+	cmtyListRemoveOverlap(G, c, n);
+	changes++;
+      }
     }
   }
   return (changes);

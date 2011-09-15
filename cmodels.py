@@ -60,6 +60,10 @@ cfuncs = (
 
     ("minimize_naive",c_int,    (cGraph_p, c_double)),
     ("minimize",      c_int,    (cGraph_p, c_double)),
+    ("overlapMinimize_add",
+                      c_int,    (cGraph_p, c_double)),
+    ("overlapMinimize_remove",
+                      c_int,    (cGraph_p, c_double)),
     ("combine_cmtys", c_int,    (cGraph_p, c_double)),
     ("remap_cmtys",   c_int,    (cGraph_p, )),
 

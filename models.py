@@ -556,6 +556,33 @@ class Graph(_cobj, object):
         return changes
     def _minimize(self, gamma):
         return cmodels.minimize(self._struct_p, gamma)
+    def overlapMinimize(self, gamma):
+        """Attempting to add particles to overlapping communities.
+        """
+        changes = 0
+        changes_add = 0
+        changes_remove = None
+        for round_ in itertools.count():
+            changes_add = self._overlapMinimize_add(gamma)
+            changes += changes_add
+            print "  (r%2s) overlap: adding  : %4d"%(round_, changes_add)
+            if changes_add == 0 and changes_remove == 0:
+                break
+            if changes_add == 0:
+                changes_remove = self._overlapMinimize_remove(gamma)
+                changes += changes_remove
+                print "  (r%2s) overlap: removing: %4d"%(
+                                                     round_, changes_remove)
+            if changes_add == 0 and changes_remove == 0:
+                break
+            if round_ > 250:
+                print "  Exceeding maximum number of rounds"
+                break
+        return changes
+    def _overlapMinimize_add(self, gamma):
+        return cmodels.overlapMinimize_add(self._struct_p, gamma)
+    def _overlapMinimize_remove(self, gamma):
+        return cmodels.overlapMinimize_remove(self._struct_p, gamma)
     def combine_cmtys(self, gamma):
         """Attempt to combine communities if energy decreases."""
         return cmodels.combine_cmtys(self._struct_p, gamma)
