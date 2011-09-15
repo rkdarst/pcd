@@ -12,7 +12,7 @@ import random
 import sys
 import time
 
-import networkx as nx
+import networkx
 
 
 from cmodels import cGraph_fields
@@ -150,12 +150,13 @@ class Graph(_cobj, object):
         return G
 
     @classmethod
-    def from_imatrix(cls, imatrix):
+    def from_imatrix(cls, imatrix, layout=None):
         """Create a graph structure from a matrix of interactions.
         """
         # This should be improved sometime.
         G = cls(N=imatrix.shape[0])
         G.imatrix[:] = imatrix
+        G._layout = layout
         return G
     @classmethod
     def from_coords_and_efunc(cls, coords, efunc, periodic=None):
@@ -170,6 +171,9 @@ class Graph(_cobj, object):
         length: either a number or a [Lx, Ly, ...] array.
         """
         G = cls(N=coords.shape[0])
+        G._layout = coords
+        #orig_settings = numpy.seterr()
+        #numpy.seterr(all="ignore")
 
         for n1 in range(len(coords)):
             delta = coords[n1] - coords
@@ -179,6 +183,7 @@ class Graph(_cobj, object):
             dist = numpy.sum(delta, axis=1)
             dist = numpy.sqrt(dist)
             G.imatrix[n1, :] = efunc(dist)
+        #numpy.seterr(**orig_settings)
         return G
 
 
@@ -269,6 +274,13 @@ class Graph(_cobj, object):
     def cmtyContents(self, c):
         """Array of all nodes in community c."""
         return self.cmtyll[c, :self.cmtyN[c]]
+    def cmtys(self):
+        """Return an iterator over all non-empty community IDs.
+
+        This is a useful method as it only returns communities that
+        are non-empty, unlike range(G.cmtyN)
+        """
+        return ( c for c in range(self.Ncmty) if self.cmtyN[c]>0 )
     def check(self):
         """Do an internal consistency check."""
         print "cmtyListCheck"
@@ -322,7 +334,7 @@ class Graph(_cobj, object):
             #del g.edge[a][b]['weight']
 
         cmtys = [ self.cmty[d['index']] for (n,d) in g.nodes(data=True) ]
-        nx.draw(g,
+        networkx.draw(g,
                 node_color=[colorMap[c] for c in cmtys],
                 edge_color=[d.get('color', 'green') for a,b,d in g.edges(data=True)],
                 width=[d.get('width', 1) for a,b,d in g.edges(data=True)],
@@ -475,7 +487,8 @@ class Graph(_cobj, object):
         """Return countsogram of community sizes."""
         #community sizes can go from 1 - N
         n_counts = {}
-        community_sizes=[ self.cmtyN[c] for c in range(self.Ncmty) if self.cmtyN[c] > 0 ]
+        community_sizes=[ self.cmtyN[c] for c in range(self.Ncmty)
+                          if self.cmtyN[c] > 0 ]
         for size in community_sizes:
             if size in n_counts.keys():
                 n_counts[size]=n_counts[size]+1
