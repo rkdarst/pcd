@@ -8,10 +8,17 @@ import random
 
 c_double = ctypes.c_double
 c_void_p = ctypes.c_void_p
-c_int = ctypes.c_int
-c_int_p = ctypes.POINTER(c_int)
+c_int    = ctypes.c_int
+c_long   = ctypes.c_long
+c_float  = ctypes.c_float
+c_double = ctypes.c_double
+c_int_p  = ctypes.POINTER(c_int)
 
-imatrix_t = c_int_p
+_fname = os.path.join(os.path.dirname(__file__),'imatrix_t.py')
+_imatrix_t = eval(open(_fname).read())
+imatrix_t = ctypes.POINTER(_imatrix_t)
+del _fname
+
 
 class _cobj(object):
     """Generic code to interface an object with ctypes using the darst method.

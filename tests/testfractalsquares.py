@@ -54,7 +54,11 @@ def callback(G, gamma, **kwargs):
     G.savefig(fname, coords=coords, energies=Es,
               nodes='circles')
 
-MR = pcd.MultiResolution(.001, 100, callback=callback, number=20)
-MR.do([G]*10, trials=250, threads=2)
+nreplicas, ntrials, lnumber = 10, 250, 20
+if globals().get('fast', True):
+    nreplicas, ntrials, lnumber = 5, 5, 10
+
+MR = pcd.MultiResolution(.001, 100, callback=callback, number=lnumber)
+MR.do([G]*nreplicas, trials=ntrials, threads=2)
 MR.calc()
 MR.plot("imgs.png")

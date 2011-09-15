@@ -8,6 +8,8 @@ import pcd
 import pcd.graphs
 import pcd.util
 
+fast = globals().get('fast', False)
+
 # weights of -1, 2, 6 seem to make it match the paper... for q.
 g = pcd.graphs.polopa_tribes(weightAllied=-1, weightHostile=2)
 g_p2 = pcd.graphs.polopa_tribes_peter(fname="highland.txt")
@@ -38,15 +40,19 @@ while True:
     #    import networkx.drawing.layout as layout
     #    G._layout = layout.spring_layout(g)
     #    print G._layout
-    if 1 or G.q != 5 and G.energy(gamma=gamma) <= -21:
+    if fast and (1 or G.q != 5 and G.energy(gamma=gamma) <= -21):
         g = G.viz()
         raw_input(',')
 #exit(2)
 
+ntrials, lnumber = 100, 100
+#if fast:
+#    ntrials, lnumber = 10, 10
+
 #for a,b in [random.sample(range(G.N), 2) for _ in range(1000)]:
 #    pcd.util.matrix_swap_basis(G.imatrix, a, b)
-MR = pcd.MultiResolution(low=.01, high=10, number=100)
-MR.do(Gs=[G]*12, trials=100)
+MR = pcd.MultiResolution(low=.01, high=10, number=lnumber)
+MR.do(Gs=[G]*12, trials=ntrials)
 MR.write("tmp-polopatribes.txt")
 #MR.viz()
 

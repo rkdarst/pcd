@@ -6,6 +6,8 @@ import sys
 import numpy
 
 import pcd
+fast = globals().get('fast', False)
+
 
 def readgro(gro_file,dimensions=2):
     configuration_lines=open(gro_file,'r').readlines()
@@ -85,8 +87,12 @@ def callback(G, gamma, **kwargs):
     fname = 'imgs/amorphous_gamma%011.5f.svg'%gamma
     G.savefig(fname, coords=coords,radii=radii,base_radius=0.4,periodic=L)
 
+nreplicas, ntrials = 10, 20
+if fast:
+    nreplicas, ntrials = 5, 5
+
 MR = pcd.MultiResolution(.001, 100, callback=callback, number=10)
-MR.do([G]*10, trials=20, threads=2)
+MR.do([G]*nreplicas, trials=ntrials, threads=2)
 #MR = pcd.MultiResolution(0.1, 1, callback=callback, number=10)
 #MR.do([G]*10, trials=10, threads=2)
 MR.calc()

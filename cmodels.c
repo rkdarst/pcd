@@ -32,7 +32,11 @@ int test(Graph_t G) {
     int j;
     printf("  ");
     for (j=0 ; j<G->N ; j++) {
+#ifdef IMATRIX_T_INT
       printf("%2d ", G->imatrix[i*G->N+j]);
+#else
+      printf("%5.2f ", G->imatrix[i*G->N+j]);
+#endif
     }
     printf("\n");
   }

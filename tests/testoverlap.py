@@ -18,12 +18,12 @@ G.minimize_trials(gamma=gamma, trials=10)
 
 print G.q
 print G.energy(gamma=gamma)
-print sorted(G.cmtyHistogram().iteritems())
+print sorted(G.n_counts().iteritems())
 
 G.overlapMinimize(gamma=gamma)
 print G.q
 print G.energy(gamma=gamma)
-print sorted(G.cmtyHistogram().iteritems())
+print sorted(G.n_counts().iteritems())
 
 
 G = pcd.graphs.fractalsquare(L=16)

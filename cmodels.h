@@ -1,6 +1,8 @@
 /* Richard Darst, July 2011 */
 
-typedef int imatrix_t;
+#include "imatrix_t.h"
+
+typedef IMATRIX_T imatrix_t;
 
 typedef struct Graph {
   int N;
