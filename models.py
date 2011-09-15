@@ -348,10 +348,19 @@ class Graph(_cobj, object):
         if fname:
             plt.savefig(fname, bbox_inches='tight')
         return g
+    def get_colormapper(self, colormap_name='gist_rainbow'):
+        """Return a colormapper object: colormapper(cmty_id) -> integer_color
+
+        This is a helper method which will return an object which can
+        be called with communities and return colors.
+        """
+        g = self.supernode_networkx()
+        return util.ColorMapper(g, colors, colormap_name=colormap_name)
 
     def savefig(self, fname, coords,
                 radii=None, base_radius=0.5, periodic=None, energies=None,
                 nodes='circles',
+                hulls=None,
                 **kwargs):
         """Save a copy of layout to `fname`.
 
@@ -373,24 +382,22 @@ class Graph(_cobj, object):
 
         `periodic`, if given, is the (square) box length and used to
         add periodic images of particles when needed.
+
+        `hulls`, if true, will draw convex hulls of communities on the
+        background.
         """
         import matplotlib.figure
         import matplotlib.backends.backend_agg
-        from matplotlib.patches import Circle, Rectangle
+        from matplotlib.patches import Circle, Rectangle, Polygon
         import matplotlib.cm as cm
         import matplotlib.colors as colors
 
-        #colormap = dict((n, cm.gist_rainbow(self.cmty[n]/float(self.Ncmty)))
-        #                for n in range(self.N))
-        colormap = cm.get_cmap('gist_rainbow')
-        norm = colors.Normalize(vmin=0, vmax=self.Ncmty)
-        #colormap.set_clim(vmin=0, vmax=self.Ncmty)
-        get_color = lambda x: colormap(norm(x))
+        cmtyColor = self.get_colormapper()
 
         #f = matplotlib.backends.backend_agg.Figure()
-        f = matplotlib.figure.Figure()
-        c = matplotlib.backends.backend_agg.FigureCanvasAgg(f)
-        ax = f.add_subplot(111, aspect='equal')
+        fig = matplotlib.figure.Figure()
+        canvas = matplotlib.backends.backend_agg.FigureCanvasAgg(fig)
+        ax = fig.add_subplot(111, aspect='equal')
 
         if type(radii)==type(None):
             radii=numpy.ones(self.N)*base_radius
@@ -401,13 +408,13 @@ class Graph(_cobj, object):
             if nodes == 'circles':
                 p = Circle(coords[n], radius=radii[n], axes=ax,
                            #color=colormap.to_rgba(n),
-                           color=get_color(self.cmty[n]),
+                           color=cmtyColor(self.cmty[n]),
                            **kwargs)
             elif nodes == 'squares':
                 p = Rectangle(coords[n]-(base_radius,base_radius),
                               width=2*base_radius, height=2*base_radius,
                               axes=ax,
-                              color=get_color(self.cmty[n]),
+                              color=cmtyColor(self.cmty[n]),
                               **kwargs)
             ax.add_patch(p)
             if periodic and nodes == 'circles':
@@ -417,7 +424,7 @@ class Graph(_cobj, object):
                     p = Circle(
                         coords[n]-periodic*greaterthanl+periodic*lessthanzero,
                         radius=radii[n],
-                        color=get_color(self.cmty[n]),
+                        color=cmtyColor(self.cmty[n]),
                         **kwargs)
                     ax.add_patch(p)
 
@@ -432,13 +439,30 @@ class Graph(_cobj, object):
                              **kwargs)
                 ax.add_patch(cir)
 
+        if hulls:
+            #from support.convex_hull import convex_hull
+            #from support.convexhull import convexHull
+            from support.convexhull import convex_hull
+            for c in self.cmtys():
+                ns = self.cmtyContents(c)
+                points = [ coords[n] for n in ns ]
+                points = numpy.asarray(points)
+                #if len(points) > 5:
+                #    print points
+                #    points = convex_hull(points.T)
+                points = convex_hull(tuple(p) for p in points)
+                p = Polygon(points, alpha=.25, color=cmtyColor(c),
+                            zorder=-2,
+                            axes=ax)
+                ax.add_patch(p)
+
 
         ax.autoscale_view(tight=True)
         print fname
         if periodic:
             ax.set_xlim(0,periodic)
             ax.set_ylim(0,periodic)
-        c.print_figure(fname, bbox_inches='tight')
+        canvas.print_figure(fname, bbox_inches='tight')
 
 
     def energy(self, gamma):
@@ -665,6 +689,15 @@ class Graph(_cobj, object):
         return g
 
 
+    def supernode_networkx(self):
+        g = networkx.Graph()
+        g.add_nodes_from(self.cmtys())
+        for c in self.cmtys():
+            for n in self.cmtyContents(c):
+                for m, interaction in enumerate(self.imatrix[n]):
+                    if interaction < 0:
+                        g.add_edge(c, self.cmty[m])
+        return g
     def supernodeGraph(self, gamma, multiplier=100):
         """Great a sub-graph of super-nodes composed of communities.
 

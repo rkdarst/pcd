@@ -1,6 +1,7 @@
 # Richard Darst, July 2011
 
 from math import log, exp
+import random
 
 import networkx
 
@@ -101,6 +102,62 @@ def networkx_from_matrix(array, ignore_diagonal=True, ignore_values=()):
                 continue
             g.add_edge(i, j, weight=weight)
     return g
+
+
+
+def color_graph(g):
+    """Color a networkX graph.
+
+    This is rather naive right now.
+    """
+    #For each node,
+    colors = set()
+    nodes = list(g.nodes())
+    while nodes:
+        n = random.choice(nodes)
+        nodes.remove(n)
+        neighbor_colors = set(g.node[n2].get('color', None) for n2 in
+                              g.neighbors(n)
+                              if n2 != n)
+        avail_colors = colors - neighbor_colors
+        if avail_colors:
+            color = random.choice(list(avail_colors))
+        else:
+            color = len(colors)
+            colors |= set((color,))
+        g.node[n]['color'] = color
+    return colors
+
+class ColorMapper(object):
+    """Helper class for color mapping
+    """
+    def __init__(self, g, colormap_name='gist_rainbow',
+                 colorizer=color_graph):
+        """Initialize the system, set up normalization
+
+        g: networkx graph.  In common usage in pcd, the nodes of this
+        graph will represent communities (G.supernode_networkx).
+
+        colormap_name: matplotlib colormap name
+
+        colorizer: function to colorize networkx graph g
+        """
+        # Import only if actually used here.
+        import matplotlib.cm as cm
+        import matplotlib.colors as mcolors
+        colors = cororizer(g)
+        self.g = g
+        self.colors = colors
+        self.colormap = cm.get_cmap(colormap_name)
+        self.normmap = mcolors.Normalize(vmin=0, vmax=len(colors))
+    def __len__(self):
+        return len(self.colors)
+    def __call__(self, c):
+        """Return matplotlib RGB color."""
+        return self.colormap(self.normmap(self.color_id(c)))
+    def color_id(self, c):
+        """Return an integer representing the color of th given node."""
+        return self.g.node[c]['color']
 
 
 if __name__ == "__main__":
