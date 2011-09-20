@@ -11,9 +11,15 @@ from util import LogInterval
 
 class MultiResolutionCorrelation(object):
     def __init__(self, gamma, Gs, nhistbins=50):
+        self.calc(gamma, Gs, nhistbins=nhistbins)
+
+    def calc(self, gamma, Gs, nhistbins=50):
         pairs = [ ]
 
         Gmin = min(Gs, key=lambda G: G.energy(gamma))
+        self.cmtyState = tuple(G.getcmtystate() for G in Gs)
+        self.cmtyStateBest = Gmin.getcmtystate()
+
         for i, G0 in enumerate(Gs):
             for j, G1 in enumerate(Gs[i+1:]):
                 pairs.append((G0, G1))
@@ -50,6 +56,18 @@ class MultiResolutionCorrelation(object):
 
         edges=numpy.logspace(0,numpy.log10(N+1),num=nhistbins,endpoint=True)
         self.n_hist,self.n_hist_edges = numpy.histogram(n_counts, bins=edges)
+    def getGs(self, Gs):
+        """Return the list of all G replicas.
+
+        This recreates the list of all Gs, from stored states.  You
+        need to provide a graph instance G, which has the same node
+        arrangement as the original graph(s) used in the multi-replica
+        analysis.
+        """
+        Gs = [ G.copy() for G in Gs ]
+        for G, state in zip(Gs, self.cmtyState):
+            G.setcmtystate(state)
+        return Gs
 
 class MultiResolution(object):
     """Class to do full multi-resolution analysis.
@@ -129,6 +147,7 @@ class MultiResolution(object):
             self._do_gammaindex(index)
             if self._output:
                 self.write(output)
+        del self._Gs
 
     def do_mt(self, Gs, trials=10, threads=2):
         """Do multi-resolution analysis on replicas Gs with `trials` each.
@@ -156,6 +175,7 @@ class MultiResolution(object):
             threadlst.append(t)
 
         self._queue.join()
+        del self._Gs, self._Empty, self._lock, self._writelock, self._queue
 
     def calc(self):
         MRCs = [ MRC for i, MRC in sorted(self._data.iteritems()) ]
