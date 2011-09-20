@@ -102,7 +102,11 @@ cfuncs = (
     ("test",          c_int,    (cGraph_p, )),
 
     ("cmtyListAdd",      None,      (cGraph_p, c_int, c_int)),
+    ("cmtyListAddOverlap",
+                         None,      (cGraph_p, c_int, c_int)),
     ("cmtyListRemove",   None,      (cGraph_p, c_int, c_int)),
+    ("cmtyListRemoveOverlap",
+                         None,      (cGraph_p, c_int, c_int)),
     ("cmtyListInit",     None,      (cGraph_p, )),
     ("cmtyListCheck",    c_int,     (cGraph_p, )),
 

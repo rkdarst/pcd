@@ -132,3 +132,16 @@ G.cmtyCreate()
 G.minimize(gamma=0)
 assert G.q == 1
 
+
+
+# Test hashes
+assert G.hash() == G.hash()
+assert G.copy().hash() == G.hash()
+G2 = G.copy()
+G2.minimize(gamma=1)
+assert G.hash() != G2.hash()
+
+# Test getting and setting community state.
+state = G.getcmtystate()
+G2.setcmtystate(state)
+assert G.hash() == G2.hash()

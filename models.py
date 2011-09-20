@@ -19,6 +19,7 @@ import util
 
 log2 = lambda x: math.log(x, 2)
 
+NO_CMTY = -1
 
 
 class Graph(cmodels._cobj, object):
@@ -99,7 +100,54 @@ class Graph(cmodels._cobj, object):
         new = pickle.loads(pickle.dumps(self, -1))
         #new._allocArray('imatrix', array=self.imatrix)
         return new
+    def getcmtystate(self):
+        """Return an object representing the communities.
 
+        This can be pickeled and re-loaded into this object later.
+
+        See also .cmtyDict().
+        """
+        state = { }
+        state['version'] = 0
+        state['oneToOne'] = self.oneToOne
+        state['cmtyContents'] = { }
+        for c in self.cmtys():
+            print c
+            state['cmtyContents'][c] = tuple(self.cmtyContents(c))
+        state['cmtyList'] = tuple(self.cmty)
+        return state
+    def setcmtystate(self, state):
+        """Re-load state of communities from state dict.
+        """
+        self.cmtyListClear()
+        if state['version'] == 0:
+            seenNodes = set()
+            oneToOne = True
+            for c, nodes in sorted(state['cmtyContents'].items()):
+                for n in nodes:
+                    self.cmtyListAddOverlap(c, n)
+                # Detect if we have a repeat of any nodes.  If so, we
+                # can not be one to one.
+                if seenNodes & set(nodes):
+                    oneToOne = False
+                seenNodes |= set(nodes)
+            if bool(state['oneToOne']) != bool(oneToOne):
+                raise Exception("oneToOne value does not match.")
+            self.oneToOne = state['oneToOne']
+            self.cmty[:] = state['cmtyList']
+        else:
+            raise Exception("Unknown version of state to load communities.")
+        self.check()
+    def hash(self):
+        """Hash of state of self.
+
+        This is not a real Python hash, since this is a mutable object."""
+        return hash((
+            self.oneToOne,
+            tuple(self.cmty.flat),
+            tuple(self.cmtyN.flat),
+            tuple(tuple(self.cmtyContents(c)) for c in self.cmtys()),
+            ))
 
 
     #
@@ -326,12 +374,38 @@ class Graph(cmodels._cobj, object):
         """
         print "cmtyListInit"
         cmodels.cmtyListInit(self._struct_p)
+    def cmtyListClear(self):
+        """Clear all particles from all communities"""
+        self.cmty[:] = NO_CMTY
+        self.cmtyN[:] = 0
+        self.Ncmty = 0
+    def cmtyListAdd(self, c, n):
+        """Add node n to community c."""
+        cmodels.cmtyListAdd(self._struct_p, c, n)
+    def cmtyListAddOverlap(self, c, n):
+        """Add node n to community c (overlaps allowed)."""
+        cmodels.cmtyListAddOverlap(self._struct_p, c, n)
+    def cmtyListRemove(self, c, n):
+        """Remove node n from community c."""
+        cmodels.cmtyListRemove(self._struct_p, c, n)
+    def cmtyListRemoveOverlap(self, c, n):
+        """Remove node n from community c (overlaps allowed)."""
+        cmodels.cmtyListRemoveOverlap(self._struct_p, c, n)
     def cmtySet(self, n, c):
         """Set the community of a particle."""
         raise NotImplementedError("cmtySet not implemented yet.")
     def cmtyContents(self, c):
         """Array of all nodes in community c."""
         return self.cmtyll[c, :self.cmtyN[c]]
+    def cmtyDict(self):
+        """Return dict of community state.
+
+        Keys: community indexes
+        Values: tuples of nodes in that community
+
+        See also .getcmtystate()
+        """
+        return dict((c, tuple(self.cmtyContents(c))) for c in self.cmtys())
     def cmtys(self):
         """Return an iterator over all non-empty community IDs.
 

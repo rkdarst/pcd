@@ -123,7 +123,7 @@ inline void cmtyListRemove(Graph_t G, int c, int n) {
   cmtyListRemoveOverlap(G, c, n);
   // The difference for systems without overlaps is we keep G->cmty[n]
   // up to date
-  G->cmty[n] = -1;
+  G->cmty[n] = NO_CMTY;
 }
 inline void cmtyListInit(Graph_t G) {
   /* Initialize the community lists.

@@ -4,6 +4,8 @@
 
 typedef IMATRIX_T imatrix_t;
 
+#define NO_CMTY (-1)
+
 typedef struct Graph {
   int N;
   int Ncmty;
