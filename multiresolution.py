@@ -119,8 +119,10 @@ class MultiResolution(object):
         # Run callback if we have it.
         if self.callback:
             totalminimum = min(minGs, key=lambda x: G.energy(gamma))
+            replica_number = minGs.index(totalminimum)
             self.callback(G=totalminimum, gamma=gamma,
-                          mrc=self._data[index])
+                          mrc=self._data[index],
+                          replica_number=replica_number)
     def _thread(self):
         """Thread worker - do gammas until all are exhausted.
 

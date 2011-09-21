@@ -1,7 +1,8 @@
 # Richard Darst, July 2011
 
 CFLAGS=-O3
-IMATRIX_T=int
+#IMATRIX_T=int
+IMATRIX_T=float
 
 opts=-Wall -Wextra -lm -shared -fPIC
 

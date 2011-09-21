@@ -11,6 +11,7 @@ import cPickle as pickle
 import random
 import sys
 import time
+import numbers
 
 import networkx
 
@@ -112,7 +113,6 @@ class Graph(cmodels._cobj, object):
         state['oneToOne'] = self.oneToOne
         state['cmtyContents'] = { }
         for c in self.cmtys():
-            print c
             state['cmtyContents'][c] = tuple(self.cmtyContents(c))
         state['cmtyList'] = tuple(self.cmty)
         return state
@@ -237,8 +237,8 @@ class Graph(cmodels._cobj, object):
 
         for n1 in range(len(coords)):
             delta = coords[n1] - coords
-            if periodic:
-                delta -=  numpy.round(delta/float(periodic))*periodic
+            if not periodic is None:
+                delta -=  numpy.round(delta/periodic)*periodic
             delta = delta**2
             dist = numpy.sum(delta, axis=1)
             dist = numpy.sqrt(dist)
@@ -800,7 +800,7 @@ class Graph(cmodels._cobj, object):
                               color=cmtyColor(self.cmty[n]),
                               **kwargs)
             ax.add_patch(p)
-            if periodic and nodes == 'circles':
+            if periodic is not None and nodes == 'circles':
                 greaterthanl=( coords[n] + radii[n] > periodic )
                 lessthanzero=( coords[n] - radii[n] < 0        )
                 if greaterthanl.any() or lessthanzero.any():
@@ -842,9 +842,13 @@ class Graph(cmodels._cobj, object):
 
         ax.autoscale_view(tight=True)
         print fname
-        if periodic:
-            ax.set_xlim(0,periodic)
-            ax.set_ylim(0,periodic)
+        if periodic is not None:
+            if isinstance(periodic,numbers.Number):
+                ax.set_xlim(0,periodic)
+                ax.set_ylim(0,periodic)
+            else:
+                ax.set_xlim(0,periodic[0])
+                ax.set_ylim(0,periodic[1])
         canvas.print_figure(fname, bbox_inches='tight')
 
 
