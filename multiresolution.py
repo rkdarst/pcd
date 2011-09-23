@@ -10,8 +10,11 @@ from util import LogInterval
 
 
 class MultiResolutionCorrelation(object):
-    def __init__(self, gamma, Gs, nhistbins=50):
+    def __init__(self, gamma, Gs, trials=None,
+                 nhistbins=50):
         self.calc(gamma, Gs, nhistbins=nhistbins)
+        self.replicas = len(Gs)
+        self.trials = trials
 
     def calc(self, gamma, Gs, nhistbins=50):
         pairs = [ ]
@@ -72,35 +75,28 @@ class MultiResolutionCorrelation(object):
 class MultiResolution(object):
     """Class to do full multi-resolution analysis.
     """
+    _callback = None
     _output = None
     _lock = None
-    def __init__(self, low, high, callback=None, number=10,
-                 output=None, ):
+    def __init__(self, output=None, settings={}):
         """Create a multiresolution helper system.
-
-        `low`, `high`: lowest and highest gammas to use.
 
         `callback`: a callback to run with the optimum configuration
         after each gamma run.
 
-        `number`: resoluation of gammas, there are this many gammas
-        logarithmically distributed over each order of magnitude.
-
         `output`: save table of gamma, q, H, etc, to this file.
         """
-        self._li = li = LogInterval(number=number)
-        self.indexLow  = int(floor(li.index(low )))
-        self.indexHigh = int(ceil (li.index(high)))
-        self.callback = callback
+        self.settings = settings
         self._output = output
 
         self._data = { } #collections.defaultdict(dict)
-    def _do_gammaindex(self, index):
+    def do_gamma(self, gamma, callback=None):
         """Worker thread for gammas.
 
-        For one index, look up the respective gamma and do that analysis.
+        For one gamma, look up the respective gamma and do that analysis.
         """
-        gamma = self._li.value(index)
+        if callback is None:
+            callback = self._callback
         minGs = [ ]
         for G in self._Gs:
             if self._lock:  self._lock.acquire()
@@ -111,18 +107,20 @@ class MultiResolution(object):
 
         # Do the information theory VI, MI, In, etc, stuff on our
         # minimized replicas.
-        self._data[index] = MultiResolutionCorrelation(gamma, minGs)
+        self._data[gamma] = MultiResolutionCorrelation(
+            gamma, minGs, trials=self.trials)
         # Save output to a file.
         if self._output is not None and self._writelock.acquire(False):
             self.write(self._output)
             self._writelock.release()
         # Run callback if we have it.
-        if self.callback:
+        if callback:
             totalminimum = min(minGs, key=lambda x: G.energy(gamma))
             replica_number = minGs.index(totalminimum)
-            self.callback(G=totalminimum, gamma=gamma,
-                          mrc=self._data[index],
-                          replica_number=replica_number)
+            callback(G=totalminimum, gamma=gamma,
+                     mrc=self._data[gamma],
+                     mr=self,
+                     replica_number=replica_number)
     def _thread(self):
         """Thread worker - do gammas until all are exhausted.
 
@@ -130,32 +128,41 @@ class MultiResolution(object):
         gammas have been finished."""
         try:
             while True:
-                index = self._queue.get_nowait()
-                self._do_gammaindex(index)
+                gamma = self._queue.get_nowait()
+                self.do_gamma(gamma)
                 self._queue.task_done()
         except self._Empty:
             return
-    def do(self, Gs, trials=10, threads=1):
+    def do(self, Gs, gammas=None, logGammaArgs=None,
+           trials=10, threads=1, callback=None):
         """Do multi-resolution analysis on replicas Gs with `trials` each."""
         # If multiple threads requested, do that version instead:
+        if gammas is None and logGammaArgs is not None:
+            gammas = LogInterval(**logGammaArgs).values()
+        if gammas is None:
+            raise ValueError("Either gammas or logGammaArgs must be given.")
         if threads > 1:
-            return self.do_mt(Gs, trials=trials, threads=threads)
+            return self.do_mt(Gs, gammas, trials=trials, threads=threads,
+                              callback=callback)
 
         # Non threaded version:
+        self._callback = callback
         self._Gs = Gs
         self.replicas = len(Gs)
         self.trials = trials
-        for index in range(self.indexLow, self.indexHigh+1):
-            self._do_gammaindex(index)
+        for gamma in gammas:
+            self.do_gamma(gamma)
             if self._output:
                 self.write(output)
         del self._Gs
+        del self._callback # unmasks the class object's _callback=None
 
-    def do_mt(self, Gs, trials=10, threads=2):
+    def do_mt(self, Gs, gammas, trials=10, threads=2, callback=None):
         """Do multi-resolution analysis on replicas Gs with `trials` each.
 
         Multi-threaded version."""
         self._Gs = Gs
+        self._callback = callback
         self.replicas = len(Gs)
         self.trials = trials
 
@@ -166,18 +173,19 @@ class MultiResolution(object):
         self._writelock = threading.Lock()
         self._queue = Queue.Queue()
 
-        for index in range(self.indexLow, self.indexHigh+1):
-            self._queue.put(index)
+        for gamma in gammas:
+            self._queue.put(gamma)
 
         threadlst = [ ]
         for tid in range(threads):
             t = threading.Thread(target=self._thread)
-            t.daemon = True
+            #t.daemon = True
             t.start()
             threadlst.append(t)
 
         self._queue.join()
         del self._Gs, self._Empty, self._lock, self._writelock, self._queue
+        del self._callback # unmasks class object's _callback=None
 
     def calc(self):
         MRCs = [ MRC for i, MRC in sorted(self._data.iteritems()) ]

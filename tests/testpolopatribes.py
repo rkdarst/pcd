@@ -45,14 +45,16 @@ while True:
         raw_input(',')
 #exit(2)
 
-ntrials, lnumber = 100, 100
+ntrials, ldensity = 100, 100
 #if fast:
-#    ntrials, lnumber = 10, 10
+#    ntrials, ldensity = 10, 10
 
 #for a,b in [random.sample(range(G.N), 2) for _ in range(1000)]:
 #    pcd.util.matrix_swap_basis(G.imatrix, a, b)
-MR = pcd.MultiResolution(low=.01, high=10, number=lnumber)
-MR.do(Gs=[G]*12, trials=ntrials)
+from pcd import LogInterval
+MR = pcd.MultiResolution()
+MR.do(Gs=[G]*12, gammas=LogInterval(low=.01, high=10, density=ldensity),
+      trials=ntrials)
 MR.write("tmp-polopatribes.txt")
 #MR.viz()
 

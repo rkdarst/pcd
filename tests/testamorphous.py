@@ -91,8 +91,10 @@ nreplicas, ntrials = 10, 20
 if fast:
     nreplicas, ntrials = 5, 5
 
-MR = pcd.MultiResolution(.001, 100, callback=callback, number=10)
-MR.do([G]*nreplicas, trials=ntrials, threads=2)
+from pcd import LogInterval
+gammas = LogInterval(.001, 100, number=10).values()
+MR = pcd.MultiResolution()
+MR.do([G]*nreplicas, gammas, trials=ntrials, threads=2, callback=callback)
 #MR = pcd.MultiResolution(0.1, 1, callback=callback, number=10)
 #MR.do([G]*10, trials=10, threads=2)
 MR.calc()

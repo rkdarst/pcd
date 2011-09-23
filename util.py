@@ -1,6 +1,6 @@
 # Richard Darst, July 2011
 
-from math import log, exp
+from math import log, exp, floor, ceil
 import random
 
 import networkx
@@ -14,28 +14,39 @@ class LogInterval(object):
     """
     # How many
     interval = 10
-    def __init__(self, interval=10, number=10, initial=1,
-                 low=None, high=None):
+    def __init__(self, low=None, high=None,
+                 interval=10, density=10, offset=1,
+                 ):
         self.interval = interval
-        self.initial = initial
-        self.number = number
-        #self.every = interval
-        self.expConstant = exp(log(interval) / number)
+        self.density = density
+        self.offset = offset
+        self.expConstant = exp(log(interval) / density)
+        if low:
+            self._indexlow  = int(floor(self.index(low)))
+        if high:
+            self._indexhigh = int(ceil(self.index(high)))
     def value(self, index):
-        return self.initial * self.expConstant**index
+        return self.offset * self.expConstant**index
     def index(self, value):
-        return log(value/self.initial) / (log(self.interval)/self.number)
+        return log(value/self.offset) / (log(self.interval)/self.density)
+    def indexes(self):
+        return tuple(range(self._indexlow, self._indexhigh+1))
+    def values(self):
+        return tuple(self.value(i) for i in self.indexes())
 
-    def iter(start, maxValue=None):
-        index = startAt
+    def __iter__(self, maxValue=None):
+        # We have an upper bound
+        if maxValue is not None:
+            for v in self.values():
+                yield v
+            return
+
+        # We have no upper bound, iterate forever.
+        index = self._indexlow
         while True:
             value = self.value(index)
             yield value
             index += 1
-
-            if maxValue is not None and maxValue > index :
-                break
-
 
 log2 = lambda x: log(x, 2)
 

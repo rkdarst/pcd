@@ -15,7 +15,8 @@ print G.imatrix
 #G.viz()
 #exit()
 
-MR = pcd.MultiResolution(low=.06, high=12)
-MR.do(Gs=[G]*12, trials=10)
+from pcd import LogInterval
+MR = pcd.MultiResolution()
+MR.do(Gs=[G]*12, gammas=LogInterval(low=.06, high=12), trials=10)
 MR.write("tmp-256node.txt")
 #MR.viz()

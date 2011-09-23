@@ -13,11 +13,12 @@ G.minimize(gamma=.1)
 if not fast:
     G.viz()
 
-lnumber = 50
+ldensity = 50
 if fast:
-    lnumber = 10
+    ldensity = 10
 
-MR = pcd.MultiResolution(.05, 50, number=lnumber)
-MR.do([G]*10, trials=10, threads=2)
+MR = pcd.MultiResolution()
+MR.do([G]*10, logGammaArgs=dict(low=0.05, high=50, density=ldensity),
+      trials=10, threads=2)
 MR.write('tmp-karate.txt')
 MR.plot("karate_.png")

@@ -18,7 +18,7 @@ print G.imatrix
 #G.viz()
 #exit()
 
-MR = pcd.MultiResolution(low=.007, high=11)
-MR.do(Gs=[G]*12, trials=10)
+MR = pcd.MultiResolution()
+MR.do(Gs=[G]*12, logGammaArgs=dict(low=.007, high=11), trials=10)
 MR.write("tmp-dolphins.txt")
 #MR.viz()
