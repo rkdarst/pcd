@@ -36,7 +36,7 @@ class LogInterval(object):
 
     def __iter__(self, maxValue=None):
         # We have an upper bound
-        if maxValue is not None:
+        if hasattr(self, '_indexhigh'):
             for v in self.values():
                 yield v
             return
@@ -47,6 +47,8 @@ class LogInterval(object):
             value = self.value(index)
             yield value
             index += 1
+            if maxValue is not None and value > maxValue:
+                break
 
 log2 = lambda x: log(x, 2)
 
