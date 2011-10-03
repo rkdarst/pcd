@@ -168,6 +168,7 @@ class ColorMapper(object):
     def __call__(self, c):
         """Return matplotlib RGB color."""
         return self.colormap(self.normmap(self.color_id(c)))
+    __getitem__ = __call__
     def color_id(self, c):
         """Return an integer representing the color of th given node."""
         return self.g.node[c]['color']

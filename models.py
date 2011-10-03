@@ -750,6 +750,7 @@ class Graph(cmodels._cobj, object):
                 radii=None, base_radius=0.5, periodic=None, energies=None,
                 nodes='circles',
                 hulls=None,
+                cmtyColormap=None,
                 **kwargs):
         """Save a copy of layout to `fname`.
 
@@ -781,7 +782,8 @@ class Graph(cmodels._cobj, object):
         import matplotlib.cm as cm
         import matplotlib.colors as colors
 
-        cmtyColor = self.get_colormapper()
+        if cmtyColormap is None:
+            cmtyColormap = self.get_colormapper()
 
         #f = matplotlib.backends.backend_agg.Figure()
         fig = matplotlib.figure.Figure()
@@ -797,13 +799,13 @@ class Graph(cmodels._cobj, object):
             if nodes == 'circles':
                 p = Circle(coords[n], radius=radii[n], axes=ax,
                            #color=colormap.to_rgba(n),
-                           color=cmtyColor(self.cmty[n]),
+                           color=cmtyColormap[self.cmty[n]],
                            **kwargs)
             elif nodes == 'squares':
                 p = Rectangle(coords[n]-(base_radius,base_radius),
                               width=2*base_radius, height=2*base_radius,
                               axes=ax,
-                              color=cmtyColor(self.cmty[n]),
+                              color=cmtyColormap[self.cmty[n],
                               **kwargs)
             ax.add_patch(p)
             if periodic is not None and nodes == 'circles':
@@ -813,11 +815,11 @@ class Graph(cmodels._cobj, object):
                     p = Circle(
                         coords[n]-periodic*greaterthanl+periodic*lessthanzero,
                         radius=radii[n],
-                        color=cmtyColor(self.cmty[n]),
+                        color=cmtyColormap[self.cmty[n]],
                         **kwargs)
                     ax.add_patch(p)
 
-        if energies:
+        if energies is not None:
             e_colormap = cm.get_cmap('RdYlBu')
             e_norm = colors.Normalize()
             e_norm.autoscale(energies)
@@ -828,7 +830,7 @@ class Graph(cmodels._cobj, object):
                              **kwargs)
                 ax.add_patch(cir)
 
-        if hulls:
+        if hulls is not None:
             #from support.convex_hull import convex_hull
             #from support.convexhull import convexHull
             from support.convexhull import convex_hull
@@ -840,7 +842,7 @@ class Graph(cmodels._cobj, object):
                 #    print points
                 #    points = convex_hull(points.T)
                 points = convex_hull(tuple(p) for p in points)
-                p = Polygon(points, alpha=.25, color=cmtyColor(c),
+                p = Polygon(points, alpha=.25, color=cmtyColormap[c],
                             zorder=-2,
                             axes=ax)
                 ax.add_patch(p)
