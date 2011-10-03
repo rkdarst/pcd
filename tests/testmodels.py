@@ -26,8 +26,8 @@ assert id(G) != id(G2)
 # Test that various attributes do NOT have the same id:
 for name in dir(G):
     if name[:2] == '__' \
-       or isinstance(getattr(G, name), types.MethodType)\
-       or name in ('_layout', 'q', 'q_c', 'q_python' ):
+       or name in ('_layout', 'q', 'q_c', 'q_python' )\
+       or name in G.__class__.__dict__:
         continue
     print name, id(getattr(G, name)), id(getattr(G2, name)), \
           type(getattr(G, name))

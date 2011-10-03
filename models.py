@@ -39,6 +39,8 @@ class Graph(cmodels._cobj, object):
     using that to set up Graph object.
 
     """
+    verbosity = 1
+
     def __init__(self, N, randomize=True):
         """Initialize Graph object.
 
@@ -535,8 +537,9 @@ class Graph(cmodels._cobj, object):
             self._gen_random_order()
             changesMoving = self._minimize(gamma=gamma)
             changes += changesMoving
-            print "  (r%2s) cmtys, changes: %4d %4d"%(round_, self.q,
-                                                      changesMoving)
+            if self.verbosity > 0:
+                print "  (r%2s) cmtys, changes: %4d %4d"%(round_, self.q,
+                                                          changesMoving)
 
             if changesMoving == 0 and changesCombining == 0:
                 break
@@ -547,9 +550,10 @@ class Graph(cmodels._cobj, object):
                 changesCombining = self.combine_cmtys(gamma=gamma)
                 #changesCombining = self.combine_cmtys_supernodes(gamma=gamma)
                 changes += changesCombining
-                print "  (r%2s) cmtys, changes: %4d %4d"%(
-                                           round_, self.q, changesCombining), \
-                      "(<-- combining communities)"
+                if self.verbosity > 0:
+                    print "  (r%2s) cmtys, changes: %4d %4d"%(
+                                          round_, self.q, changesCombining), \
+                                                  "(<-- combining communities)"
 
                 self.remapCommunities(check=False)
             # If we have no changes in regular and combinations, escape
@@ -669,9 +673,11 @@ class Graph(cmodels._cobj, object):
         if check:
             self.check()
     def remapCommunities_c(self, check=True):
-        print "        remapping communities: ",
+        if self.verbosity > 0:
+            print "        remapping communities: ",
         changes = cmodels.remap_cmtys(self._struct_p)
-        print changes, "changes"
+        if self.verbosity > 0:
+            print changes, "changes"
         if check:
             self.check()
     remapCommunities = remapCommunities_c

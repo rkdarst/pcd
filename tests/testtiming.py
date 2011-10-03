@@ -11,6 +11,7 @@ def make_setup(size=5, **kwargs):
     lines = [ ]
     lines.append('from graphs import random_graph')
     lines.append('G = random_graph(size=%s)'%size)
+    lines.append('G.verbosity = 0')
     return '\n'.join(lines)
 
 
