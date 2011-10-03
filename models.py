@@ -41,7 +41,7 @@ class Graph(cmodels._cobj, object):
     """
     verbosity = 1
 
-    def __init__(self, N, randomize=True):
+    def __init__(self, N, randomize=True, rmatrix=False):
         """Initialize Graph object.
 
         For more easier minimization, look at the various class
@@ -50,11 +50,19 @@ class Graph(cmodels._cobj, object):
         N: number of nodes in this graph
 
         randomize: initialize communities randomly (default True).
+
+        rmatrix: if True, initialize a rmatrix (matrix of repulsive
+        terms).  Really, this just makes
+          E = imatrix[n,m] + gamma*rmatrix[n,m]
+        Without rmatrix,
+          E = imatrix[n,m] if value<0 and gamma*imatrix[n,m] if value>0
         """
         self._fillStruct(N)
         self.N = N
         self.cmtyCreate(randomize=randomize)
         self.oneToOne = 1
+        if rmatrix:
+            self._allocRmatrix()
     def _fillStruct(self, N=None):
         """Fill C structure."""
         cmodels._cobj._allocStruct(self, cmodels.cGraph)
@@ -69,6 +77,9 @@ class Graph(cmodels._cobj, object):
         self.randomOrder[:]  = numpy.arange(N)
         self.randomOrder2[:] = numpy.arange(N)
         self._allocArray("imatrix", shape=(N, N))
+    def _allocRmatrix(self):
+        """Allocate a matrix for repulsive interactions"""
+        self._allocArray("rmatrix", shape=(self.N, self.N))
 
     def __getstate__(self):
         """Get state for pickling"""
@@ -150,7 +161,12 @@ class Graph(cmodels._cobj, object):
             tuple(self.cmtyN.flat),
             tuple(tuple(self.cmtyContents(c)) for c in self.cmtys()),
             ))
-
+    def has_rmatrix(self):
+        """True if system has self.rmatrix defined
+        """
+        if not isinstance(self.rmatrix, numpy.ndarray) and not self.rmatrix:
+            return False
+        return True
 
     #
     # Constructor methods
@@ -209,8 +225,16 @@ class Graph(cmodels._cobj, object):
         return G
 
     @classmethod
-    def from_imatrix(cls, imatrix, layout=None):
+    def from_imatrix(cls, imatrix, layout=None, rmatrix=None):
         """Create a graph structure from a matrix of interactions.
+
+        imatrix: the interaction matrix to use.
+
+        layout: optional mapping for nodes->coordinates.  Can be
+        either an array or mapping.
+
+        rmatrix: If given, initialize an rmatrix with this.  See
+        __init__ documentation for what this means.
         """
         # This should be improved sometime.
         assert len(imatrix.shape) == 2
@@ -218,10 +242,19 @@ class Graph(cmodels._cobj, object):
 
         G = cls(N=imatrix.shape[0])
         G.imatrix[:] = imatrix
+
+        if rmatrix is not None:
+            assert len(rmatrix.shape) == 2
+            assert rmatrix.shape[0] == rmatrix.shape[1]
+            assert imatrix.shape[0] == rmatrix.shape[0]
+            G._allocRmatrix()
+            G.rmatrix[:] = rmatrix
+
         G._layout = layout
         return G
     @classmethod
-    def from_coords_and_efunc(cls, coords, efunc, periodic=None):
+    def from_coords_and_efunc(cls, coords, efunc, periodic=None,
+                              refunc=None):
         """Create graph structure from coordinates+energy function.
 
         This helper class method is used to create an imatrix from a
@@ -231,12 +264,25 @@ class Graph(cmodels._cobj, object):
 
         If `periodic` is given, it is used as a periodic boundary
         length: either a number or a [Lx, Ly, ...] array.
+
+        If `refunc` is given, this is an efunc to be used to create
+        the repulsive matrix.  See __init__ documentation for what
+        this means.
         """
         G = cls(N=coords.shape[0])
         G._layout = coords
-        #orig_settings = numpy.seterr()
-        #numpy.seterr(all="ignore")
+        G._makematrix_fromCoordsAndEfunc(coords, efunc, periodic=periodic)
+        if refunc is not None:
+            G._allocRmatrix()
+            G._makematrix_fromCoordsAndEfunc(coords, refunc, periodic=periodic,
+                                            matrix="rmatrix")
+        return G
 
+    def _makematrix_fromCoordsAndEfunc(self, coords, efunc, periodic=None,
+                                      matrix="imatrix"):
+        orig_settings = numpy.seterr()
+        numpy.seterr(all="ignore")
+        matrix = getattr(self, matrix)
         for n1 in range(len(coords)):
             delta = coords[n1] - coords
             if not periodic is None:
@@ -244,9 +290,8 @@ class Graph(cmodels._cobj, object):
             delta = delta**2
             dist = numpy.sum(delta, axis=1)
             dist = numpy.sqrt(dist)
-            G.imatrix[n1, :] = efunc(dist)
-        #numpy.seterr(**orig_settings)
-        return G
+            matrix[n1, :] = efunc(dist)
+        numpy.seterr(**orig_settings)
 
 
 
@@ -260,7 +305,6 @@ class Graph(cmodels._cobj, object):
         imatrix or some other constructor, and you want a networkx
         graph out of it in order to do various graph
         algorithms/transforms on it."""
-
         g = util.networkx_from_matrix(self.imatrix,
                                       ignore_values=ignore_values)
         return g
@@ -284,6 +328,10 @@ class Graph(cmodels._cobj, object):
 
         Each community is turned into a super-node, and energy of
         interaction between communities is calculated.
+
+        WARNING: When self.rmatrix exists, this method returns a graph
+        showing that every community is connected to every other
+        community.
         """
         self.remapCommunities()
         N = self.q
@@ -805,7 +853,7 @@ class Graph(cmodels._cobj, object):
                 p = Rectangle(coords[n]-(base_radius,base_radius),
                               width=2*base_radius, height=2*base_radius,
                               axes=ax,
-                              color=cmtyColormap[self.cmty[n],
+                              color=cmtyColormap[self.cmty[n]],
                               **kwargs)
             ax.add_patch(p)
             if periodic is not None and nodes == 'circles':

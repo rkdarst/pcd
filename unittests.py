@@ -14,6 +14,7 @@ execfile('tests/testmeasures.py', getglobals())
 
 execfile('tests/testoverlap.py', getglobals())
 execfile('tests/testpolopatribes.py', getglobals())
+execfile('tests/testrmatrix.py', getglobals())
 execfile('tests/testsubgraph.py', getglobals())
 execfile('tests/testtiming.py', getglobals())
 

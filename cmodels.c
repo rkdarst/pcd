@@ -332,11 +332,17 @@ double energy_naive(Graph_t G, double gamma) {
       if (m == n)
 	continue;
       if (G->cmty[m] == G->cmty[n]) {
-	imatrix_t interaction = G->imatrix[n*G->N + m];
-	if (interaction > 0)
-	  repulsions  += interaction;
-	else
-	  attractions += interaction;
+	if (G->rmatrix == NULL) {
+	  imatrix_t interaction = G->imatrix[n*G->N + m];
+	  if (interaction > 0)
+	    repulsions  += interaction;
+	  else
+	    attractions += interaction;
+	}
+	else {
+	  attractions += G->imatrix[n*G->N + m];
+	  repulsions += G->rmatrix[n*G->N + m];
+	}
       }
     }
   }
@@ -364,11 +370,17 @@ double energy(Graph_t G, double gamma) {
 	n = G->cmtyl[c][i];
 	m = G->cmtyl[c][j];
 	assert(n != m);
-	imatrix_t interaction = G->imatrix[n*G->N + m];
-	if (interaction > 0)
-	  repulsions  += interaction;
-	else
-	  attractions += interaction;
+	if (G->rmatrix == NULL) {
+	  imatrix_t interaction = G->imatrix[n*G->N + m];
+	  if (interaction > 0)
+	    repulsions  += interaction;
+	  else
+	    attractions += interaction;
+	}
+	else {
+	  attractions += G->imatrix[n*G->N + m];
+	  repulsions += G->rmatrix[n*G->N + m];
+	}
       }
     }
   }
@@ -393,11 +405,17 @@ double energy_cmty(Graph_t G, double gamma, int c) {
   	n = G->cmtyl[c][i];
   	m = G->cmtyl[c][j];
 	assert(n != m);
-  	imatrix_t interaction = G->imatrix[n*G->N + m];
-  	if (interaction > 0)
-  	  repulsions  += interaction;
-  	else
-  	  attractions += interaction;
+	if (G->rmatrix == NULL) {
+	  imatrix_t interaction = G->imatrix[n*G->N + m];
+	  if (interaction > 0)
+	    repulsions  += interaction;
+	  else
+	    attractions += interaction;
+	}
+	else {
+	  attractions += G->imatrix[n*G->N + m];
+	  repulsions += G->rmatrix[n*G->N + m];
+	}
     }
   }
   return(.5 * (attractions + gamma*repulsions));
@@ -416,11 +434,17 @@ double energy_cmty_n(Graph_t G, double gamma, int c, int n) {
     m = G->cmtyl[c][j];
     if (m == n)
       continue;
-    imatrix_t interaction = G->imatrix[n*G->N + m];
-    if (interaction > 0)
-      repulsions  += interaction;
-    else
-      attractions += interaction;
+    if (G->rmatrix == NULL) {
+      imatrix_t interaction = G->imatrix[n*G->N + m];
+      if (interaction > 0)
+	repulsions  += interaction;
+      else
+	attractions += interaction;
+    }
+    else {
+      attractions += G->imatrix[n*G->N + m];
+      repulsions += G->rmatrix[n*G->N + m];
+    }
   }
   return(.5 * (attractions + gamma*repulsions));
 }

@@ -34,8 +34,8 @@ G = pcd.Graph.from_coords_and_efunc(coords,
 G = pcd.Graph(N=len(coords))
 
 # Mode 2
-L = 16
-imatrix, coords = fractalsquare2(L=L)
+sep = 4
+coords, L = fractalsquare(sep=sep)
 print imatrix
 print coords
 G = G.from_imatrix(imatrix)

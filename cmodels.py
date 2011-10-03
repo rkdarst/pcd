@@ -82,6 +82,7 @@ cGraph._fields_ = [
 
     ("cmty",         c_int_p),
     ("imatrix",      imatrix_t),
+    ("rmatrix",      imatrix_t),
 
     ("cmtyl",        ctypes.POINTER(c_int_p)),
     ("cmtyll",       c_int_p),

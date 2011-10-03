@@ -13,6 +13,7 @@ typedef struct Graph {
 
   int *cmty;
   imatrix_t *imatrix;
+  imatrix_t *rmatrix;
 
   int **cmtyl;
   int  *cmtyll;
