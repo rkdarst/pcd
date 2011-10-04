@@ -126,12 +126,17 @@ class MultiResolution(object):
 
         One of these are spawned for each thread, they run until all
         gammas have been finished."""
+        # The queue.join() may return by the time we get to the
+        # except: clause, where self._EmptyException has already been
+        # deleted.  Thus, we need to make a local copy before the
+        # try/except block.
+        EmptyException = self._EmptyException
         try:
             while True:
                 gamma = self._queue.get_nowait()
                 self.do_gamma(gamma)
                 self._queue.task_done()
-        except self._Empty:
+        except EmptyException:
             return
     def do(self, Gs, gammas=None, logGammaArgs=None,
            trials=10, threads=1, callback=None):
@@ -168,7 +173,7 @@ class MultiResolution(object):
 
         import threading
         import Queue
-        self._Empty = Queue.Empty
+        self._EmptyException = Queue.Empty
         self._lock = threading.Lock()
         self._writelock = threading.Lock()
         self._queue = Queue.Queue()
@@ -184,7 +189,8 @@ class MultiResolution(object):
             threadlst.append(t)
 
         self._queue.join()
-        del self._Gs, self._Empty, self._lock, self._writelock, self._queue
+        del (self._Gs, self._EmptyException, self._lock, self._writelock,
+             self._queue)
         del self._callback # unmasks class object's _callback=None
 
     def calc(self):
