@@ -51,14 +51,19 @@ class MultiResolutionCorrelation(object):
         self.n_mean  = sum(tuple(item[0]*item[1]/float(G.q) for G in Gs for
                                  item in G.n_counts().items())) / ( float(len(Gs)) )
 
-        n_counts=[]
-        histdata=tuple(item for G in Gs for item in G.n_counts().items())
-        for number,count in histdata:
-            n_counts=n_counts+[number]*count
-        n_counts= sorted(n_counts)
-
+        n_hists=[]
         edges=numpy.logspace(0,numpy.log10(N+1),num=nhistbins,endpoint=True)
-        self.n_hist,self.n_hist_edges = numpy.histogram(n_counts, bins=edges)
+        for G in Gs:
+            n_counts = []
+            histdata = tuple(item for item in G.n_counts().items())
+            for number,count in histdata:
+                n_counts = n_counts+[number]*count*number
+            n_counts = sorted(n_counts)
+            n_hist,self.n_hist_edges = numpy.histogram(n_counts, bins=edges)
+            n_hists.append(n_hist/float(sum(n_hist)))
+        n_hists_array = numpy.array(n_hists)
+        self.n_hist = n_hists_array.mean(axis=0)
+
     def getGs(self, Gs):
         """Return the list of all G replicas.
 
@@ -244,6 +249,7 @@ class MultiResolution(object):
             ax.bar( histedges[:-1], histdata, width=(histedges[1:]-histedges[:-1]) )
             ax.set_xscale('log')
             ax.set_xlim( 0.1 , self.N )
+            ax.set_ylim( 0   , 1      )
             pp.savefig(f)
 
         pp.close()
