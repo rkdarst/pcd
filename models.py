@@ -795,7 +795,8 @@ class Graph(cmodels._cobj, object):
         return g
 
     def savefig(self, fname, coords,
-                radii=None, base_radius=0.5, periodic=None, energies=None,
+                radii=None, base_radius=0.5, periodic=None,
+                energies=None, energy_radius_ratio=.25,
                 nodes='circles',
                 hulls=None,
                 cmtyColormap=None,
@@ -816,7 +817,9 @@ class Graph(cmodels._cobj, object):
         `energies`, if given, will place a small circle in the center
         of each node to indicate its relative energy.  `energies`
         should be an n-length array indicating energy of each
-        particle.
+        particle.  `energy_radius_ratio` (default=.25) is a
+        multiplying factor indicating how large the energy circle
+        should be relative to the node radius.
 
         `periodic`, if given, is the (square) box length and used to
         add periodic images of particles when needed.
@@ -872,7 +875,8 @@ class Graph(cmodels._cobj, object):
             e_norm = colors.Normalize()
             e_norm.autoscale(energies)
             for n in range(self.N):
-                cir = Circle(coords[n], radius=radii[n]/2, axes=ax,
+                cir = Circle(coords[n], radius=radii[n]*energy_radius_ratio,
+                             axes=ax,
                              color=e_colormap(e_norm(energies[n])),
                              zorder=1,
                              **kwargs)
