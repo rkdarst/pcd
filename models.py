@@ -40,8 +40,9 @@ class Graph(cmodels._cobj, object):
 
     """
     verbosity = 1
+    _use_overlap = False
 
-    def __init__(self, N, randomize=True, rmatrix=False):
+    def __init__(self, N, randomize=True, rmatrix=False, overlap=False):
         """Initialize Graph object.
 
         For more easier minimization, look at the various class
@@ -56,6 +57,10 @@ class Graph(cmodels._cobj, object):
           E = imatrix[n,m] + gamma*rmatrix[n,m]
         Without rmatrix,
           E = imatrix[n,m] if value<0 and gamma*imatrix[n,m] if value>0
+
+        overlap: If true, will result in each .minimize() call
+        attempting to find overlapping communities at the end of each
+        minimization cycle.
         """
         self._fillStruct(N)
         self.N = N
@@ -63,6 +68,8 @@ class Graph(cmodels._cobj, object):
         self.oneToOne = 1
         if rmatrix:
             self._allocRmatrix()
+        if overlap:
+            self.setOverlap(True)
     def _fillStruct(self, N=None):
         """Fill C structure."""
         cmodels._cobj._allocStruct(self, cmodels.cGraph)
@@ -167,6 +174,8 @@ class Graph(cmodels._cobj, object):
         if not isinstance(self.rmatrix, numpy.ndarray) and not self.rmatrix:
             return False
         return True
+    def setOverlap(self, overlap):
+        self._use_overlap = bool(overlap)
 
     #
     # Constructor methods
@@ -611,6 +620,8 @@ class Graph(cmodels._cobj, object):
                 print "  Exceeding maximum number of rounds."
                 break
         #print set(self.cmty),
+        if self._use_overlap:
+            self.overlapMinimize(gamma)
         return changes
     def _minimize(self, gamma):
         return cmodels.minimize(self._struct_p, gamma)
