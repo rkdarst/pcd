@@ -847,6 +847,9 @@ class Graph(cmodels._cobj, object):
         if cmtyColormap is None:
             cmtyColormap = self.get_colormapper()
 
+        if coords is None and hasattr(self, "_layout"):
+            coords = self._layout
+
         #f = matplotlib.backends.backend_agg.Figure()
         fig = matplotlib.figure.Figure()
         canvas = matplotlib.backends.backend_agg.FigureCanvasAgg(fig)
@@ -905,6 +908,17 @@ class Graph(cmodels._cobj, object):
                 #    print points
                 #    points = convex_hull(points.T)
                 points = convex_hull(tuple(p) for p in points)
+                # Detect if any points are too long
+                if periodic:
+                    pts1 = points[:]
+                    pts2 = points[1:] + points[0:1]
+                    d = numpy.subtract(pts1, pts2)
+                    # We don't sum along axis=-1, instead we do it per-axis
+                    d /= periodic # inplace
+                    print d
+                    if numpy.abs(d).max() > .5:
+                        continue
+                # Do actual plotting
                 p = Polygon(points, alpha=.25, color=cmtyColormap[c],
                             zorder=-2,
                             axes=ax)
