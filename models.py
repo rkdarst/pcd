@@ -39,7 +39,7 @@ class Graph(cmodels._cobj, object):
     using that to set up Graph object.
 
     """
-    verbosity = 1
+    verbosity = 2
     _use_overlap = False
 
     def __init__(self, N, randomize=True, rmatrix=False, overlap=False):
@@ -157,7 +157,7 @@ class Graph(cmodels._cobj, object):
             self.cmty[:] = state['cmtyList']
         else:
             raise Exception("Unknown version of state to load communities.")
-        self.check()
+        #self.check() # can't check non-oneToOne (yet)
     def hash(self):
         """Hash of state of self.
 
@@ -553,31 +553,30 @@ class Graph(cmodels._cobj, object):
     #
     # Methods that deal with minimization/optimization
     #
-    def minimize_trials(self, gamma, trials, overlaps=False):
+    def minimize_trials(self, gamma, trials):
         """Minimize system using .minimize() and `trials` trials.
 
         This will minimize `trials` number of times, and set the final
         graph to be the state that had the best energy of all the
         trials.
         """
+        if self.verbosity > 0:
+            print "Minimizing with %d trials (gamma=%f)"%(trials,gamma)
         minE = float('inf')
-        minCmtys = self.cmty.copy()
-        if overlaps:
-            # We need to save more than self.cmty for this to work.
-            raise Exception("Overlaps is not implemented yet here")
+        minCmtyState = self.getcmtystate()
 
         for i in range(trials):
             self.cmtyCreate() # randomizes it
             changes = self.minimize(gamma)
-            if overlaps:
-                self.overlapMinimize(gamma)
             thisE = self.energy(gamma)
             if thisE < minE:
                 minE = thisE
-                minCmtys[:] = self.cmty
+                minCmtyState = self.getcmtystate()
 
-        self.cmty[:] = minCmtys
-        self.cmtyListInit()  # reload the lists from cmty assignments
+        self.setcmtystate(minCmtyState)
+        if self.verbosity > 0:
+            print "... Done minimizing with %d trials (gamma=%f)"%(
+                                                                  trials,gamma)
         return changes
 
     def minimize(self, gamma):
@@ -594,7 +593,7 @@ class Graph(cmodels._cobj, object):
             self._gen_random_order()
             changesMoving = self._minimize(gamma=gamma)
             changes += changesMoving
-            if self.verbosity > 0:
+            if self.verbosity > 1:
                 print "  (r%2s) cmtys, changes: %4d %4d"%(round_, self.q,
                                                           changesMoving)
 
@@ -607,7 +606,7 @@ class Graph(cmodels._cobj, object):
                 changesCombining = self.combine_cmtys(gamma=gamma)
                 #changesCombining = self.combine_cmtys_supernodes(gamma=gamma)
                 changes += changesCombining
-                if self.verbosity > 0:
+                if self.verbosity > 1:
                     print "  (r%2s) cmtys, changes: %4d %4d"%(
                                           round_, self.q, changesCombining), \
                                                   "(<-- combining communities)"
@@ -628,6 +627,8 @@ class Graph(cmodels._cobj, object):
     def overlapMinimize(self, gamma):
         """Attempting to add particles to overlapping communities.
         """
+        if self.verbosity > 0:
+            print "Minimizing by trying overlaps."
         changes = 0
         changes_add = 0
         changes_remove = None
@@ -693,7 +694,7 @@ class Graph(cmodels._cobj, object):
         For example, if we have communities 0, 1, 5, 6 with nonzero
         numbers of particles, this will change us to have communities
         0, 1, 2, 3 only."""
-        print "remapping communities"
+        print "        remapping communities"
         def find_empty_cmty():
             """Start at zero, and find the first (lowest-index) empty
             community.
@@ -731,9 +732,9 @@ class Graph(cmodels._cobj, object):
             self.Ncmty -= 1;
         if check:
             self.check()
-    def remapCommunities_c(self, check=True):
+    def remapCommunities_c(self, check=False):
         if self.verbosity > 0:
-            print "        remapping communities: ",
+            print "        remapping communities (c):",
         changes = cmodels.remap_cmtys(self._struct_p)
         if self.verbosity > 0:
             print changes, "changes"
@@ -838,6 +839,8 @@ class Graph(cmodels._cobj, object):
         `hulls`, if true, will draw convex hulls of communities on the
         background.
         """
+        if self.verbosity > 0:
+            print "Savefig:", fname
         import matplotlib.figure
         import matplotlib.backends.backend_agg
         from matplotlib.patches import Circle, Rectangle, Polygon
@@ -915,7 +918,7 @@ class Graph(cmodels._cobj, object):
                     d = numpy.subtract(pts1, pts2)
                     # We don't sum along axis=-1, instead we do it per-axis
                     d /= periodic # inplace
-                    print d
+                    #print d
                     if numpy.abs(d).max() > .5:
                         continue
                 # Do actual plotting
@@ -926,7 +929,6 @@ class Graph(cmodels._cobj, object):
 
 
         ax.autoscale_view(tight=True)
-        print fname
         if periodic is not None:
             if isinstance(periodic,numbers.Number):
                 ax.set_xlim(0,periodic)
@@ -935,7 +937,8 @@ class Graph(cmodels._cobj, object):
                 ax.set_xlim(0,periodic[0])
                 ax.set_ylim(0,periodic[1])
         canvas.print_figure(fname, bbox_inches='tight')
-
+        if self.verbosity > 0:
+            print "Done saving"
 
 
 

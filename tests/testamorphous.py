@@ -92,13 +92,15 @@ if fast:
     nreplicas, ntrials = 5, 5
 
 from pcd import LogInterval
-gammas = LogInterval(.001, 100, number=10).values()
+gammas = LogInterval(.001, 100, density=10).values()
 MR = pcd.MultiResolution()
-MR.do([G]*nreplicas, gammas, trials=ntrials, threads=2, callback=callback)
+MR.do([G]*nreplicas, gammas, trials=ntrials, threads=1,
+      #callback=callback
+      )
 #MR = pcd.MultiResolution(0.1, 1, callback=callback, number=10)
 #MR.do([G]*10, trials=10, threads=2)
 MR.calc()
 MR.write("test_amorphous_values.txt")
-MR.plot("imgs/amorphous_mr.png")
-MR.plot_nmean("imgs/amorphous_mr_nmean.png")
-MR.plot_nhists("imgs/nhists.pdf")
+#MR.plot("imgs/amorphous_mr.png")
+#MR.plot_nmean("imgs/amorphous_mr_nmean.png")
+#MR.plot_nhists("imgs/nhists.pdf")
