@@ -131,6 +131,9 @@ inline void cmtyListInit(Graph_t G) {
    * Initialize all the G->cmtyl[c][0...i] based on G->cmty[n].
    */
   int c, n;
+  // This method is always going to initialize to a oneToOne mapping
+  // by definition.
+  G->oneToOne = 1;
   // Set all lists lengths to zero
   for (c=0 ; c<G->N ; c++) {
     G->cmtyN[c] = 0;
