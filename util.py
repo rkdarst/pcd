@@ -7,6 +7,15 @@ import networkx
 
 import cmodels
 
+def distance(p1, p2, periodic=None):
+    d = numpy.subtract(p1, p2)
+    if not periodic is None:
+        numpy.subtract(d, numpy.round(d/periodic)*periodic, d)
+    numpy.square(d, d)
+    d = numpy.sum(d, axis=-1)
+    numpy.sqrt(d, d)
+    return d
+
 # This class is copied from fitz.loginterval
 class LogInterval(object):
     """
