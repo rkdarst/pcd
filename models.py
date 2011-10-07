@@ -142,16 +142,18 @@ class Graph(cmodels._cobj, object):
         self.cmtyListClear()
         if state['version'] == 0:
             seenNodes = set()
-            oneToOne = True
+            actuallyOneToOne = True
             for c, nodes in sorted(state['cmtyContents'].items()):
                 for n in nodes:
                     self.cmtyListAddOverlap(c, n)
                 # Detect if we have a repeat of any nodes.  If so, we
                 # can not be one to one.
-                if seenNodes & set(nodes):
-                    oneToOne = False
+                if actuallyOneToOne and (seenNodes & set(nodes)):
+                    actuallyOneToOne = False
                 seenNodes |= set(nodes)
-            if bool(state['oneToOne']) != bool(oneToOne):
+            # If stored state shows we should be oneToOne, and
+            # detected state shows we are not, there is a problem.
+            if state['oneToOne'] and not actuallyOneToOne:
                 raise Exception("oneToOne value does not match.")
             self.oneToOne = state['oneToOne']
             self.cmty[:] = state['cmtyList']

@@ -87,3 +87,7 @@ G.savefig(os.path.join(outputdir, 'amorphous_10trials.png'),
 print G.q
 print G.n_counts()
 print "ov degree:", overlapDegree(G)
+state = G.getcmtystate()
+G2 = G.copy()
+G2.setcmtystate(state)
+print G.hash(), G2.hash()
