@@ -236,12 +236,12 @@ class Graph(cmodels._cobj, object):
         return G
 
     @classmethod
-    def from_imatrix(cls, imatrix, layout=None, rmatrix=None):
+    def from_imatrix(cls, imatrix, coords=None, rmatrix=None):
         """Create a graph structure from a matrix of interactions.
 
         imatrix: the interaction matrix to use.
 
-        layout: optional mapping for nodes->coordinates.  Can be
+        coords: optional mapping for nodes->coordinates.  Can be
         either an array or mapping.
 
         rmatrix: If given, initialize an rmatrix with this.  See
@@ -261,10 +261,10 @@ class Graph(cmodels._cobj, object):
             G._allocRmatrix()
             G.rmatrix[:] = rmatrix
 
-        G._layout = layout
+        G.coords = coords
         return G
     @classmethod
-    def from_coords_and_efunc(cls, coords, efunc, periodic=None,
+    def from_coords_and_efunc(cls, coords, efunc, boxsize=None,
                               refunc=None):
         """Create graph structure from coordinates+energy function.
 
@@ -273,7 +273,7 @@ class Graph(cmodels._cobj, object):
         efunc, which maps distance -> energy_of_interaction at that
         distance.  The efunc must be able to be applied to an array.
 
-        If `periodic` is given, it is used as a periodic boundary
+        If `boxsize` is given, it is used as a periodic boundary
         length: either a number or a [Lx, Ly, ...] array.
 
         If `refunc` is given, this is an efunc to be used to create
@@ -281,23 +281,23 @@ class Graph(cmodels._cobj, object):
         this means.
         """
         G = cls(N=coords.shape[0])
-        G._layout = coords
-        G._makematrix_fromCoordsAndEfunc(coords, efunc, periodic=periodic)
+        G.coords = coords
+        G._makematrix_fromCoordsAndEfunc(coords, efunc, boxsize=boxsize)
         if refunc is not None:
             G._allocRmatrix()
-            G._makematrix_fromCoordsAndEfunc(coords, refunc, periodic=periodic,
+            G._makematrix_fromCoordsAndEfunc(coords, refunc, boxsize=boxsize,
                                             matrix="rmatrix")
         return G
 
-    def _makematrix_fromCoordsAndEfunc(self, coords, efunc, periodic=None,
+    def _makematrix_fromCoordsAndEfunc(self, coords, efunc, boxsize=None,
                                       matrix="imatrix"):
         orig_settings = numpy.seterr()
         numpy.seterr(all="ignore")
         matrix = getattr(self, matrix)
         for n1 in range(len(coords)):
             delta = coords[n1] - coords
-            if not periodic is None:
-                delta -=  numpy.round(delta/periodic)*periodic
+            if not boxsize is None:
+                delta -=  numpy.round(delta/boxsize)*boxsize
             delta = delta**2
             dist = numpy.sum(delta, axis=1)
             dist = numpy.sqrt(dist)
@@ -808,8 +808,8 @@ class Graph(cmodels._cobj, object):
             plt.savefig(fname, bbox_inches='tight')
         return g
 
-    def savefig(self, fname, coords,
-                radii=None, base_radius=0.5, periodic=None,
+    def savefig(self, fname, coords=None,
+                radii=None, base_radius=0.5, boxsize=None,
                 energies=None, energy_radius_ratio=.25,
                 nodes='circles',
                 hulls=None,
@@ -817,7 +817,8 @@ class Graph(cmodels._cobj, object):
                 **kwargs):
         """Save a copy of layout to `fname`.
 
-        `coords` is a mapping of node index to (x,y) position.
+        `coords` is a mapping of node index to (x,y) position.  If
+        `coords` is not given, use self.coords if it exists.
 
         `nodes` can be either 'circles' or 'squares', and switches
         between drawing circles for nodes, or drawing a square on the
@@ -835,8 +836,9 @@ class Graph(cmodels._cobj, object):
         multiplying factor indicating how large the energy circle
         should be relative to the node radius.
 
-        `periodic`, if given, is the (square) box length and used to
-        add periodic images of particles when needed.
+        `boxsize`, if given, is the (square) box length and used to
+        add periodic images of particles when needed.  If boxsize is
+        not given, use self.boxsize if it exists.
 
         `hulls`, if true, will draw convex hulls of communities on the
         background.
@@ -852,8 +854,12 @@ class Graph(cmodels._cobj, object):
         if cmtyColormap is None:
             cmtyColormap = self.get_colormapper()
 
-        if coords is None and hasattr(self, "_layout"):
-            coords = self._layout
+        if coords is None and hasattr(self, "coords"):
+            coords = self.coords
+        if coords is None:
+            raise Exception("If coords is not given, self.coords must exist.")
+        if boxsize is None and hasattr(self, "boxsize"):
+            boxsize = self.boxsize
 
         #f = matplotlib.backends.backend_agg.Figure()
         fig = matplotlib.figure.Figure()
@@ -878,12 +884,12 @@ class Graph(cmodels._cobj, object):
                               color=cmtyColormap[self.cmty[n]],
                               **kwargs)
             ax.add_patch(p)
-            if periodic is not None and nodes == 'circles':
-                greaterthanl=( coords[n] + radii[n] > periodic )
+            if boxsize is not None and nodes == 'circles':
+                greaterthanl=( coords[n] + radii[n] > boxsize  )
                 lessthanzero=( coords[n] - radii[n] < 0        )
                 if greaterthanl.any() or lessthanzero.any():
                     p = Circle(
-                        coords[n]-periodic*greaterthanl+periodic*lessthanzero,
+                        coords[n]-boxsize*greaterthanl+boxsize*lessthanzero,
                         radius=radii[n],
                         color=cmtyColormap[self.cmty[n]],
                         **kwargs)
@@ -914,12 +920,12 @@ class Graph(cmodels._cobj, object):
                 #    points = convex_hull(points.T)
                 points = convex_hull(tuple(p) for p in points)
                 # Detect if any points are too long
-                if periodic:
+                if boxsize is not None:
                     pts1 = points[:]
                     pts2 = points[1:] + points[0:1]
                     d = numpy.subtract(pts1, pts2)
                     # We don't sum along axis=-1, instead we do it per-axis
-                    d /= periodic # inplace
+                    d /= boxsize # inplace
                     #print d
                     if numpy.abs(d).max() > .5:
                         continue
@@ -931,13 +937,13 @@ class Graph(cmodels._cobj, object):
 
 
         ax.autoscale_view(tight=True)
-        if periodic is not None:
-            if isinstance(periodic,numbers.Number):
-                ax.set_xlim(0,periodic)
-                ax.set_ylim(0,periodic)
+        if boxsize is not None:
+            if isinstance(boxsize, numbers.Number):
+                ax.set_xlim(0,boxsize)
+                ax.set_ylim(0,boxsize)
             else:
-                ax.set_xlim(0,periodic[0])
-                ax.set_ylim(0,periodic[1])
+                ax.set_xlim(0,boxsize[0])
+                ax.set_ylim(0,boxsize[1])
         canvas.print_figure(fname, bbox_inches='tight')
         if self.verbosity > 0:
             print "Done saving"

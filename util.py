@@ -7,10 +7,10 @@ import networkx
 
 import cmodels
 
-def distance(p1, p2, periodic=None):
+def distance(p1, p2, boxsize=None):
     d = numpy.subtract(p1, p2)
-    if not periodic is None:
-        numpy.subtract(d, numpy.round(d/periodic)*periodic, d)
+    if not boxsize is None:
+        numpy.subtract(d, numpy.round(d/boxsize)*boxsize, d)
     numpy.square(d, d)
     d = numpy.sum(d, axis=-1)
     numpy.sqrt(d, d)
