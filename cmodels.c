@@ -621,8 +621,10 @@ int overlapMinimize_add(Graph_t G, double gamma) {
 
     // Method 1 (all other communities) //
     int cindex, c;
-    for (cindex=0 ; cindex<G->Ncmty ; cindex++) {
+    for (cindex=0 ; cindex<G->N ; cindex++) {
       c = G->randomOrder2[cindex];
+      if (c >= G->Ncmty)
+	continue;
       if (G->cmtyN[c] == 0)
 	continue;
 
@@ -662,7 +664,6 @@ int overlapMinimize_remove(Graph_t G, double gamma) {
 
     // Loop over particles within that community
     int i, n;
-    // Method 1 (all other communities) //
     for (i=0 ; i<G->cmtyN[c] ; i++) {
       n = G->cmtyl[c][i];
 
