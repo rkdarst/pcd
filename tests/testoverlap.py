@@ -39,12 +39,15 @@ print G.energy(gamma=gamma)
 print sorted(G.n_counts().iteritems())
 
 
+#
+# Next graph: fractal square
+#
 G = pcd.graphs.fractalsquare(L=16)
 G.minimize(gamma=.1)
 G.overlapMinimize(gamma=.1)
 
 G.savefig(os.path.join(outputdir, 'blah.png'),
-          G._layout, hulls=True, base_radius=.1)
+          hulls=True, base_radius=.1)
 
 #G.viz()
 #exit(2)
@@ -67,15 +70,17 @@ G.savefig(os.path.join(outputdir, 'blah.png'),
 # and making them not overlap)
 #
 
-import support.gromacs
-G = support.gromacs.get_test_G()
+import graphs
+G = graphs.bss2d_n240()
 G.setOverlap(True)
 
 G.minimize(gamma=.1)
 #G.overlapMinimize(gamma=.1)
 
+# Note: G.coords and G.boxsize are set by get_test_G so we don't need
+# to pass boxsizes or periodic to this.
 G.savefig(os.path.join(outputdir, 'amorphous.png'),
-          G._layout, hulls=True, base_radius=.1, periodic=G._periodic)
+          hulls=True, base_radius=.1)
 print G.q
 print G.n_counts()
 print "ov degree:", overlapDegree(G)
@@ -83,7 +88,7 @@ print "ov degree:", overlapDegree(G)
 
 G.minimize_trials(gamma=.1, trials=10)
 G.savefig(os.path.join(outputdir, 'amorphous_10trials.png'),
-          G._layout, hulls=True, base_radius=.1, periodic=G._periodic)
+          hulls=True, base_radius=.1)
 print G.q
 print G.n_counts()
 print "ov degree:", overlapDegree(G)

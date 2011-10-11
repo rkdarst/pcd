@@ -228,8 +228,19 @@ def karate_club():
 def fractalsquare(L):
     from support.fractalsquare import fractalsquare2
     imatrix, coords = fractalsquare2(L=L)
-    G = models.Graph.from_imatrix(imatrix, layout=coords)
+    G = models.Graph.from_imatrix(imatrix, coords=coords)
     return G
+
+
+def bss2d_n240():
+    """A 2D binary soft sphere system r^-12 potential, 240 atoms.
+
+    G.coords, G.boxsize, and G.radii are already set on the returned
+    graph.
+    """
+    import support.gromacs
+    return support.gromacs.load_bss2d(fname='2dss32_n240_T0.5_1.gro')
+
 
 
 if __name__ == "__main__":

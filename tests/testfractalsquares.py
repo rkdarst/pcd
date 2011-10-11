@@ -30,12 +30,12 @@ coords, L = fractalsquare1(4)
 G = pcd.Graph.from_coords_and_efunc(coords,
                                      #lambda x: e_lj(x)*100,
                                      e_lj,
-                                     periodic=L)
+                                     boxsize=L)
 G = pcd.Graph(N=len(coords))
 
 # Mode 2
-sep = 4
-coords, L = fractalsquare(sep=sep)
+#sep = 16
+imatrix, coords = fractalsquare2(L=16)
 print imatrix
 print coords
 G = G.from_imatrix(imatrix)
