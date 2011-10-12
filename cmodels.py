@@ -129,6 +129,8 @@ cfuncs = (
                       c_int,    (cGraph_p, c_double)),
     ("overlapMinimize_remove",
                       c_int,    (cGraph_p, c_double)),
+    ("anneal",        c_int,    (cGraph_p, c_double, c_double,
+                                 c_int, c_double)),
     ("combine_cmtys", c_int,    (cGraph_p, c_double)),
     ("remap_cmtys",   c_int,    (cGraph_p, )),
 

@@ -15,6 +15,7 @@ import numbers
 
 import networkx
 
+import anneal
 import cmodels
 import util
 
@@ -23,7 +24,7 @@ log2 = lambda x: math.log(x, 2)
 NO_CMTY = -1
 
 
-class Graph(cmodels._cobj, object):
+class Graph(anneal._GraphAnneal, cmodels._cobj, object):
     """Core Potts-based community detection object.
 
     This returns an object which can be used to do a community

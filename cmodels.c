@@ -682,6 +682,49 @@ int overlapMinimize_remove(Graph_t G, double gamma) {
   return (changes);
 }
 
+int anneal(Graph_t G, double gamma, double beta,
+	   int steps, double deltabeta) {
+  int changes=0;
+  int step;
+
+  for (step=0 ; step<steps ; step++) {
+    beta += deltabeta;
+
+
+    // Random node
+    int n = G->N * genrand_real2();
+    // Random community
+    int c = G->N * genrand_real2();
+    int c_old = G->cmty[n];
+    // Random chance of trying a new communty
+    if (genrand_real2() < .0001 ) {
+      c = find_empty_cmty(G);
+      if (c == -1)
+	continue;
+    }
+
+    // If already in this community, skip it.
+    if (c == c_old)
+      continue;
+    float deltaE =   energy_cmty_n(G, gamma, c, n)
+                   - energy_cmty_n(G, gamma, c_old, n);
+
+    double x = exp(- beta * deltaE);
+    double ran = genrand_real2();
+    if (ran < x) {
+      // accept
+      cmtyListRemove(G, c_old, n);
+      cmtyListAdd(G, c, n);
+      changes += 1;
+    }
+    else {
+      // reject
+    }
+  }
+  return (changes);
+}
+
+
 
 int combine_cmtys(Graph_t G, double gamma) {
   /* Attempt to merge communities to get a lower energy assignment.
