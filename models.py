@@ -433,7 +433,8 @@ class Graph(cmodels._cobj, object):
         data structure optimized for the community lookups.  This
         function fills self.cmtyll from self.cmty[i].
         """
-        print "cmtyListInit"
+        if self.verbosity >= 3:
+            print "cmtyListInit"
         cmodels.cmtyListInit(self._struct_p)
     def cmtyListClear(self):
         """Clear all particles from all communities"""
@@ -555,31 +556,59 @@ class Graph(cmodels._cobj, object):
     #
     # Methods that deal with minimization/optimization
     #
-    def minimize_trials(self, gamma, trials):
+    def trials(self, gamma, trials, initial='random',
+               minimize='minimize', **kwargs):
         """Minimize system using .minimize() and `trials` trials.
 
         This will minimize `trials` number of times, and set the final
         graph to be the state that had the best energy of all the
         trials.
+
+        trials: Number of trials to minimize.
+
+        minimize: Minimizer function to use.  Common ones will be
+        self.minimize, self.overlapMinimize, self.anneal.  If a
+        string, use getattr(self, name).  Default: 'minimize'.
+
+        initial: Initial state for each trial.  Default is the string
+        'random', which calls self.cmtyCreate() each trial to
+        randomize.  The string 'current' will get current state and
+        reload it each time.  Otherwise, it should be something from
+        self.getcmtystate(), and will be set with self.setcmtystate()
+        before each minimization round.
+
+        **kwargs: Keyword arguments passed to minimizer function.
+        Minimizer is called as minimize(gamma, **kwargs).
         """
         if self.verbosity > 0:
             print "Minimizing with %d trials (gamma=%f)"%(trials,gamma)
+        if isinstance(minimize, str):
+            minimize = getattr(self, minimize)
         minE = float('inf')
         minCmtyState = self.getcmtystate()
+        if initial == 'current':
+            initial = self.getcmtystate()
 
         for i in range(trials):
-            self.cmtyCreate() # randomizes it
-            changes = self.minimize(gamma)
+            if initial == 'random':
+                self.cmtyCreate() # randomizes it
+            else:
+                self.setcmtystate(initial)
+            changes = minimize(gamma, **kwargs)
             thisE = self.energy(gamma)
             if thisE < minE:
                 minE = thisE
                 minCmtyState = self.getcmtystate()
+            if self.verbosity >= 1.5:
+                print "Trial %d, minimum energy %f"%(i, thisE)
 
         self.setcmtystate(minCmtyState)
         if self.verbosity > 0:
-            print "... Done minimizing with %d trials (gamma=%f)"%(
-                                                                  trials,gamma)
+            print "Done minimizing with %d trials (gamma=%f, minE=%f)"%(
+                                                        trials, gamma, minE)
         return changes
+    # Keep backwards compatibility for now.
+    minimize_trials = trials
 
     def minimize(self, gamma):
         """Minimize the communities at a certain gamma.
@@ -595,7 +624,7 @@ class Graph(cmodels._cobj, object):
             self._gen_random_order()
             changesMoving = self._minimize(gamma=gamma)
             changes += changesMoving
-            if self.verbosity > 1:
+            if self.verbosity >= 2:
                 print "  (r%2s) cmtys, changes: %4d %4d"%(round_, self.q,
                                                           changesMoving)
 
@@ -608,7 +637,7 @@ class Graph(cmodels._cobj, object):
                 changesCombining = self.combine_cmtys(gamma=gamma)
                 #changesCombining = self.combine_cmtys_supernodes(gamma=gamma)
                 changes += changesCombining
-                if self.verbosity > 1:
+                if self.verbosity >= 2:
                     print "  (r%2s) cmtys, changes: %4d %4d"%(
                                           round_, self.q, changesCombining), \
                                                   "(<-- combining communities)"
@@ -735,10 +764,10 @@ class Graph(cmodels._cobj, object):
         if check:
             self.check()
     def remapCommunities_c(self, check=False):
-        if self.verbosity > 0:
+        if self.verbosity >= 2:
             print "        remapping communities (c):",
         changes = cmodels.remap_cmtys(self._struct_p)
-        if self.verbosity > 0:
+        if self.verbosity >= 2:
             print changes, "changes"
         if check:
             self.check()

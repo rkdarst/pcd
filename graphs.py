@@ -220,7 +220,7 @@ def karate_club():
                          "data/karate_weighted_nooffset.gml")
     g = networkx.read_gml(fname)
     for a,b,d in g.edges(data=True):
-        print a, b, d
+        #print a, b, d
         g.edge[a][b]['weight'] = -d['value']
     return g
 
