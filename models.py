@@ -907,10 +907,12 @@ class Graph(anneal._GraphAnneal, cmodels._cobj, object):
         canvas = matplotlib.backends.backend_agg.FigureCanvasAgg(fig)
         ax = fig.add_subplot(111, aspect='equal')
 
-        if type(radii)==type(None):
-            radii=numpy.ones(self.N)*base_radius
-        else:
+        if radii is not None:
             radii=radii*base_radius
+        elif hasattr(self, 'radii'):
+            radii=self.radii*base_radius
+        else:
+            radii=numpy.ones(self.N)*base_radius
 
         for n in range(self.N):
             if nodes == 'circles':
