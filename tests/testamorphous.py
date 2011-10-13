@@ -11,7 +11,9 @@ fast = globals().get('fast', False)
 
 
 # All of the loading stuff has been moved to support.gromacs
-G = graphs.bss2d_n240()
+G = graphs.bss2d_n240_T050()
+#G = graphs.bss2d_n5760_T040()
+#G = graphs.bss2d_n23040_T040()
 
 dirname = 'tests-output/amorphous/'
 if not os.path.exists(dirname):
@@ -23,7 +25,7 @@ G.savefig(os.path.join(dirname, 'amorphous_gamma0.svg'),
 
 def callback(G, gamma, **kwargs):
     G.remapCommunities(check=False)
-    fname = os.path.join(dirname, 'imgs/amorphous_gamma%011.5f.svg'%gamma)
+    fname = os.path.join(dirname, 'amorphous_gamma%011.5f.svg'%gamma)
     G.savefig(fname,radii=G.radii,base_radius=0.4)
 
 nreplicas, ntrials = 10, 20
@@ -34,7 +36,7 @@ from pcd import LogInterval
 gammas = LogInterval(.001, 100, density=10).values()
 MR = pcd.MultiResolution()
 MR.do([G]*nreplicas, gammas, trials=ntrials, threads=1,
-      #callback=callback
+      callback=callback
       )
 #MR = pcd.MultiResolution(0.1, 1, callback=callback, number=10)
 #MR.do([G]*10, trials=10, threads=2)

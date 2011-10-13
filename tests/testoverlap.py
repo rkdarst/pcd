@@ -71,7 +71,7 @@ G.savefig(os.path.join(outputdir, 'blah.png'),
 #
 
 import graphs
-G = graphs.bss2d_n240()
+G = graphs.bss2d_n240_T050()
 G.setOverlap(True)
 
 G.minimize(gamma=.1)

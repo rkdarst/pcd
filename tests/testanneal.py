@@ -1,10 +1,13 @@
 # Richard Darst, October 2011
 
-from numpy import random
-random.seed(0)
+import os
 
 import pcd
 import pcd.graphs
+
+dirname = 'tests-output/anneal/'
+if not os.path.exists(dirname):
+    os.makedirs(dirname)
 
 #graph = pcd.graphs.dolphins(weightFriend=-1)
 ##graph = pcd.graphs.relabel_nodes(graph)
@@ -22,9 +25,18 @@ print "N nodes", G.N
 gamma = .001
 G.verbosity = 1.5
 G.cmtyCreate()
-G.trials(gamma, trials=10, minimize=G.anneal, attempts=100) # , Escale=100000
+G.trials(gamma, trials=10, minimizer=G.anneal, attempts=10, Escale=10000)
 print G.energy(gamma)
-G.trials(gamma, trials=10, minimize=G.minimize)
+G.trials(gamma, trials=10, minimizer=G.minimize)
 print G.energy(gamma)
 #G.minimize(.1)
 #G.anneal(.1)
+
+
+MR = pcd.MultiResolution(
+    minimizer='trials',
+    minkwargs=dict(minimizer='anneal', Escale=10000, attempts=10, trials=10,
+                   betafactor=1.01),
+    savefigfname=dirname+'gamma%(gamma)09.4f.png')
+
+MR.do([G]*5, logGammaArgs=dict(low=.001, high=100))
