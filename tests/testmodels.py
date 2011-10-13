@@ -27,7 +27,9 @@ assert id(G) != id(G2)
 for name in dir(G):
     if name[:2] == '__' \
        or name in ('_layout', 'q', 'q_c', 'q_python' )\
-       or name in G.__class__.__dict__:
+       or name in G.__class__.__dict__\
+       or name not in ('cmtyll', 'cmtyl', 'cmty', 'cmtyN', 'randomOrder',
+                       'randomOrder2'):
         continue
     print name, id(getattr(G, name)), id(getattr(G2, name)), \
           type(getattr(G, name))

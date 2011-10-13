@@ -119,8 +119,19 @@ class Graph(anneal._GraphAnneal, cmodels._cobj, object):
         """
         # Right now we turn this into a string and back, in order to
         # make actual deep copies of all the arrays.  FIXME.
-        new = pickle.loads(pickle.dumps(self, -1))
-        #new._allocArray('imatrix', array=self.imatrix)
+        #new = pickle.loads(pickle.dumps(self, -1))
+        # Better way, sharing some data structures.  This means we
+        # just have a shallow copy, so if you change mutable objects
+        # it will change on all objects!
+        new = self.__new__(self.__class__)
+        state = self.__getstate__()
+        for name, type_ in self._struct._fields_:
+            if name in state and isinstance(state[name], numpy.ndarray) \
+                   and name not in ('imatrix', 'rmatrix', ):
+                state[name] = state[name].copy()
+        new.__setstate__(state)
+
+
         return new
     def getcmtystate(self):
         """Return an object representing the communities.
