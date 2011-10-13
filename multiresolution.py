@@ -90,16 +90,34 @@ class MultiResolution(object):
     _callback = None
     _output = None
     _lock = None
-    def __init__(self, output=None, settings={}):
+    def __init__(self, output=None, savefigfname=None,
+                 minimizer='trials',
+                 minkwargs=dict(minimizer='minimize', trials=10)):
         """Create a multiresolution helper system.
 
-        `callback`: a callback to run with the optimum configuration
-        after each gamma run.
+        output: save table of gamma, q, H, etc, to this file.
 
-        `output`: save table of gamma, q, H, etc, to this file.
+        minimizer: name of minimizer to use.  This should be a method
+        name on the Graph object.
+
+        minkwargs: keyword arguments to be passed to the minimizer.
+
+
+        Simple greedy minimization:
+        minimiser=default, minkwargs=dict(trials=NTRIALS)
+
+        Annealing minimization:
+        minimizer=default, minkwargs=dict(minimizer='anneal', trials=NTRIALS)
+
+        Annealing minimization, no trials:
+        minimizer='anneal', minkwargs={args to anneal, ...}
+
+
         """
-        self.settings = settings
         self._output = output
+        self._savefigfname = savefigfname
+        self._minimizer = minimizer
+        self._minimizerkwargs = minkwargs
 
         self._data = { } #collections.defaultdict(dict)
     def do_gamma(self, gamma, callback=None):
@@ -114,7 +132,7 @@ class MultiResolution(object):
             if self._lock:  self._lock.acquire()
             G = G.copy()
             if self._lock:  self._lock.release()
-            G.minimize_trials(gamma, trials=self.trials)
+            getattr(G, self._minimizer)(gamma, **self._minimizerkwargs)
             minGs.append(G)
 
         # Do the information theory VI, MI, In, etc, stuff on our
@@ -125,6 +143,11 @@ class MultiResolution(object):
         if self._output is not None and self._writelock.acquire(False):
             self.write(self._output)
             self._writelock.release()
+        if self._savefigfname is not None:
+            fname = self._savefigfname%{'gamma':gamma}
+            G.remapCommunities(check=False)
+            G.savefig(fname)
+
         # Run callback if we have it.
         if callback:
             totalminimum = min(minGs, key=lambda x: G.energy(gamma))
@@ -151,13 +174,15 @@ class MultiResolution(object):
         except EmptyException:
             return
     def do(self, Gs, gammas=None, logGammaArgs=None,
-           trials=10, threads=1, callback=None):
+           trials=None, threads=1, callback=None):
         """Do multi-resolution analysis on replicas Gs with `trials` each."""
         # If multiple threads requested, do that version instead:
         if gammas is None and logGammaArgs is not None:
             gammas = LogInterval(**logGammaArgs).values()
         if gammas is None:
             raise ValueError("Either gammas or logGammaArgs must be given.")
+        if trials is not None:
+            self._minimizerkwargs['trials'] = trials
         if threads > 1:
             return self.do_mt(Gs, gammas, trials=trials, threads=threads,
                               callback=callback)
