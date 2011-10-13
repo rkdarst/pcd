@@ -232,7 +232,7 @@ def fractalsquare(L):
     return G
 
 
-def bss2d_n240():
+def bss2d_n240_T050():
     """A 2D binary soft sphere system r^-12 potential, 240 atoms.
 
     G.coords, G.boxsize, and G.radii are already set on the returned
@@ -240,6 +240,15 @@ def bss2d_n240():
     """
     import support.gromacs
     return support.gromacs.load_bss2d(fname='2dss32_n240_T0.5_1.gro')
+
+def bss2d_n23040_T040():
+    import support.gromacs
+    return support.gromacs.load_pysim(fname="2dss_n23040_T0.40.atomdump")
+
+def bss2d_n5760_T040():
+    import support.gromacs
+    return support.gromacs.load_pysim(fname="2dss_n5760_T0.40.txt:AsaphDat",
+                                     openargs=dict(L=89.30, N=5760, Na=1824, ))
 
 
 
