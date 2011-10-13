@@ -23,6 +23,13 @@ class MultiResolutionCorrelation(object):
         self.cmtyState = tuple(G.getcmtystate() for G in Gs)
         self.cmtyStateBest = Gmin.getcmtystate()
 
+        GminOverlap = Gmin.copy()
+        #GminOverlap.setOverlap(True)
+        GminOverlap.trials(gamma, trials=10, initial='current',
+                           minimizer='overlapMinimize')
+        # Do analysis using GminOverlap
+
+
         for i, G0 in enumerate(Gs):
             for j, G1 in enumerate(Gs[i+1:]):
                 pairs.append((G0, G1))

@@ -408,8 +408,29 @@ class Graph(anneal._GraphAnneal, cmodels._cobj, object):
         else:
             numpy.random.shuffle(self.randomOrder)
             numpy.random.shuffle(self.randomOrder2)
+    def _check_overlaps(self):
+        """Check some theoretical properties of overlaps.
 
-
+        1) once you apply overlaps, none of the communities are
+        identical.
+        """
+        if self.oneToOne:
+            print ("Warning: self.oneToOne is true, do you want to call "
+                   "this method?")
+        # Make a set of all community contents:
+        cmtys = set()
+        for c in self.cmtys():
+            nodes = frozenset(self.cmtyContents(c))
+            if nodes in cmtys:
+                # We have a overlap - we hope that any
+                print "Overlapping community:", c, nodes
+        # Now make sure that there are no strict subsets.
+        for s1 in cmtys:
+            for s2 in cmtys:
+                if s1 < s2:
+                    print "Set1 is strict subset of set2 "
+                    print s1
+                    print s2
 
     #
     # Methods that deal with communities and community lists
@@ -569,7 +590,7 @@ class Graph(anneal._GraphAnneal, cmodels._cobj, object):
     # Methods that deal with minimization/optimization
     #
     def trials(self, gamma, trials, initial='random',
-               minimize='minimize', **kwargs):
+               minimizer='minimize', **kwargs):
         """Minimize system using .minimize() and `trials` trials.
 
         This will minimize `trials` number of times, and set the final
@@ -594,8 +615,8 @@ class Graph(anneal._GraphAnneal, cmodels._cobj, object):
         """
         if self.verbosity > 0:
             print "Minimizing with %d trials (gamma=%f)"%(trials,gamma)
-        if isinstance(minimize, str):
-            minimize = getattr(self, minimize)
+        if isinstance(minimizer, str):
+            minimizer = getattr(self, minimizer)
         minE = float('inf')
         minCmtyState = self.getcmtystate()
         if initial == 'current':
@@ -606,7 +627,7 @@ class Graph(anneal._GraphAnneal, cmodels._cobj, object):
                 self.cmtyCreate() # randomizes it
             else:
                 self.setcmtystate(initial)
-            changes = minimize(gamma, **kwargs)
+            changes = minimizer(gamma, **kwargs)
             thisE = self.energy(gamma)
             if thisE < minE:
                 minE = thisE
@@ -678,13 +699,15 @@ class Graph(anneal._GraphAnneal, cmodels._cobj, object):
         for round_ in itertools.count():
             changes_add = self._overlapMinimize_add(gamma)
             changes += changes_add
-            print "  (r%2s) overlap: adding  : %4d"%(round_, changes_add)
+            if self.verbosity >= 2:
+                print "  (r%2s) overlap: adding  : %4d"%(round_, changes_add)
             if changes_add == 0 and changes_remove == 0:
                 break
             if changes_add == 0:
                 changes_remove = self._overlapMinimize_remove(gamma)
                 changes += changes_remove
-                print "  (r%2s) overlap: removing: %4d"%(
+                if self.verbosity >= 2:
+                    print "  (r%2s) overlap: removing: %4d"%(
                                                      round_, changes_remove)
             if changes_add == 0 and changes_remove == 0:
                 break

@@ -41,7 +41,7 @@ class _GraphAnneal(object):
             changes = self._anneal(gamma, beta=beta, steps=self.N*attempts)
             E = self.energy(gamma)
             if self.verbosity >= 2:
-                print "%6d %9.5f %7.2f %6d"%(i, beta, E, changes)
+                print "  (a%6d) %9.5f %7.2f %6d"%(i, beta, E, changes)
             beta *= betafactor
 
             running_changes.append(changes)
@@ -65,5 +65,5 @@ class _GraphAnneal(object):
             c = random.choice(tuple(self.cmtys()))
             Es.append(self.energy_cmty_n(gamma, c, n))
         #return numpy.mean(Es)
-        print Es
+        #print Es
         return max(abs(x) for x in Es)
