@@ -649,7 +649,8 @@ class Graph(anneal._GraphAnneal, cmodels._cobj, object):
         This function requires a good starting configuration.  To do
         that, use self.cmtyCreate() first.
         """
-        print "beginning minimization (n=%s, gamma=%s)"%(self.N, gamma)
+        if self.verbosity >= 0:
+            print "beginning minimization (n=%s, gamma=%s)"%(self.N, gamma)
         changes = 0
 
         changesCombining = None
