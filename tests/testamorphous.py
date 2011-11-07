@@ -20,7 +20,7 @@ if not os.path.exists(dirname):
     os.makedirs(dirname)
 
 G.minimize(gamma=0)
-G.savefig(os.path.join(dirname, 'amorphous_gamma0.svg'),
+G.savefig(os.path.join(dirname, 'amorphous_gamma0.png'),
           radii=G.radii,base_radius=0.4)
 
 def callback(G, gamma, **kwargs):

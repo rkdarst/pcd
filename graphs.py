@@ -147,6 +147,11 @@ def dolphins(weightFriend=-1):
         g.edge[a][b]['weight'] = weightFriend
     return g
 
+def dolphins_G():
+    graph = dolphins(weightFriend=-1)
+    G = models.Graph.fromNetworkX(graph, defaultweight=1)
+    return G
+
 def nussinov_256node(weight=-1):
     """Load the 256-node hierarchical graph from PRE 80, 016109 (2009)
 

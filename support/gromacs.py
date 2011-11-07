@@ -110,7 +110,7 @@ def load_pysim(fname="2dss_n23040_T0.40.atomdump", openargs={}):
     sigmas[1, atomtypes==2] = 1.4
     radii = numpy.zeros(N, dtype=float)
     radii[atomtypes==1] = 1.0
-    radii[atomtypes==2] = 1.0
+    radii[atomtypes==2] = 1.4
     # Check it:
     assert (sigmas != 0).all()
     assert (radii  != 0).all()
