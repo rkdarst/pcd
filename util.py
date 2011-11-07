@@ -1,5 +1,6 @@
 # Richard Darst, July 2011
 
+from taco.mathutil.stats import Averager
 from math import log, exp, floor, ceil
 import random
 
@@ -92,6 +93,60 @@ def mutual_information_python(G0, G1):
 def mutual_information_c(G0, G1):
     return cmodels.mutual_information(G0._struct_p, G1._struct_p)
 mutual_information = mutual_information_c
+
+
+
+
+#
+# Overlap-using mutual information
+#
+def h(p):
+    if p==0 or p==1: return 0
+    return -p * log(p,2)
+def H(G, c):
+    N = float(G.N)
+    return h(G.cmtyN[c]/N) + h((N-G.cmtyN[c])/N)
+def p11(G1,G2,c1,c2): return (           len(cXm & cYm)  )/float(N)
+def p10(G1,G2,c1,c2): return (len(cXm) - len(cXm & cYm)  )/float(N)
+def p01(G1,G2,c1,c2): return (len(cYm) - len(cXm & cYm)  )/float(N)
+def p00(G1,G2,c1,c2): return (  N      - len(cXm | cYm)  )/float(N)
+def H2(GX, GY, cX, cY):
+    """H(X_k | Y_l)."""
+    cXm = set(GX.cmtyContents(cX)) # cmty X members
+    cYm = set(GY.cmtyContents(cY)) # cmty Y members
+    assert GX.N == GY.N
+    N = float(GX.N)  # make it float so that division below works.
+    hP11 = h((           len(cXm & cYm)  )/N)
+    hP10 = h((len(cXm) - len(cXm & cYm)  )/N)
+    hP01 = h((len(cYm) - len(cXm & cYm)  )/N)
+    hP00 = h((  N      - len(cXm | cYm)  )/N)
+    if hP11 + hP00 <= hP01 + hP10:
+        # We want to exclude ones matching this condition.  Return
+        # 'inf' and it will be excluded from the min() function
+        # wrapping this one.
+        return float('inf')
+    hPY1 = h(  (  len(cYm)) / N)
+    hPY0 = h(  (N-len(cYm)) / N)
+    return hP11+hP00+hP01+hP10 - hPY1 - hPY0
+
+def HX_Ynorm(GX, GY):
+    """ """
+    HX_Y = Averager()
+    for cX in GX.cmtys():
+        HX_Yhere = min(H2(GX, GY, cX, cY) for cY in GY.cmtys())
+        if HX_Yhere == float('inf'):
+            HX_Yhere = H(GX, cX)
+        _ = H(GX, cX)
+        if _ == 0:
+            HX_Y += 0
+        else:
+            HX_Y += HX_Yhere / _
+    return HX_Y.mean
+
+def mutual_information_overlap(G0, G1):
+    N = 1 - .5 * (HX_Ynorm(G0, G1) + HX_Ynorm(G1, G0) )
+    return N
+
 
 def matrix_swap_basis(array, a, b):
     """Swap rows a,b and columns a,b in a array."""

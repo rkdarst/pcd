@@ -7,17 +7,33 @@ import time
 import util
 from util import LogInterval
 
+def recursive_dict_update(d, dnew):
+    for k,v in dnew.iteritems():
+        if k in d and isinstance(d[k],dict) and isinstance(v,dict):
+            recursive_dict_update(d[k], v)
+        else:
+            d[k] = v
+    return d
+
 
 
 class MultiResolutionCorrelation(object):
     def __init__(self, gamma, Gs, trials=None,
-                 nhistbins=50):
+                 nhistbins=50, **kwargs):
         self.calc(gamma, Gs, nhistbins=nhistbins)
         self.replicas = len(Gs)
         self.trials = trials
+        for k,v in kwargs.iteritems():
+            setattr(self, k, v)
 
     def calc(self, gamma, Gs, nhistbins=50):
         pairs = [ ]
+        pairsOverlap = [ ]
+
+        overlapGs = [ G.copy() for G in Gs ]
+        [ G.trials(gamma, trials=10, initial='current',
+                   minimizer='overlapMinimize')
+          for G in overlapGs ]
 
         Gmin = min(Gs, key=lambda G: G.energy(gamma))
         self.cmtyState = tuple(G.getcmtystate() for G in Gs)
@@ -33,6 +49,7 @@ class MultiResolutionCorrelation(object):
         for i, G0 in enumerate(Gs):
             for j, G1 in enumerate(Gs[i+1:]):
                 pairs.append((G0, G1))
+                pairsOverlap.append((overlapGs[i], overlapGs[j]))
 
         Is = [ util.mutual_information(G0,G1) for G0,G1 in pairs ]
 
@@ -42,6 +59,14 @@ class MultiResolutionCorrelation(object):
                          for ((G0,G1), mi) in zip(pairs, Is)
                          if G0.q!=1 or G0.q!=1])
 
+        NmiO = numpy.mean([ util.mutual_information_overlap(G1, G2)
+                            for G1,G2 in pairsOverlap])
+
+
+        self.fieldnames = ("gamma", "q", "q_std", "qmin",
+                           "E", "entropy",
+                           "I", "VI", "In", "NmiO",
+                           "n_mean")
         self.gamma   = gamma
         self.q       = numpy.mean(tuple(G.q for G in Gs))
         self.q_std   = numpy.std(tuple(G.q for G in Gs), ddof=1)
@@ -53,6 +78,7 @@ class MultiResolutionCorrelation(object):
         self.I       = numpy.mean(Is)
         self.VI      = VI
         self.In      = In
+        self.NmiO    = NmiO
 
         self.N       = N = Gs[0].N
         self.n_mean  = sum(tuple(item[0]*item[1]/float(G.q) for G in Gs for
@@ -90,9 +116,11 @@ class MultiResolution(object):
     _callback = None
     _output = None
     _lock = None
-    def __init__(self, output=None, savefigfname=None,
+    def __init__(self, output=None, savefigargs=None,
                  minimizer='trials',
-                 minkwargs=dict(minimizer='minimize', trials=10)):
+                 minkwargs=dict(minimizer='minimize', trials=10),
+                 plotargs=None,
+                 calckwargs={}):
         """Create a multiresolution helper system.
 
         output: save table of gamma, q, H, etc, to this file.
@@ -101,6 +129,11 @@ class MultiResolution(object):
         name on the Graph object.
 
         minkwargs: keyword arguments to be passed to the minimizer.
+
+        savefigargs: keyword arguments (dictionary) to pass to
+        .savefig() of the minimum G of each gamma.  To save to a
+        particular filename, use
+        savefigargs={'fname':'filename%(gamma)f.png'}
 
 
         Simple greedy minimization:
@@ -115,9 +148,11 @@ class MultiResolution(object):
 
         """
         self._output = output
-        self._savefigfname = savefigfname
+        self._savefigargs = savefigargs
+        self._plotargs = plotargs
         self._minimizer = minimizer
         self._minimizerkwargs = minkwargs
+        self._calckwargs = calckwargs
 
         self._data = { } #collections.defaultdict(dict)
     def do_gamma(self, gamma, callback=None):
@@ -140,13 +175,20 @@ class MultiResolution(object):
         self._data[gamma] = MultiResolutionCorrelation(
             gamma, minGs, trials=self.trials)
         # Save output to a file.
-        if self._output is not None and self._writelock.acquire(False):
+        if self._output is not None and \
+               (not hasattr(self, '_writelock' or self._writelock.acquire(False))):
             self.write(self._output)
-            self._writelock.release()
-        if self._savefigfname is not None:
-            fname = self._savefigfname%{'gamma':gamma}
+            if hasattr(self, '_writelock'):
+                self._writelock.release()
+        if self._savefigargs is not None:
+            kwargs = self._savefigargs.copy()
+            kwargs['fname'] = kwargs['fname']%{'gamma':gamma}
             G.remapCommunities(check=False)
-            G.savefig(fname)
+            G.savefig(**kwargs)
+        if self._plotargs is not None:
+            #kwargs = self._savefigargs.copy()
+            #kwargs['fname'] = kwargs['fname']%{'gamma':gamma}
+            self.plot(**self._plotargs)
 
         # Run callback if we have it.
         if callback:
@@ -195,7 +237,7 @@ class MultiResolution(object):
         for gamma in gammas:
             self.do_gamma(gamma)
             if self._output:
-                self.write(output)
+                self.write(self._output)
         del self._Gs
         del self._callback # unmasks the class object's _callback=None
 
@@ -230,27 +272,30 @@ class MultiResolution(object):
              self._queue)
         del self._callback # unmasks class object's _callback=None
 
+    _calcDone = False
     def calc(self):
+        """Put information from all of the MRCs on self.
+
+        This takes
+        """
+        # Cache to only do it once.  Need a way to override this.
+        #if self._calcDone:
+        #    return
+        #self._calcDone = True
+
+
         MRCs = [ MRC for i, MRC in sorted(self._data.iteritems()) ]
 
+        self.fieldnames = MRCs[0].fieldnames
+        for fieldname in self.fieldnames:
+            setattr(self, fieldname,
+                    numpy.asarray([getattr(mrc, fieldname) for mrc in MRCs]))
+
         self.N         = N         = MRCs[0].N
-        self.gammas    = gammas    = [mrc.gamma     for mrc in MRCs]
-        self.qs        = qs        = [mrc.q         for mrc in MRCs]
-        self.qmins     = minss     = [mrc.qmin      for mrc in MRCs]
-        self.Es        = Es        = [mrc.E         for mrc in MRCs]
-        self.entropies = entropies = [mrc.entropy   for mrc in MRCs]
-
-        self.Is        = Is        = [mrc.I         for mrc in MRCs]
-        self.VIs       = VIs       = [mrc.VI        for mrc in MRCs]
-        self.Ins       = Ins       = [mrc.In        for mrc in MRCs]
-
-        self.n_mean    = n_mean    = [mrc.n_mean    for mrc in MRCs]
 
         self.n_hist       = n_hist       = [mrc.n_hist       for mrc in MRCs]
         self.n_hist_edges = n_hist_edges = [mrc.n_hist_edges for mrc in MRCs]
 
-        self.field_names = ("gammas", "qs", "Es", "entropies",
-                            "Is", "VIs", "Ins", "qmins","n_mean")
     def write(self, fname):
         """Save multi-resolution data to a file."""
         self.calc()
@@ -258,9 +303,11 @@ class MultiResolution(object):
         print >> f, "#", time.ctime()
         print >> f, "# replicas:", self.replicas
         print >> f, "# trials per replica:", self.trials
-        print >> f, "#" + " ".join(self.field_names)
-        for i in range(len(self.gammas)):
-            for name in self.field_names:
+        print >> f, "#" + " ".join(self.fieldnames)
+        for i in range(len(self.gamma)):
+            print >> f, self.gamma[i],
+            for name in self.fieldnames:
+                if name == "gamma": continue
                 print >> f, getattr(self, name)[i],
             print >> f
 
@@ -277,7 +324,7 @@ class MultiResolution(object):
             histdata=self.n_hist[i]
             histedges=self.n_hist_edges[i]
             ax.cla()
-            ax.set_title("$\gamma=%f$"%self.gammas[i])
+            ax.set_title("$\gamma=%f$"%self.gamma[i])
             ax.bar( histedges[:-1], histdata, width=(histedges[1:]-histedges[:-1]) )
             ax.set_xscale('log')
             ax.set_xlim( 0.1 , self.N )
@@ -299,11 +346,11 @@ class MultiResolution(object):
         ax_vi.set_xscale('log')
         ax_n = ax_vi.twinx()
 
-        l2 = ax_vi.plot(self.gammas, self.VIs,
+        l2 = ax_vi.plot(self.gamma, self.VI,
                         color='blue')
-        l3 = ax_vi.plot(self.gammas, self.Ins, '--',
+        l3 = ax_vi.plot(self.gamma, self.In, '--',
                         color='red')
-        l = ax_n.plot(self.gammas, self.n_mean,':',c='black')
+        l = ax_n.plot(self.gamma, self.n_mean,':',c='black')
 
         ax_n.legend((l2, l3,l), ("$VI$", "$I_n$","$\langle n \\rangle$"), loc=0)
         ax_n.set_ylabel('$\langle n \\rangle$')
@@ -316,7 +363,19 @@ class MultiResolution(object):
         if fname:
             c.print_figure(fname, bbox_inches='tight')
 
-    def plot(self, fname=None):
+    def plot(self, fname=None, ax1items=['VI', 'In', 'NmiO'], ax2items=['q'],
+             plotstyles={}):
+        """Plot things from a multiresolution plot.
+
+        ax1items: List of items to plot on axis 1 (left)
+        ax1items: List of items to plot on axis 2 (right)
+
+        Each item should be a name of something on the
+        MultiResolutionCorrelation object.
+        """
+        # Recalculate all the stuff
+        self.calc()
+        # Prepare plot figure
         if fname:
             from matplotlib.backends.backend_agg import Figure, FigureCanvasAgg
             f = Figure()
@@ -324,47 +383,72 @@ class MultiResolution(object):
         else:
             from matplotlib import pyplot
             f = pyplot.gcf()
-        #ax = f.add_subplot(111)
-        #ax.plot(array[:,0], array[:,1]/50., label="q")
-        #ax.set_xscale('log')
 
-        ax_vi  = f.add_subplot(111)
-        ax_vi.set_xscale('log')
-        ax_q = ax_vi.twinx()
+        # Add axes
+        ax1  = f.add_subplot(111)
+        ax1.set_xscale('log')
+        ax2 = ax1.twinx()
 
-        #old style. next is q on left, vi on right
-        #ax_q  = f.add_subplot(111)
-        #ax_vi = ax_q.twinx()
+        # Defaults (move outside of the function eventually)
+        legenditems = [ ]
+        defaultplotstyles = {
+            'VI':     dict(label='$VI$',color='blue', linestyle='-'),
+            'In':     dict(label='$I_n$',color='red', linestyle='--'),
+            'NmiO':   dict(label='$N$',color='green', linestyle='-.'),
+            'q':      dict(label='$q$',color='black', linestyle=':'),
+            '<n>':    dict(label='$<n>$',color='black', linestyle=':'),
+            'entropy':dict(label='$H$',color='blue', linestyle='--'),
+            None:   dict(),  # defaults
+            }
+        plotstyles = recursive_dict_update(defaultplotstyles, plotstyles)
+        # Fill axes
+        for item in ax1items:
+            plotstyle = plotstyles.get(item, {}).copy()
+            scale = plotstyle.pop('scale', 1)
+            l = ax1.plot(self.gamma, getattr(self, item)*scale,
+                         **plotstyle)[0]
+            legenditems.append((l, plotstyle.get('label', item)))
+        for item in ax2items:
+            plotstyle = plotstyles.get(item, {}).copy()
+            scale = plotstyle.pop('scale', 1)
+            #plotstyle2 = plotstyle.copy()
+            #plotstyle2.pop('scale', None)
+            l = ax2.plot(self.gamma, getattr(self, item)*scale,
+                         **plotstyle)[0]
+            legenditems.append((l, plotstyle.get('label', item)))
 
-        #from fitz import interactnow
-        l2 = ax_vi.plot(self.gammas, self.VIs,
-                        color='blue')
-        l3 = ax_vi.plot(self.gammas, self.Ins, '--',
-                        color='red')
-        l = ax_q.plot(self.gammas, self.qs,':',c='black')
+        # Legends and labels
+        ax2.legend(*zip(*legenditems), loc=0)
+        ax2.set_ylim(bottom=0)
 
-        ax_q.legend((l2, l3,l), ("$VI$", "$I_n$","$q$"), loc=0)
-        ax_q.set_ylabel('$q$')
-        ax_q.set_ylim(bottom=0)
-
-        ax_vi.set_ylabel('$VI$ and $I_n$')
-        ax_vi.set_xlabel('$\gamma$')
+        def axLabels(axItems):
+            """Look up axis labels for a list of items."""
+            for item in axItems:
+                plotstyle = plotstyles.get(item, {})
+                label = plotstyle.get('label', item)
+                if 'scale' in plotstyle:
+                    label = (r'$%s\times$'%plotstyle['scale'])+label
+                yield label
+        ax1labels = ', '
+        ax1.set_ylabel(', '.join(axLabels(ax1items)))
+        ax2.set_ylabel(', '.join(axLabels(ax2items)))
+        ax1.set_xlabel('$\gamma$')
 
         if fname:
             c.print_figure(fname, bbox_inches='tight')
 
     def viz(self):
         import matplotlib.pyplot as pyplot
-        gammas    = self.gammas
-        qs        = self.qs
-        Es        = self.Es
-        entropies = self.entropies
+        gamma     = self.gamma
+        q         = self.q
+        E         = self.E
+        entropy   = self.entropy
 
-        Is        = self.Is
-        VIs       = self.VIs
-        Ins       = self.Ins
-        pyplot.xlim(gammas[0], gammas[-1])
-        pyplot.semilogx(gammas, qs)
+        I         = self.I
+        VI        = self.VI
+        In        = self.In
+        pyplot.xlim(gamma[0], gamma[-1])
+        pyplot.semilogx(gamma, q)
         pyplot.xlabel('\gamma')
         pyplot.ylabel('q')
         #pyplot.show()
