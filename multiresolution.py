@@ -19,7 +19,9 @@ def recursive_dict_update(d, dnew):
 
 class MultiResolutionCorrelation(object):
     def __init__(self, gamma, Gs, trials=None,
-                 nhistbins=50, **kwargs):
+                 nhistbins=50, overlap=False,
+                 **kwargs):
+        self.overlap = overlap
         self.calc(gamma, Gs, nhistbins=nhistbins)
         self.replicas = len(Gs)
         self.trials = trials
@@ -30,10 +32,11 @@ class MultiResolutionCorrelation(object):
         pairs = [ ]
         pairsOverlap = [ ]
 
-        overlapGs = [ G.copy() for G in Gs ]
-        [ G.trials(gamma, trials=10, initial='current',
-                   minimizer='overlapMinimize')
-          for G in overlapGs ]
+        if self.overlap:
+            overlapGs = [ G.copy() for G in Gs ]
+            [ G.trials(gamma, trials=10, initial='current',
+                       minimizer='overlapMinimize')
+              for G in overlapGs ]
 
         Gmin = min(Gs, key=lambda G: G.energy(gamma))
         self.cmtyState = tuple(G.getcmtystate() for G in Gs)
@@ -49,7 +52,8 @@ class MultiResolutionCorrelation(object):
         for i, G0 in enumerate(Gs):
             for j, G1 in enumerate(Gs[i+1:]):
                 pairs.append((G0, G1))
-                pairsOverlap.append((overlapGs[i], overlapGs[j]))
+                if self.overlap:
+                    pairsOverlap.append((overlapGs[i], overlapGs[j]))
 
         Is = [ util.mutual_information(G0,G1) for G0,G1 in pairs ]
 
@@ -59,14 +63,11 @@ class MultiResolutionCorrelation(object):
                          for ((G0,G1), mi) in zip(pairs, Is)
                          if G0.q!=1 or G0.q!=1])
 
-        NmiO = numpy.mean([ util.mutual_information_overlap(G1, G2)
-                            for G1,G2 in pairsOverlap])
-
-
         self.fieldnames = ("gamma", "q", "q_std", "qmin",
                            "E", "entropy",
-                           "I", "VI", "In", "NmiO",
+                           "I", "VI", "In",
                            "n_mean")
+
         self.gamma   = gamma
         self.q       = numpy.mean(tuple(G.q for G in Gs))
         self.q_std   = numpy.std(tuple(G.q for G in Gs), ddof=1)
@@ -78,7 +79,6 @@ class MultiResolutionCorrelation(object):
         self.I       = numpy.mean(Is)
         self.VI      = VI
         self.In      = In
-        self.NmiO    = NmiO
 
         self.N       = N = Gs[0].N
         self.n_mean  = sum(tuple(item[0]*item[1]/float(G.q) for G in Gs for
@@ -96,6 +96,12 @@ class MultiResolutionCorrelation(object):
             n_hists.append(n_hist/float(sum(n_hist)))
         n_hists_array = numpy.array(n_hists)
         self.n_hist = n_hists_array.mean(axis=0)
+
+        if self.overlap:
+            NmiO = numpy.mean([ util.mutual_information_overlap(G1, G2)
+                                for G1,G2 in pairsOverlap])
+            self.NmiO    = NmiO
+            self.fieldnames += ('NmiO', )
 
     def getGs(self, Gs):
         """Return the list of all G replicas.
@@ -120,7 +126,8 @@ class MultiResolution(object):
                  minimizer='trials',
                  minkwargs=dict(minimizer='minimize', trials=10),
                  plotargs=None,
-                 calckwargs={}):
+                 calckwargs={},
+                 overlap=False):
         """Create a multiresolution helper system.
 
         output: save table of gamma, q, H, etc, to this file.
@@ -153,6 +160,7 @@ class MultiResolution(object):
         self._minimizer = minimizer
         self._minimizerkwargs = minkwargs
         self._calckwargs = calckwargs
+        self._overlap = overlap
 
         self._data = { } #collections.defaultdict(dict)
     def do_gamma(self, gamma, callback=None):
@@ -173,7 +181,7 @@ class MultiResolution(object):
         # Do the information theory VI, MI, In, etc, stuff on our
         # minimized replicas.
         self._data[gamma] = MultiResolutionCorrelation(
-            gamma, minGs, trials=self.trials)
+            gamma, minGs, trials=self.trials, overlap=self._overlap)
         # Save output to a file.
         if self._output is not None and \
                (not hasattr(self, '_writelock' or self._writelock.acquire(False))):
@@ -181,6 +189,7 @@ class MultiResolution(object):
             if hasattr(self, '_writelock'):
                 self._writelock.release()
         if self._savefigargs is not None:
+            minG = min(minGs, key=lambda x: G.energy(gamma))
             kwargs = self._savefigargs.copy()
             kwargs['fname'] = kwargs['fname']%{'gamma':gamma}
             G.remapCommunities(check=False)
@@ -192,9 +201,9 @@ class MultiResolution(object):
 
         # Run callback if we have it.
         if callback:
-            totalminimum = min(minGs, key=lambda x: G.energy(gamma))
-            replica_number = minGs.index(totalminimum)
-            callback(G=totalminimum, gamma=gamma,
+            minG = min(minGs, key=lambda x: G.energy(gamma))
+            replica_number = minGs.index(minG)
+            callback(G=minG, gamma=gamma,
                      mrc=self._data[gamma],
                      mr=self,
                      replica_number=replica_number)
