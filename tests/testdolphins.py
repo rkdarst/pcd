@@ -1,9 +1,13 @@
 # Richard Darst, August 2011
 
+import os
 from numpy import random
 random.seed(0)
 
 import pcd.graphs
+
+if not os.access('tests-output/dolphins', os.F_OK):
+    os.mkdir('tests-output/dolphins')
 
 graph = pcd.graphs.dolphins(weightFriend=-1)
 #graph = pcd.graphs.relabel_nodes(graph)
@@ -18,7 +22,9 @@ print G.imatrix
 #G.viz()
 #exit()
 
-MR = pcd.MultiResolution()
+MR = pcd.MultiResolution(overlap=True)
 MR.do(Gs=[G]*12, logGammaArgs=dict(low=.007, high=11), trials=10)
-MR.write("tmp-dolphins.txt")
+MR.write("tests-output/dolphins/tmp-dolphins.txt")
+MR.plot(fname='tests-output/dolphins/mr.png',
+        ax1items=('VI', 'In', 'NmiO', 'entropy'))
 #MR.viz()

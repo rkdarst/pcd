@@ -431,6 +431,19 @@ class Graph(anneal._GraphAnneal, cmodels._cobj, object):
                     print "Set1 is strict subset of set2 "
                     print s1
                     print s2
+    def _interaction_summary(self):
+        pass
+    def is_lowest_gamma(self):
+        """Return True if this graph reduced fully.
+
+        This method tests that every community has *only* repulsive
+        interactions with every other community."""
+        # rmatrix can always be reduced further
+        if self.rmatrix is not None:
+            return False
+        if self.q == 1:
+            return True
+
 
     #
     # Methods that deal with communities and community lists
@@ -575,14 +588,13 @@ class Graph(anneal._GraphAnneal, cmodels._cobj, object):
         """Return countsogram of community sizes."""
         #community sizes can go from 1 - N
         n_counts = {}
-        community_sizes=[ self.cmtyN[c] for c in range(self.Ncmty)
-                          if self.cmtyN[c] > 0 ]
-        for size in community_sizes:
-            if size in n_counts.keys():
-                n_counts[size]=n_counts[size]+1
-            else:
-                n_counts[size]=1
+        for c in self.cmtys():   # iterate over non-empty cmtys only
+            size = self.cmtyN[c]
+            n_counts[size] = n_counts.get(size, 0) + 1
         return n_counts
+    def n_mean(self):
+        """Average num nodes per community"""
+        return sum(self.cmtyN[c] for c in self.cmtys())/float(self.q)
 
 
 
@@ -613,10 +625,11 @@ class Graph(anneal._GraphAnneal, cmodels._cobj, object):
         **kwargs: Keyword arguments passed to minimizer function.
         Minimizer is called as minimize(gamma, **kwargs).
         """
-        if self.verbosity > 0:
-            print "Minimizing with %d trials (gamma=%f)"%(trials,gamma)
         if isinstance(minimizer, str):
             minimizer = getattr(self, minimizer)
+        if self.verbosity > 0:
+            print "Trials: %d %s runs (gamma=%f)"%(trials,
+                                                   minimizer.func_name,gamma)
         minE = float('inf')
         minCmtyState = self.getcmtystate()
         if initial == 'current':
@@ -637,8 +650,8 @@ class Graph(anneal._GraphAnneal, cmodels._cobj, object):
 
         self.setcmtystate(minCmtyState)
         if self.verbosity > 0:
-            print "Done minimizing with %d trials (gamma=%f, minE=%f)"%(
-                                                        trials, gamma, minE)
+            print "Trials done: %d %s runs (gamma=%f, minE=%f)"%(
+                                     trials, minimizer.func_name, gamma, minE)
         return changes
     # Keep backwards compatibility for now.
     minimize_trials = trials
@@ -652,6 +665,7 @@ class Graph(anneal._GraphAnneal, cmodels._cobj, object):
         if self.verbosity >= 0:
             print "beginning minimization (n=%s, gamma=%s)"%(self.N, gamma)
         changes = 0
+        combining_rounds = 0
 
         changesCombining = None
         for round_ in itertools.count():

@@ -81,8 +81,7 @@ class MultiResolutionCorrelation(object):
         self.In      = In
 
         self.N       = N = Gs[0].N
-        self.n_mean  = sum(tuple(item[0]*item[1]/float(G.q) for G in Gs for
-                                 item in G.n_counts().items())) / ( float(len(Gs)) )
+        self.n_mean  = sum(G.n_mean() for G in Gs)/float(len(Gs))
 
         n_hists=[]
         edges=numpy.logspace(0,numpy.log10(N+1),num=nhistbins,endpoint=True)
@@ -101,7 +100,9 @@ class MultiResolutionCorrelation(object):
             NmiO = numpy.mean([ util.mutual_information_overlap(G1, G2)
                                 for G1,G2 in pairsOverlap])
             self.NmiO    = NmiO
+            self.n_mean_ov = sum(G.n_mean() for G in overlapGs)/float(len(Gs))
             self.fieldnames += ('NmiO', )
+            self.fieldnames += ('n_mean_ov', )
 
     def getGs(self, Gs):
         """Return the list of all G replicas.
@@ -405,7 +406,8 @@ class MultiResolution(object):
             'In':     dict(label='$I_n$',color='red', linestyle='--'),
             'NmiO':   dict(label='$N$',color='green', linestyle='-.'),
             'q':      dict(label='$q$',color='black', linestyle=':'),
-            '<n>':    dict(label='$<n>$',color='black', linestyle=':'),
+            'n_mean': dict(label='$<n>$',color='blue',linestyle=':'),
+            'n_mean_ov':dict(label='$<n_{ov}>$',color='green',linestyle=':'),
             'entropy':dict(label='$H$',color='blue', linestyle='--'),
             None:   dict(),  # defaults
             }
