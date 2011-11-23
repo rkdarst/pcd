@@ -43,7 +43,7 @@ def random_graph(graph=None, size=10, cluster=True, layout=None):
     for a,b,d in g.edges(data=True):
         d['weight'] = -10
 
-    G = models.Graph.fromNetworkX(g, layout=layout, defaultweight=1)
+    G = models.Graph.fromNetworkX(g, coords=layout, defaultweight=1)
     return G
 
 def relabel_nodes(g, copy=False):

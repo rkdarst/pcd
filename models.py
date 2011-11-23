@@ -67,10 +67,14 @@ class Graph(anneal._GraphAnneal, cmodels._cobj, object):
         self.N = N
         self.cmtyCreate(randomize=randomize)
         self.oneToOne = 1
+        self.hasFull = 1
         if rmatrix:
             self._allocRmatrix()
         if overlap:
             self.setOverlap(True)
+        seenList = cmodels.LList(N)
+        self.seenList = ctypes.pointer(cmodels.LList(N))
+        self.__dict__['seenList'] = seenList
     def _fillStruct(self, N=None):
         """Fill C structure."""
         cmodels._cobj._allocStruct(self, cmodels.cGraph)
@@ -196,7 +200,7 @@ class Graph(anneal._GraphAnneal, cmodels._cobj, object):
     #
     @classmethod
     def fromNetworkX(cls, graph, defaultweight=1,
-                     layout=None, randomize=True,
+                     coords=None, randomize=True,
                      diagonalweight=None):
         """Create a Graph glass from a NetworkX graph object.
 
@@ -218,7 +222,7 @@ class Graph(anneal._GraphAnneal, cmodels._cobj, object):
         """
         G = cls(N=len(graph), randomize=randomize)
         G._graph = graph
-        G._layout = layout
+        G.coords = coords
 
         G._nodeIndex = { }
         G._nodeLabel = { }
@@ -315,8 +319,64 @@ class Graph(anneal._GraphAnneal, cmodels._cobj, object):
             dist = numpy.sqrt(dist)
             matrix[n1, :] = efunc(dist)
         numpy.seterr(**orig_settings)
+    def make_sparse(self, minval, imatrixDefault, rmatrixDefault=0):
+        assert self.hasFull # have full to create sparse from it.
+        self.simatrixDefault = imatrixDefault
+        self.srmatrixDefault = rmatrixDefault
 
+        imatrix = self.imatrix
+        #simatrixLen = 0
+        #for row in imatrix:
+        #    x = numpy.sum(row < minval)
+        #    simatrixLen = max(x, simatrixLen)
+        simatrixLen = (imatrix<minval).sum(axis=1).max()
+        print numpy.min(imatrix), numpy.max(imatrix)
+        print "Making graph sparse: %d nodes, %d reduced nodes"%(
+            self.N, simatrixLen)
+        self.hasSparse = 1
+        self.simatrixLen = simatrixLen
+        self._allocArray('simatrix', shape=(self.N, simatrixLen))
+        self._allocArray('simatrixN', shape=self.N)
+        self._allocArray('simatrixId', shape=(self.N, simatrixLen))
 
+        for i,j in zip(*numpy.where(imatrix < minval)):
+            if i == j:
+                continue
+            idx = self.simatrixN[i]
+            #assert idx < self.simatrixLen
+            self.simatrix[i,idx] = imatrix[i, j]
+            self.simatrixId[i,idx] = j
+            self.simatrixN[i] += 1
+    def _check_sparse(self, imatrixDefault):
+        #if numpy.max(self.seenList.data[:self.seenList.maxcount]) > 10000:
+        #    from fitz import interactnow
+        #    assert 0
+        #
+        for i, row in enumerate(self.simatrix):
+            for _j, val in enumerate(row[0:self.simatrixN[i]]):
+                j = self.simatrixId[i,_j]
+                if not val == self.imatrix[i, j]:
+                    from fitz import interactnow
+                assert val == self.imatrix[i, j], "%d %d %d %d"%(i,j,_j,val)
+        # Compare everything in imatrix, make sure it is in simatrix
+        # if needed.
+        for i, row in enumerate(self.imatrix):
+            for j, val in enumerate(row):
+                # We don't store on-diagonal values
+                if i == j:
+                    continue
+                # If it isn't the default, it should be in in the matrices
+                if val != imatrixDefault:
+                    assert j     in self.simatrixId[i,:self.simatrixN[i]], \
+                           "%d %d %d"%(i,j,val)
+                # And if it is the default, it shouldn't be in.
+                else:
+                    assert j not in self.simatrixId[i,:self.simatrixN[i]], \
+                           "%d %d %d"%(i,j,val)
+        # Is it sorted?
+        for i in range(self.N):
+            assert list(sorted(self.simatrixId[i,:self.simatrixN[i]])) == \
+                   list(self.simatrixId[i,:self.simatrixN[i]])
 
     #
     # Conversion methods
@@ -395,6 +455,8 @@ class Graph(anneal._GraphAnneal, cmodels._cobj, object):
         print "cmtyListCheck"
         errors = cmodels.cmtyListCheck(self._struct_p)
         assert errors == 0, "We have %d errors"%errors
+        #errors = self._check_sparse(imatrixDefault=500)
+        #assert errors == 0, "We have %d errors (2)"%errors
         assert self.q == len(set(self.cmty))
         return errors
     def _test(self):
@@ -471,6 +533,7 @@ class Graph(anneal._GraphAnneal, cmodels._cobj, object):
         self.cmty[:] = cmtys
         #self.Ncmty = numpy.max(cmtys)+1 done in cmtyListInit()
         #self.cmtyN[:] = 1   # done in cmtyListInit()
+        #self.oneToOne = 1   # done in C
         self.cmtyListInit()
     def cmtyListInit(self):
         """Initialize the efficient community lists.
@@ -671,6 +734,8 @@ class Graph(anneal._GraphAnneal, cmodels._cobj, object):
         for round_ in itertools.count():
             self._gen_random_order()
             changesMoving = self._minimize(gamma=gamma)
+            #if round_%2 == 0:
+            #    self.remapCommunities(check=False)
             changes += changesMoving
             if self.verbosity >= 2:
                 print "  (r%2s) cmtys, changes: %4d %4d"%(round_, self.q,
@@ -682,6 +747,7 @@ class Graph(anneal._GraphAnneal, cmodels._cobj, object):
             # If we got no changes, then try combining communities
             # before breaking out.
             if changesMoving == 0:
+                self.remapCommunities(check=False)
                 changesCombining = self.combine_cmtys(gamma=gamma)
                 #changesCombining = self.combine_cmtys_supernodes(gamma=gamma)
                 changes += changesCombining
@@ -691,6 +757,9 @@ class Graph(anneal._GraphAnneal, cmodels._cobj, object):
                                                   "(<-- combining communities)"
 
                 self.remapCommunities(check=False)
+                combining_rounds += 1
+                #if combining_rounds >= 2:
+                #    break
             # If we have no changes in regular and combinations, escape
             if changesMoving == 0 and changesCombining == 0:
                 break
@@ -879,7 +948,8 @@ class Graph(anneal._GraphAnneal, cmodels._cobj, object):
                 node_size=900,
                 labels = dict((n, "%s (%s)"%(n, c))
                               for (n, c) in zip(g.nodes(), cmtys)),
-                pos=self._layout)
+                #pos=self.coords
+                      )
         #plt.margins(tight=True)
         if show:
             plt.show()

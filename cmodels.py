@@ -15,8 +15,8 @@ c_double = ctypes.c_double
 c_int_p  = ctypes.POINTER(c_int)
 
 _fname = os.path.join(os.path.dirname(__file__),'imatrix_t.py')
-_imatrix_t = eval(open(_fname).read())
-imatrix_t = ctypes.POINTER(_imatrix_t)
+imatrix_t = eval(open(_fname).read())
+imatrix_t_p = ctypes.POINTER(imatrix_t)
 del _fname
 
 
@@ -72,23 +72,61 @@ class _cobj(object):
         else:
             self.__dict__[attrname] = value
 
+
+class LList(ctypes.Structure):
+    _fields_ = [
+        ("count",        c_int),
+        ("maxcount",     c_int),
+        ("data",         c_int_p),
+        ]
+    def __init__(self, size):
+        super(LList, self).__init__()
+        self.count = 0
+        self.maxcount = size
+        dtype = self.data._type_
+        array = numpy.zeros(size, dtype=dtype)
+        self.data = array.ctypes.data_as(ctypes.POINTER(dtype))
+        self._data_np = array
+LList_p = ctypes.POINTER(LList)
+
 # This defines the C structure we use
 class cGraph(ctypes.Structure):
     pass
+class SimData(ctypes.Structure):
+        pass
+# This function lets us go from C->Python for interaction
+def callback(struct_p):
+    S = struct_p.contents.S
+    from fitz.interact import interact ; interact()
+    return 0
+Callback = ctypes.CFUNCTYPE(c_int, ctypes.POINTER(SimData))
 cGraph._fields_ = [
     ("N",            c_int),
     ("Ncmty",        c_int),
     ("oneToOne",     c_int),
 
     ("cmty",         c_int_p),
-    ("imatrix",      imatrix_t),
-    ("rmatrix",      imatrix_t),
+    ("imatrix",      imatrix_t_p),
+    ("rmatrix",      imatrix_t_p),
+
+    # for sparse implementation
+    ("hasSparse",    c_int),
+    ("hasFull",      c_int),
+    ("simatrix",     imatrix_t_p),
+    ("srmatrix",     imatrix_t_p),
+    ('simatrixLen',  c_int),
+    ('simatrixN',    c_int_p),
+    ('simatrixId',   c_int_p),
+    ("simatrixDefault", imatrix_t),
+    ("srmatrixDefault", imatrix_t),
 
     ("cmtyl",        ctypes.POINTER(c_int_p)),
     ("cmtyll",       c_int_p),
     ("cmtyN",        c_int_p),
     ("randomOrder",  c_int_p),
     ("randomOrder2", c_int_p),
+
+    ("seenList",     LList_p),
 
     #("callback", Callback),   # callback to let us get python shell from C
     #("S", ctypes.py_object),  # Pointer for function above

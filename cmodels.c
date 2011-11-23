@@ -45,6 +45,12 @@ int test(Graph_t G) {
 }
 
 
+int isInCmty(Graph_t G, int n, int c) {
+  assert(G->oneToOne);
+  return (G->cmty[n] == c);
+}
+
+
 /*
  * Functions which deal with the community lists:
  * - G->cmty[n]   (direct community mapping)
@@ -219,6 +225,16 @@ int cmtyListCheck(Graph_t G) {
       }
     }
   }
+  // check that cmtyN is correct for each list.
+  for (cmty=0; cmty < G->Ncmty; cmty++) {
+    int n_found = 0;
+    for (n=0 ; n<G->N ; n++) {
+      if (G->cmty[n] == cmty)
+	n_found ++;
+    }
+    if (n_found != G->cmtyN[cmty])
+      errors++;
+  }
   return (errors);
 }
 
@@ -326,6 +342,7 @@ double mutual_information(Graph_t G0, Graph_t G1) {
 double energy_naive(Graph_t G, double gamma) {
   /* Naive energy loop, looping over all pairs of particles.  SLOW.
    */
+  assert(G->hasFull);
   imatrix_t attractions=0;
   imatrix_t repulsions =0;
   int n;
@@ -357,6 +374,8 @@ double energy_naive(Graph_t G, double gamma) {
 double energy(Graph_t G, double gamma) {
   /* Calculate energy using community lists.  Much faster.
    */
+  if (!G->hasFull) return energy_sparse(G, gamma);
+  assert(G->hasFull);
   imatrix_t attractions=0;
   imatrix_t repulsions =0;
   int c, n;
@@ -390,9 +409,60 @@ double energy(Graph_t G, double gamma) {
   return(.5 * (attractions + gamma*repulsions));
 }
 
+
+double energy_sparse(Graph_t G, double gamma) {
+  /* Calculate energy using community lists.  Much faster.
+   */
+  assert(0); // Not implemented yet.
+  assert(G->hasSparse);
+  imatrix_t attractions=0;
+  imatrix_t repulsions =0;
+  int c, n;
+
+  int nDefined=0;
+  int j;
+  for (n=0 ; n<G->N ; n++) {
+    int m = G->simatrixId[n*G->simatrixLen + j];
+    if (G->cmty[m] != c)
+      continue;
+    nDefined += 1;
+  }
+
+  for (c=0 ; c<G->Ncmty ; c++) {
+    // for communities c
+    int i, j, m;
+    for (i=0 ; i<G->cmtyN[c] ; i++) {
+      // Do symmetric: both directions.
+      for (j=0 ; j<G->cmtyN[c] ; j++) {
+	if (i == j)
+	  continue;
+	n = G->cmtyl[c][i];
+	m = G->cmtyl[c][j];
+	assert(n != m);
+	if (G->rmatrix == NULL) {
+	  imatrix_t interaction = G->imatrix[n*G->N + m];
+	  if (interaction > 0)
+	    repulsions  += interaction;
+	  else
+	    attractions += interaction;
+	}
+	else {
+	  attractions += G->imatrix[n*G->N + m];
+	  repulsions += G->rmatrix[n*G->N + m];
+	}
+      }
+    }
+  }
+  return(.5 * (attractions + gamma*repulsions));
+}
+
+
+
+
 double energy_cmty(Graph_t G, double gamma, int c) {
   /* Calculate the energy of only one community `c`.
    */
+  assert(G->hasFull);
   imatrix_t attractions=0;
   imatrix_t repulsions =0;
   int n;
@@ -428,6 +498,7 @@ double energy_cmty_n(Graph_t G, double gamma, int c, int n) {
   /* Calculate the energy of only one community `c`, if it had node n
    * in it.  Node n does not have to actually be in that community.
    */
+  assert(G->hasFull);
   imatrix_t attractions=0;
   imatrix_t repulsions =0;
 
@@ -452,9 +523,60 @@ double energy_cmty_n(Graph_t G, double gamma, int c, int n) {
   return(.5 * (attractions + gamma*repulsions));
 }
 
+double energy_cmty_n_sparse(Graph_t G, double gamma, int c, int n) {
+  /* Calculate the energy of only one community `c`, if it had node n
+   * in it.  Node n does not have to actually be in that community.
+   */
+  assert(G->hasSparse);
+  imatrix_t attractions=0;
+  imatrix_t repulsions =0;
+
+  int j;
+  int nDefined = 0;
+  // For each adjoining particle in the list:
+  for (j=0 ; j<G->simatrixN[n] ; j++) {
+    int m = G->simatrixId[n*G->simatrixLen + j];
+    if (m == n)
+      continue;
+    /* if (! isInCmty(G, m, c)) */
+    /*   continue; */
+    if (G->cmty[m] != c)
+      continue;
+    nDefined += 1;
+
+    if (G->srmatrix == NULL) {
+      imatrix_t interaction = G->simatrix[n*G->simatrixLen + j];
+      if (interaction > 0)
+	repulsions  += interaction;
+      else
+	attractions += interaction;
+    }
+    else {
+      attractions += G->simatrix[n*G->simatrixLen + j];
+      repulsions += G->srmatrix[n*G->simatrixLen + j];
+    }
+  }
+  // -1 comes from self interaction not being counted as undefined.
+  int nUndefined = G->cmtyN[c] - nDefined;
+  if (isInCmty(G, n, c))
+    nUndefined -= 1;
+  attractions += nUndefined * G->simatrixDefault;
+  repulsions  += nUndefined * G->srmatrixDefault;
+
+  double E = .5 * (attractions + gamma*repulsions);
+  return(E);
+}
+double energy_cmty_n_which(Graph_t G, double gamma, int c, int n) {
+  if (G->hasSparse) return energy_cmty_n_sparse(G, gamma, c, n);
+  return energy_cmty_n(G, gamma, c, n);
+}
+
+
+
 double energy_cmty_cmty(Graph_t G, double gamma, int c1, int c2) {
   /* Total energy of interaction between two communities.
    */
+  assert(G->hasFull);
   double E=0;
   int i1, n1;
   for (i1=0 ; i1 < G->cmtyN[c1] ; i1++) {
@@ -466,6 +588,7 @@ double energy_cmty_cmty(Graph_t G, double gamma, int c1, int c2) {
 double energy_n(Graph_t G, double gamma, int n) {
   /* Energy of particle n in its own community.
    */
+  assert(G->hasFull);
   assert(G->oneToOne);
   int c = G->cmty[n];
   return energy_cmty_n(G, gamma, c, n);
@@ -475,6 +598,7 @@ double energy_n(Graph_t G, double gamma, int n) {
 int minimize_naive(Graph_t G, double gamma) {
   /* OBSELETE minimization routine.
    */
+  assert(G->hasFull);
   int changes=0;
   int i, n;
   // Loop over particles
@@ -529,6 +653,8 @@ int minimize(Graph_t G, double gamma) {
    * (in order of G->randomOrder into the community that most lowers the
    * energy.
    */
+  if (G->hasSparse) return(minimize_sparse(G, gamma));
+  assert(G->hasFull);
   int changes=0;
   int nindex, n;
   // Loop over particles
@@ -552,15 +678,18 @@ int minimize(Graph_t G, double gamma) {
     // There are various ways of doing this inner loop:
 
     // Method 1 (all other communities) //
-    int newcmty;
-    for (newcmty=0 ; newcmty<G->Ncmty ; newcmty++) {
+    /* int newcmty; */
+    /* for (newcmty=0 ; newcmty<G->Ncmty ; newcmty++) { */
 
     // Method 2 (only interacting cmtys, fixed order) //
-    /* int m; */
-    /* for (m=0 ; m<G->N ; m++) { */
-    /*   if (G->imatrix[n*G->N + m] > 0) */
-    /* 	continue; */
-    /*   int newcmty = G->cmty[m]; */
+    int m;
+    for (m=0 ; m<G->N ; m++) {
+      /* if (G->imatrix[G->N*n+m] != 500) */
+      /* 	printf("  %d %d %f\n", n, m, G->imatrix[G->N*n+m]); */
+
+      if (G->imatrix[n*G->N + m] > 0)
+    	continue;
+      int newcmty = G->cmty[m];
 
     // Method 3 (only interacting cmtys, random order) //
     /* int mindex, m; */
@@ -577,6 +706,84 @@ int minimize(Graph_t G, double gamma) {
       }
 
       double deltaEnewCmty = energy_cmty_n(G, gamma, newcmty, n);
+
+      // Our conditional on if we want to move to this new place.  If
+      // we do, update our bestcmty and deltaEbest to say so.
+      if (deltaEoldCmty + deltaEnewCmty < deltaEbest) {
+	bestcmty = newcmty;
+	deltaEbest = deltaEoldCmty + deltaEnewCmty;
+      }
+    }
+    // Is it better to move a particle into an _empty_ community?
+    if (deltaEoldCmty < deltaEbest) {
+      bestcmty = find_empty_cmty(G);
+      // deltaEbest = deltaEoldCmty;  // Not needed (not used after this)
+      assert(bestcmty != -1);
+    }
+    if (oldcmty != bestcmty) {
+      cmtyListRemove(G, oldcmty, n);
+      cmtyListAdd(G, bestcmty, n);
+      changes += 1;
+    }
+  }
+  return (changes);
+}
+
+
+int minimize_sparse(Graph_t G, double gamma) {
+  /* Core minimization routine.  Do one sweep, moving each particle
+   * (in order of G->randomOrder into the community that most lowers the
+   * energy.
+   */
+  assert(G->hasSparse);
+  int changes=0;
+  int nindex, n;
+
+  /* double E_avg = energy(G, gamma) / G->N; */
+
+  // Loop over particles
+  for (nindex=0 ; nindex<G->N ; nindex++) {
+    n = G->randomOrder[nindex];
+
+    /* float E_particle = energy_n(G, gamma, n); */
+    /* if (E_particle < E_avg) */
+    /*   continue; */
+
+    // Keep a record of the running best community to move to.
+    // Default to current community (no moving).
+    double deltaEbest = 0.0;
+    int bestcmty = G->cmty[n];
+
+    // Store our old community and energy change when we remove a
+    // particle from the old community.  We see if (energy from
+    // removing from old community + energy from adding to new
+    // community) is less than deltaEbest to see where we should move.
+    int oldcmty  = G->cmty[n];
+    double deltaEoldCmty = - energy_cmty_n_sparse(G, gamma, oldcmty, n);
+
+    // Try particle in each new cmty.  Accept the new community
+    // that has the lowest new energy.
+    // There are various ways of doing this inner loop:
+
+    LListClear(G->seenList);
+    int j;
+    for(j=0 ; j<G->simatrixN[n] ; j++) {
+      if (G->simatrix[G->simatrixLen*n + j] >= 0)
+      	continue;
+      int m = G->simatrixId[G->simatrixLen*n + j];
+      int newcmty = G->cmty[m];
+
+
+      if (newcmty == oldcmty)
+	continue;
+      if (G->cmtyN[newcmty] == 0) {
+	continue;
+      }
+      if (LListContains(G->seenList, newcmty))
+      	continue;
+      LListAdd(G->seenList, newcmty);
+
+      double deltaEnewCmty = energy_cmty_n_sparse(G, gamma, newcmty, n);
 
       // Our conditional on if we want to move to this new place.  If
       // we do, update our bestcmty and deltaEbest to say so.
@@ -636,7 +843,7 @@ int overlapMinimize_add(Graph_t G, double gamma) {
 	continue;
 
       // Should this be added to community?
-      double deltaE = energy_cmty_n(G, gamma, c, n);
+      double deltaE = energy_cmty_n_which(G, gamma, c, n);
       if (deltaE < 0) {
 	cmtyListAddOverlap(G, c, n);
 	changes++;
@@ -672,7 +879,7 @@ int overlapMinimize_remove(Graph_t G, double gamma) {
 	continue;
 
       // Should this be removed from the community?
-      double deltaE = energy_cmty_n(G, gamma, c, n);
+      double deltaE = energy_cmty_n_which(G, gamma, c, n);
       if (deltaE > 0) {
 	cmtyListRemoveOverlap(G, c, n);
 	changes++;
@@ -730,13 +937,21 @@ int combine_cmtys(Graph_t G, double gamma) {
   /* Attempt to merge communities to get a lower energy assignment.
    * Pairwise attempt to merge all.
    */
+  if (G->hasSparse) return(combine_cmtys_sparse(G, gamma));
   assert(G->oneToOne);
+  assert(G->hasFull);
   int changes = 0;
   // Move particles from c2 into c1
   int i1, i2, c1, c2;
   //printf("gamma: %f\n", gamma);
   /* for (c1=0 ; c1<G->Ncmty-1 ; c1++) { */
+  /*   if (G->cmtyN[c1] == 0) */
+  /*     continue; */
+  /*   int bestcmty = c1; */
+  /*   double deltaEbest = 0; */
   /*   for (c2=c1+1 ; c2<G->Ncmty ; c2++) { */
+  /*     if (G->cmtyN[c2] == 0) */
+  /* 	continue; */
   for (i1=0 ; i1<G->N ; i1++) {
     c1 = G->randomOrder[i1];
     if (G->cmtyN[c1] == 0)
@@ -748,9 +963,9 @@ int combine_cmtys(Graph_t G, double gamma) {
     for (i2=0 ; i2<G->N ; i2++) {
       c2 = G->randomOrder2[i2];
       if (c1 <= c2)
-	continue;
+  	continue;
       if (G->cmtyN[c2] == 0)
-	continue;
+  	continue;
       /* //double Eold = energy(G, gamma); */
       /* double Eold = energy_cmty(G, gamma, c1) + energy_cmty(G, gamma, c2);*/
 
@@ -794,6 +1009,114 @@ int combine_cmtys(Graph_t G, double gamma) {
   }
   return (changes);
 }
+
+
+int combine_cmtys_sparse(Graph_t G, double gamma) {
+  /* Attempt to merge communities to get a lower energy assignment.
+   * Pairwise attempt to merge all.
+   */
+  assert(G->oneToOne);
+  assert(G->hasSparse);
+  int changes = 0;
+  // Move particles from c2 into c1
+  int i1, i2, c1, c2;
+  //printf("gamma: %f\n", gamma);
+  for (c1=0 ; c1<G->Ncmty-1 ; c1++) {
+    if (G->cmtyN[c1] == 0)
+      continue;
+    int bestcmty = c1;
+    double deltaEbest = 0;
+
+
+  /* for (i1=0 ; i1<G->N ; i1++) { */
+  /*   c1 = G->randomOrder[i1]; */
+  /*   if (G->cmtyN[c1] == 0) */
+  /*     continue; */
+
+  /*   int bestcmty = c1; */
+  /*   double deltaEbest = 0; */
+
+  /*   for (i2=0 ; i2<G->N ; i2++) { */
+  /*     c2 = G->randomOrder2[i2]; */
+  /*     if (c1 <= c2) */
+  /*   	continue; */
+  /*     if (G->cmtyN[c2] == 0) */
+  /*   	continue; */
+      /* //double Eold = energy(G, gamma); */
+      /* double Eold = energy_cmty(G, gamma, c1) + energy_cmty(G, gamma, c2);*/
+
+
+    /* for (c2=c1+1 ; c2<G->Ncmty ; c2++) { */
+    /*   if (G->cmtyN[c2] == 0) */
+    /* 	continue; */
+
+
+    LListClear(G->seenList);
+    int ii;
+    for (ii=0 ; ii<G->cmtyN[c1] ; ii++ ) {
+      int n = G->cmtyl[c1][ii];
+      //printf("n %d %d %d\n", c1, ii, n);
+    int j;
+    for(j=0 ; j<G->simatrixN[n] ; j++) {
+      if (G->simatrix[G->simatrixLen*n + j] >= 0)
+      	continue;
+      int m = G->simatrixId[G->simatrixLen*n + j];
+      int c2 = G->cmty[m];
+      //printf("  m %d %d %d %d\n", c1, j, m, c2);
+      if (c1==c2 || LListContains(G->seenList, c2)) {
+    	//printf("already in: %d\n", c2);
+      	continue;
+      }
+      LListAdd(G->seenList, c2);
+      //printf("adding: %d\n", c2);
+
+
+
+      // Calculate change of energy if we moved c1 into c2
+      double deltaE = 0;
+      int j1, n1;
+      for (j1=0 ; j1 < G->cmtyN[c1] ; j1++) {
+      	n1 = G->cmtyl[c1][j1];
+      	deltaE += energy_cmty_n_sparse(G, gamma, c2, n1);
+      }
+      for (j1=0 ; j1 < G->cmtyN[c2] ; j1++) {
+      	n1 = G->cmtyl[c2][j1];
+      	deltaE += energy_cmty_n_sparse(G, gamma, c1, n1);
+      }
+      //printf("  e %d %d %f %d %f\n", c1, c2, deltaE, bestcmty, deltaEbest);
+      // Do we accept this change?
+      if (deltaE < deltaEbest) {
+	//printf("better one\n");
+	bestcmty = c2;
+	deltaEbest = deltaE;
+      }
+    }
+    }
+    //printf("loop done\n");
+
+    // No change
+    if (c1 == bestcmty)
+      continue;
+    //printf("  c %d %d combining\n", c1, c2);
+
+    int c1oldN = G->cmtyN[c1];
+    int c2oldN = G->cmtyN[bestcmty];
+    //Move all from bestcmty into c1
+    int i;
+    for (i=0 ; i<c2oldN ; i++) {
+      G->cmtyl[c1][i+c1oldN] = G->cmtyl[bestcmty][i];
+      G->cmty[G->cmtyl[bestcmty][i]] = c1;
+    }
+    // FIX - breaks for multiple community
+    G->cmtyN[c1] = c1oldN + c2oldN;
+    G->cmtyN[bestcmty] = 0;
+    changes += 1;
+
+  }
+  return (changes);
+}
+
+
 
 int remap_cmtys(Graph_t G) {
   /* Moves all the communities to the lowest numbered continuous

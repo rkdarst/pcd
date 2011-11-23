@@ -4,7 +4,7 @@ CFLAGS=-O3
 #IMATRIX_T=int
 IMATRIX_T=float
 
-opts=-Wall -Wextra -lm -shared -fPIC
+opts=-Wall -Wextra -lm -shared -fPIC -g
 
 _default: _cmodels.so
 .PHONY: _settypes
