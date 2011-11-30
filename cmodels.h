@@ -1,5 +1,7 @@
 /* Richard Darst, July 2011 */
 
+#include <glib.h>
+
 #include "imatrix_t.h"
 
 typedef IMATRIX_T imatrix_t;
@@ -29,6 +31,7 @@ typedef struct Graph {
   int simatrixLen;
   int *simatrixN;
   int *simatrixId;
+  int **simatrixIdl;
   imatrix_t simatrixDefault;
   imatrix_t srmatrixDefault;
 
@@ -39,8 +42,11 @@ typedef struct Graph {
   int *randomOrder2;
 
   LList_t seenList;
+  GHashTable **cmtyListHash;
 
   } *Graph_t;
+
+inline int cmtyListIsInCmty(Graph_t G, int c, int n);
 
 double energy(Graph_t G, double gamma);
 double energy_cmty(Graph_t G, double gamma, int c);

@@ -4,6 +4,9 @@ from math import log, exp, floor, ceil
 import numpy
 import time
 
+import logging
+logger = logging.getLogger('pcd.mr')
+
 import util
 from util import LogInterval
 
@@ -20,32 +23,39 @@ def recursive_dict_update(d, dnew):
 class MultiResolutionCorrelation(object):
     def __init__(self, gamma, Gs, trials=None,
                  nhistbins=50, overlap=False,
+                 lock=None,
                  **kwargs):
         self.overlap = overlap
-        self.calc(gamma, Gs, nhistbins=nhistbins)
+        self.calc(gamma, Gs, nhistbins=nhistbins, lock=lock)
         self.replicas = len(Gs)
         self.trials = trials
         for k,v in kwargs.iteritems():
             setattr(self, k, v)
 
-    def calc(self, gamma, Gs, nhistbins=50):
+    def calc(self, gamma, Gs, nhistbins=50, lock=None):
+        overlapTrials = 4
+
         pairs = [ ]
         pairsOverlap = [ ]
 
         if self.overlap:
             overlapGs = [ G.copy() for G in Gs ]
-            [ G.trials(gamma, trials=10, initial='current',
+            [ G.trials(gamma, trials=overlapTrials, initial='current',
                        minimizer='overlapMinimize')
               for G in overlapGs ]
 
         Gmin = min(Gs, key=lambda G: G.energy(gamma))
+        GminIndex = Gs.index(Gmin)
         self.cmtyState = tuple(G.getcmtystate() for G in Gs)
         self.cmtyStateBest = Gmin.getcmtystate()
 
-        GminOverlap = Gmin.copy()
-        #GminOverlap.setOverlap(True)
-        GminOverlap.trials(gamma, trials=10, initial='current',
-                           minimizer='overlapMinimize')
+        if self.overlap:
+            GminOverlap = overlapGs[GminIndex]
+        else:
+            GminOverlap = Gmin.copy()
+            #GminOverlap.setOverlap(True)
+            GminOverlap.trials(gamma, trials=overlapTrials, initial='current',
+                               minimizer='overlapMinimize')
         # Do analysis using GminOverlap
 
 
@@ -97,12 +107,14 @@ class MultiResolutionCorrelation(object):
         self.n_hist = n_hists_array.mean(axis=0)
 
         if self.overlap:
+            if lock: lock.acquire()
             NmiO = numpy.mean([ util.mutual_information_overlap(G1, G2)
                                 for G1,G2 in pairsOverlap])
             self.NmiO    = NmiO
             self.n_mean_ov = sum(G.n_mean() for G in overlapGs)/float(len(Gs))
             self.fieldnames += ('NmiO', )
             self.fieldnames += ('n_mean_ov', )
+            if lock: lock.release()
 
     def getGs(self, Gs):
         """Return the list of all G replicas.
@@ -171,6 +183,7 @@ class MultiResolution(object):
         """
         if callback is None:
             callback = self._callback
+        logger.debug("Thread %d MR-minimizing g=%f"%(self.thread_id(), gamma))
         minGs = [ ]
         for G in self._Gs:
             if self._lock:  self._lock.acquire()
@@ -178,28 +191,40 @@ class MultiResolution(object):
             if self._lock:  self._lock.release()
             getattr(G, self._minimizer)(gamma, **self._minimizerkwargs)
             minGs.append(G)
-
+        logger.debug("Thread %d MR-minimizing g=%f: done"%(
+                                                      self.thread_id(), gamma))
         # Do the information theory VI, MI, In, etc, stuff on our
         # minimized replicas.
+        logger.debug("Thread %d initializing MRC"%self.thread_id())
         self._data[gamma] = MultiResolutionCorrelation(
-            gamma, minGs, trials=self.trials, overlap=self._overlap)
+            gamma, minGs, trials=self.trials, overlap=self._overlap,
+            lock=self._writelock)
+        logger.debug("Thread %d initializing MRC: done"%self.thread_id())
         # Save output to a file.
-        if self._output is not None and \
-               (not hasattr(self, '_writelock' or self._writelock.acquire(False))):
+        if self._output is not None and self.lockAcquire(blocking=False):
+            logger.debug("Thread %d writing"%self.thread_id())
             self.write(self._output)
-            if hasattr(self, '_writelock'):
-                self._writelock.release()
-        if self._savefigargs is not None:
+            self.lockRelease()
+            logger.debug("Thread %d writing: done"%self.thread_id())
+        logger.debug("Thread %d pre-savefiging"%self.thread_id())
+        if self._savefigargs is not None and self.lockAcquire(blocking=True):
+            logger.debug("Thread %d savefiging"%self.thread_id())
             minG = min(minGs, key=lambda x: G.energy(gamma))
             kwargs = self._savefigargs.copy()
             kwargs['fname'] = kwargs['fname']%{'gamma':gamma}
             G.remapCommunities(check=False)
             G.savefig(**kwargs)
-        if self._plotargs is not None:
+            logger.debug("Thread %d savefiging: done"%self.thread_id())
+            self.lockRelease()
+        if self._plotargs is not None and self.lockAcquire(blocking=False):
+            logger.debug("Thread %d plotting"%self.thread_id())
             #kwargs = self._savefigargs.copy()
             #kwargs['fname'] = kwargs['fname']%{'gamma':gamma}
             self.plot(**self._plotargs)
-
+ #           if hasattr(self, '_writelock'):
+ #               self._writelock.release()
+            logger.debug("Thread %d plotting: done"%self.thread_id())
+            self.lockRelease()
         # Run callback if we have it.
         if callback:
             minG = min(minGs, key=lambda x: G.energy(gamma))
@@ -221,10 +246,35 @@ class MultiResolution(object):
         try:
             while True:
                 gamma = self._queue.get_nowait()
+                logger.debug("Thread %d begin gamma=%f"%(
+                    self.thread_id(), gamma))
                 self.do_gamma(gamma)
+                logger.debug("Thread %d end gamma=%f"%(
+                    self.thread_id(), gamma))
                 self._queue.task_done()
         except EmptyException:
+            logger.debug("Thread terminated: %d", self.thread_id())
             return
+    def thread_id(self):
+        import threading
+        return threading.current_thread().ident
+    def lockAcquire(self, name='writelock', blocking=False):
+        logger.debug('Thread %d attempting lock acquisition: %s',
+                     self.thread_id(), name)
+        if hasattr(self, '_'+name):
+            locked = getattr(self, '_'+name).acquire(blocking)
+            logger.debug('Thread %d attempting lock acquisition: %s: %s',
+                         self.thread_id(), name, locked)
+            return locked
+        # If we don't have self._LOCKNAME, we don't lock so always return true.
+        return True
+    def lockRelease(self, name='writelock'):
+        logger.debug('Thread %d attempting release: %s',
+                     self.thread_id(), name)
+        if hasattr(self, '_'+name):
+            logger.debug('Thread %d attempting release (phase 2): %s',
+                         self.thread_id(), name)
+            return getattr(self, '_'+name).release()
     def do(self, Gs, gammas=None, logGammaArgs=None,
            trials=None, threads=1, callback=None):
         """Do multi-resolution analysis on replicas Gs with `trials` each."""

@@ -29,7 +29,7 @@ class _cobj(object):
         self._struct = cModel()
         self._struct_p = ctypes.pointer(self._struct)
 
-    def _allocArray(self, name, array=None, **args):
+    def _allocArray(self, name, array=None, dtype2=None, **args):
         """Allocate an array in a way usable by both python and C.
 
         `name` is the name of the array to allocate: it will be
@@ -51,8 +51,10 @@ class _cobj(object):
             array = numpy.zeros(**args)
         self.__dict__[name] = array
         setattr(self._struct, name,
-                array.ctypes.data_as(ctypes.POINTER(
-                    getattr(self._struct, name)._type_)))
+                array.ctypes.data_as(
+                    dtype2 if dtype2 else
+                    ctypes.POINTER(getattr(self._struct, name)._type_,)
+                    ))
         #setattr(self._struct, name, array.ctypes.data)
     def _allocArrayPointers(self, pointerarray, array):
         for i, row in enumerate(array):
@@ -117,6 +119,7 @@ cGraph._fields_ = [
     ('simatrixLen',  c_int),
     ('simatrixN',    c_int_p),
     ('simatrixId',   c_int_p),
+    ('simatrixIdl',  ctypes.POINTER(c_int_p)),
     ("simatrixDefault", imatrix_t),
     ("srmatrixDefault", imatrix_t),
 
@@ -127,6 +130,7 @@ cGraph._fields_ = [
     ("randomOrder2", c_int_p),
 
     ("seenList",     LList_p),
+    ("cmtyListHash", c_void_p),
 
     #("callback", Callback),   # callback to let us get python shell from C
     #("S", ctypes.py_object),  # Pointer for function above

@@ -131,7 +131,9 @@ class Graph(anneal._GraphAnneal, cmodels._cobj, object):
         state = self.__getstate__()
         for name, type_ in self._struct._fields_:
             if name in state and isinstance(state[name], numpy.ndarray) \
-                   and name not in ('imatrix', 'rmatrix', ):
+                   and name not in ('imatrix', 'rmatrix',
+                                    'simatrix', 'srmatrix',
+                                    'simatrixN', 'simatrixId', 'simatrixIdl'):
                 state[name] = state[name].copy()
         new.__setstate__(state)
 
@@ -321,6 +323,8 @@ class Graph(anneal._GraphAnneal, cmodels._cobj, object):
         numpy.seterr(**orig_settings)
     def make_sparse(self, minval, imatrixDefault, rmatrixDefault=0):
         assert self.hasFull # have full to create sparse from it.
+        assert not isinstance(self.rmatrix, numpy.ndarray), \
+                                       "sparse does not support rmatrix yet"
         self.simatrixDefault = imatrixDefault
         self.srmatrixDefault = rmatrixDefault
 
@@ -330,14 +334,18 @@ class Graph(anneal._GraphAnneal, cmodels._cobj, object):
         #    x = numpy.sum(row < minval)
         #    simatrixLen = max(x, simatrixLen)
         simatrixLen = (imatrix<minval).sum(axis=1).max()
-        print numpy.min(imatrix), numpy.max(imatrix)
         print "Making graph sparse: %d nodes, %d reduced nodes"%(
             self.N, simatrixLen)
+        print "  imatrix max/min:", numpy.min(imatrix), numpy.max(imatrix)
         self.hasSparse = 1
         self.simatrixLen = simatrixLen
         self._allocArray('simatrix', shape=(self.N, simatrixLen))
+        if isinstance(self.rmatrix, numpy.ndarray):
+            self._allocArray('srmatrix', shape=(self.N, simatrixLen))
         self._allocArray('simatrixN', shape=self.N)
         self._allocArray('simatrixId', shape=(self.N, simatrixLen))
+        self._allocArray("simatrixIdl", shape=self.N, dtype=ctypes.c_void_p)
+        self._allocArrayPointers(self.simatrixIdl, self.simatrixId)
 
         for i,j in zip(*numpy.where(imatrix < minval)):
             if i == j:
@@ -738,7 +746,7 @@ class Graph(anneal._GraphAnneal, cmodels._cobj, object):
             #    self.remapCommunities(check=False)
             changes += changesMoving
             if self.verbosity >= 2:
-                print "  (r%2s) cmtys, changes: %4d %4d"%(round_, self.q,
+                print "  (r%2s) greedy: cmtys, changes: %4d %4d"%(round_,self.q,
                                                           changesMoving)
 
             if changesMoving == 0 and changesCombining == 0:
@@ -752,7 +760,7 @@ class Graph(anneal._GraphAnneal, cmodels._cobj, object):
                 #changesCombining = self.combine_cmtys_supernodes(gamma=gamma)
                 changes += changesCombining
                 if self.verbosity >= 2:
-                    print "  (r%2s) cmtys, changes: %4d %4d"%(
+                    print "  (r%2s) greedy: cmtys, changes: %4d %4d"%(
                                           round_, self.q, changesCombining), \
                                                   "(<-- combining communities)"
 
@@ -776,7 +784,10 @@ class Graph(anneal._GraphAnneal, cmodels._cobj, object):
         """Attempting to add particles to overlapping communities.
         """
         if self.verbosity > 0:
-            print "Minimizing by trying overlaps."
+            print "Overlap minimize (gamma=%f)"%gamma
+        self._allocArray('cmtyListHash', shape=self.N, dtype=cmodels.c_void_p,
+                        dtype2=cmodels.c_void_p)
+        #cmodels.C.initHashes(self._struct_p)
         changes = 0
         changes_add = 0
         changes_remove = None
@@ -784,20 +795,22 @@ class Graph(anneal._GraphAnneal, cmodels._cobj, object):
             changes_add = self._overlapMinimize_add(gamma)
             changes += changes_add
             if self.verbosity >= 2:
-                print "  (r%2s) overlap: adding  : %4d"%(round_, changes_add)
+                print "  (r%2s) overlap: adding  : %4d changes, %4d cmtys"%(
+                    round_, changes_add, self.q)
             if changes_add == 0 and changes_remove == 0:
                 break
             if changes_add == 0:
                 changes_remove = self._overlapMinimize_remove(gamma)
                 changes += changes_remove
                 if self.verbosity >= 2:
-                    print "  (r%2s) overlap: removing: %4d"%(
-                                                     round_, changes_remove)
+                    print "  (r%2s) overlap: removing: %4d changes, %4d cmtys"%(
+                        round_, changes_remove, self.q)
             if changes_add == 0 and changes_remove == 0:
                 break
             if round_ > 250:
                 print "  Exceeding maximum number of rounds"
                 break
+        #cmodels.C.destroyHashes(self._struct_p)
         return changes
     def _overlapMinimize_add(self, gamma):
         return cmodels.overlapMinimize_add(self._struct_p, gamma)
@@ -996,7 +1009,7 @@ class Graph(anneal._GraphAnneal, cmodels._cobj, object):
             print "Savefig:", fname
         import matplotlib.figure
         import matplotlib.backends.backend_agg
-        from matplotlib.patches import Circle, Rectangle, Polygon
+        from matplotlib.patches import Circle,CirclePolygon, Rectangle, Polygon
         import matplotlib.cm as cm
         import matplotlib.colors as colors
 
@@ -1035,7 +1048,7 @@ class Graph(anneal._GraphAnneal, cmodels._cobj, object):
                               color=cmtyColormap[self.cmty[n]],
                               **kwargs)
             ax.add_patch(p)
-            if boxsize is not None and nodes == 'circles':
+            if False and boxsize is not None and nodes == 'circles':
                 greaterthanl=( coords[n] + radii[n] > boxsize  )
                 lessthanzero=( coords[n] - radii[n] < 0        )
                 if greaterthanl.any() or lessthanzero.any():

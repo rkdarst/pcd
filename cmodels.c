@@ -3,8 +3,13 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+#include <glib.h>
+
 #include "cmodels.h"
 #include "SFMT.h"
+
+#define DEBUGLISTS (0)
+#define DEBUG (0)
 
 int test(Graph_t G) {
   /* Print some test debugging information
@@ -45,9 +50,25 @@ int test(Graph_t G) {
 }
 
 
-int isInCmty(Graph_t G, int n, int c) {
-  assert(G->oneToOne);
-  return (G->cmty[n] == c);
+int isInCmty(Graph_t G, int c, int n) {
+  /* assert(G->oneToOne); */
+  /* return (G->cmty[n] == c); */
+  if (G->oneToOne)
+    return (G->cmty[n] == c);
+  else {
+    /* int in_cmty1 = g_hash_table_lookup_extended(G->cmtyListHash[c], */
+    /* 					       GINT_TO_POINTER(n), */
+    /* 					       //&n, */
+    /* 					       NULL, NULL); */
+    int in_cmty1 = cmtyListIsInCmty(G, c, n);
+    if (DEBUG) {
+      int in_cmty2 = cmtyListIsInCmty(G, c, n);
+      if (DEBUGLISTS) printf("        isInCmty %d %d %d %d\n", c, n,
+			     in_cmty1, in_cmty2);
+      assert(!in_cmty1 == !in_cmty2);
+    }
+    return(in_cmty1);
+  }
 }
 
 
@@ -77,6 +98,7 @@ inline void cmtyListAddOverlap(Graph_t G, int c, int n) {
    *
    * Adapted for systems that have overlaps.
    */
+  if (DEBUGLISTS) printf("        cmtyListAdd %d %d\n", c, n);
   G->cmtyl[c][G->cmtyN[c]] = n;
   G->cmtyN[c]++;
   /*G->cmty[n] = c;*/
@@ -96,6 +118,7 @@ inline void cmtyListRemoveOverlap(Graph_t G, int c, int n) {
    *
    * Adapted for systems that have overlaps
    */
+  if (DEBUGLISTS) printf("        cmtyListRemove %d %d\n", c, n);
   int i;
   // Find where it is in the lists
   for (i=0 ; i<G->cmtyN[c] ; i++) {
@@ -532,17 +555,18 @@ double energy_cmty_n_sparse(Graph_t G, double gamma, int c, int n) {
   imatrix_t repulsions =0;
 
   int j;
-  int nDefined = 0;
+  int nUnDefined = G->cmtyN[c];
   // For each adjoining particle in the list:
   for (j=0 ; j<G->simatrixN[n] ; j++) {
-    int m = G->simatrixId[n*G->simatrixLen + j];
+    //int m = G->simatrixId[n*G->simatrixLen + j];
+    int m = G->simatrixIdl[n][j];
     if (m == n)
       continue;
-    /* if (! isInCmty(G, m, c)) */
-    /*   continue; */
-    if (G->cmty[m] != c)
+    if (! isInCmty(G, c, m))
       continue;
-    nDefined += 1;
+    /* if (G->cmty[m] != c) */
+    /*   continue; */
+    nUnDefined -= 1;
 
     if (G->srmatrix == NULL) {
       imatrix_t interaction = G->simatrix[n*G->simatrixLen + j];
@@ -557,13 +581,20 @@ double energy_cmty_n_sparse(Graph_t G, double gamma, int c, int n) {
     }
   }
   // -1 comes from self interaction not being counted as undefined.
-  int nUndefined = G->cmtyN[c] - nDefined;
-  if (isInCmty(G, n, c))
-    nUndefined -= 1;
-  attractions += nUndefined * G->simatrixDefault;
-  repulsions  += nUndefined * G->srmatrixDefault;
+  if (isInCmty(G, c, n))
+    nUnDefined -= 1;
+  attractions += nUnDefined * G->simatrixDefault;
+  repulsions  += nUnDefined * G->srmatrixDefault;
 
   double E = .5 * (attractions + gamma*repulsions);
+  /* printf(" e_c_n_s %d %d(%d,%d)\n", c, n, G->cmtyN[c], nUnDefined); */
+  if (DEBUG && E != energy_cmty_n(G, gamma, c, n)) {
+    printf(" e_c_n_s %d %d(%d,%d) (%d) %f %f\n", c, n, G->cmtyN[c], nUnDefined,
+	   isInCmty(G, c, n),
+	   E, energy_cmty_n(G, gamma, c, n));
+    //assert(!cmtyListCheck(G));
+    assert(0);
+  }
   return(E);
 }
 double energy_cmty_n_which(Graph_t G, double gamma, int c, int n) {
@@ -807,6 +838,44 @@ int minimize_sparse(Graph_t G, double gamma) {
   return (changes);
 }
 
+void initHashes(Graph_t G) {
+  int c;
+  //G->cmtyListHash = calloc(G->N, sizeof(GHashTable *));
+  for (c=0 ; c<G->N ; c++) {
+    G->cmtyListHash[c] = g_hash_table_new(
+					  g_direct_hash,
+					  g_direct_equal
+					  //g_int_hash,
+					  //g_int_equal
+					  );
+    int i;
+    for (i=0 ; i<G->cmtyN[c] ; i++) {
+      if (DEBUGLISTS) printf("        initHash insert %d %d(%d)\n",
+			     c, G->cmtyl[c][i], i);
+      g_hash_table_insert(G->cmtyListHash[c],
+			  GINT_TO_POINTER(G->cmtyl[c][i]),
+			  //&(G->cmtyl[c][i]),
+			  GINT_TO_POINTER(G->cmtyl[c][i])
+			  );
+    }
+  }
+}
+void destroyHashes(Graph_t G) {
+  int c;
+  for (c=0 ; c<G->N ; c++) {
+    g_hash_table_destroy(G->cmtyListHash[c]);
+  }
+  //free(G->cmtyListHash);
+}
+void print_keys(GHashTable *HT) {
+  void printkey(void *key, void *value, void *data) {
+    value=NULL;
+    data=NULL;
+    printf("%d ", GPOINTER_TO_INT(key));
+  }
+  g_hash_table_foreach(HT, printkey, NULL);
+  printf("\n");
+}
 
 int overlapMinimize_add(Graph_t G, double gamma) {
   /* Do a minimization attempt, but adding particles to new
@@ -821,33 +890,98 @@ int overlapMinimize_add(Graph_t G, double gamma) {
   int changes = 0;
   G->oneToOne = 0;
 
-  int nindex, n;
-  // Loop over particles
-  for (nindex=0 ; nindex<G->N ; nindex++) {
-    n = G->randomOrder[nindex];
+  /* int nindex, n; */
+  /* // Loop over particles */
+  /* for (nindex=0 ; nindex<G->N ; nindex++) { */
+  /*   n = G->randomOrder[nindex]; */
 
-    // Method 1 (all other communities) //
-    int cindex, c;
-    for (cindex=0 ; cindex<G->N ; cindex++) {
-      c = G->randomOrder2[cindex];
-      if (c >= G->Ncmty)
+    /* // Method 1 (all other communities) // */
+    /* int c; */
+    /* for (c=0 ; c<G->Ncmty ; c++) { */
+    /*   if (G->cmtyN[c] == 0) */
+    /* 	continue; */
+
+    /* // Method 2 (all other communities, random order) // */
+    /* int cindex, c; */
+    /* for (cindex=0 ; cindex<G->N ; cindex++) { */
+    /*   c = G->randomOrder2[cindex]; */
+    /*   if (c >= G->Ncmty) */
+    /* 	continue; */
+    /*   if (G->cmtyN[c] == 0) */
+    /* 	continue; */
+
+    /* // Method 3 (all neighboring communities using sparse matrix) // */
+    /* LListClear(G->seenList); */
+    /* int mindex; */
+    /* for (mindex=0 ; mindex<G->simatrixN[mindex] ; mindex++) { */
+    /*   int m = G->simatrixId[mindex]; */
+    /*   int c = G->cmty[m]; */
+    /*   if (LListContains(G->seenList, c)) */
+    /* 	continue; */
+    /*   LListAdd(G->seenList, c); */
+
+    /* // Method 4 (all neighboring cmtys using sparse matrix, correctly) // */
+    /* LListClear(G->seenList); */
+    /* int mindex; */
+    /* for (mindex=0 ; mindex<G->simatrixN[mindex] ; mindex++) { */
+    /*   int m = G->simatrixId[mindex]; */
+    /*   int c; */
+    /* for (c=0 ; c<G->Ncmty ; c++) { */
+    /*   if (! isInCmty(G, c, m)) */
+    /* 	continue; */
+    /*   if (LListContains(G->seenList, c)) */
+    /* 	continue; */
+    /*   LListAdd(G->seenList, c); */
+
+
+  // Method Beta - loop over communities first.
+  int c;
+  for (c=0 ; c<G->Ncmty ; c++) {
+    if (G->cmtyN[c] == 0)
+      continue;
+    LListClear(G->seenList);
+    int mindex;
+    for (mindex=0 ; mindex<G->cmtyN[c] ; mindex++) {
+      int m;
+      m = G->cmtyl[c][mindex];
+    int nindex;
+    for (nindex=0 ; nindex<G->simatrixN[m] ; nindex++) {
+      if (G->simatrix[m*G->simatrixLen + nindex] >= 0)
 	continue;
-      if (G->cmtyN[c] == 0)
-	continue;
+      int n;
+      n = G->simatrixIdl[m][nindex];
+      if (LListContains(G->seenList, n))
+    	continue;
+      LListAdd(G->seenList, c);
+
+
 
       // If this is in the original comminty, can skip it.
       if (c == G->cmty[n])
 	continue;
       // Skip if already in this community.
-      if (cmtyListIsInCmty(G, c, n))
+      if (
+	  isInCmty(G, c, n)
+	  //cmtyListIsInCmty(G, c, n)
+	  //g_hash_table_lookup_extended(G->cmtyListHash[c], (void *)(gint64)n,NULL, NULL)
+	  )
 	continue;
 
       // Should this be added to community?
       double deltaE = energy_cmty_n_which(G, gamma, c, n);
       if (deltaE < 0) {
+	if (DEBUGLISTS) printf("    Adding in overlapmin_add %d %d\n", c, n);
 	cmtyListAddOverlap(G, c, n);
+	/* g_hash_table_insert(G->cmtyListHash[c], */
+	/* 		    GINT_TO_POINTER(n), */
+	/* 		    //&n, */
+	/* 		    GINT_TO_POINTER(n) */
+	/* 		    //NULL */
+	/* 		    ); */
 	changes++;
       }
+
+    }  // Extra brace
     }
   }
   return (changes);
@@ -881,7 +1015,12 @@ int overlapMinimize_remove(Graph_t G, double gamma) {
       // Should this be removed from the community?
       double deltaE = energy_cmty_n_which(G, gamma, c, n);
       if (deltaE > 0) {
+	if (DEBUGLISTS) printf("    Removing in overlapmin_rem %d %d\n", c, n);
 	cmtyListRemoveOverlap(G, c, n);
+	/* g_hash_table_remove(G->cmtyListHash[c], */
+	/* 		    GINT_TO_POINTER(n) */
+	/* 		    //&n */
+	/* 		    ); */
 	changes++;
       }
     }
@@ -1019,7 +1158,8 @@ int combine_cmtys_sparse(Graph_t G, double gamma) {
   assert(G->hasSparse);
   int changes = 0;
   // Move particles from c2 into c1
-  int i1, i2, c1, c2;
+  //int i1, i2, c1, c2;
+  int c1;
   //printf("gamma: %f\n", gamma);
   for (c1=0 ; c1<G->Ncmty-1 ; c1++) {
     if (G->cmtyN[c1] == 0)

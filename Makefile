@@ -4,10 +4,12 @@ CFLAGS=-O3
 #IMATRIX_T=int
 IMATRIX_T=float
 
-opts=-Wall -Wextra -lm -shared -fPIC -g
+opts=-Wall -Wextra -lm -shared -fPIC
 
 _default: _cmodels.so
 .PHONY: _settypes
+# "always" as a dep makes a rule always run.
+always:
 
 # The following line defines the type to be used for the interaction
 # matrix.  To use it, make with IMATRIX_T={int,float,double}, probably
@@ -21,20 +23,26 @@ _default: _cmodels.so
 # Both of these are very low-tech, but makes things statically defined
 # (important if I ever make Python smart enough to read cmodels.h and
 # automatically detect things.
-_settypes:
+TYPEDEFS=imatrix_t.h imatrix_t.py
+imatrix_t.h: always
 #	Define the imatrix type for C use
-	echo "#define IMATRIX_T ${IMATRIX_T}" > imatrix_t.h
-	@if [ ${IMATRIX_T} = int ] ; then \
-	  echo "#define IMATRIX_T_INT" >> imatrix_t.h ; \
+	@if ! grep "${IMATRIX_T}" imatrix_t.h > /dev/null ; then \
+	  echo "#define IMATRIX_T ${IMATRIX_T}" > imatrix_t.h ; \
+	  if [ ${IMATRIX_T} = int ] ; then \
+	    echo "#define IMATRIX_T_INT" >> imatrix_t.h ; \
+	  fi ; \
 	fi
+imatrix_t.py: always
 #	Define the imatrix type for Python use
-	echo "c_${IMATRIX_T}" > imatrix_t.py
+	@if ! grep "c_${IMATRIX_T}" imatrix_t.py > /dev/null ; then \
+	  echo "c_${IMATRIX_T}" > imatrix_t.py ; \
+	fi
 
 _cmodels.so: cmodels.o SFMT.o
-	$(CC) ${opts} ${CFLAGS} -lm cmodels.o SFMT.o -o _cmodels.so
+	$(CC) ${opts} ${CFLAGS} -lm `pkg-config --libs glib-2.0` cmodels.o SFMT.o -o _cmodels.so
 
-cmodels.o: _settypes cmodels.c cmodels.h
-	$(CC) ${opts} ${CFLAGS} -c cmodels.c
+cmodels.o: ${TYPEDEFS} cmodels.c cmodels.h
+	$(CC) ${opts} ${CFLAGS} `pkg-config --cflags glib-2.0` -c cmodels.c
 
 SFMT.o: SFMT.c SFMT.h
 	$(CC) ${opts} ${CFLAGS} -DMEXP=19937 -include SFMT-params.h -c SFMT.c

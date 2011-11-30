@@ -28,5 +28,5 @@ else:
     G2.trials(gamma=gamma, trials=10)
 
 
-#MR = pcd.MultiResolution()
-#MR.do([G]*5, logGammaArgs=dict(low=.001,high=100))
+MR = pcd.MultiResolution()
+MR.do([G]*5, logGammaArgs=dict(low=.001,high=100))
