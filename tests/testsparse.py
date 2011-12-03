@@ -13,7 +13,7 @@ G = pcd.graphs.bss2d_n5760_T040()
 G2 = G.copy()
 print "reducing"
 G.make_sparse(minval=499.1,
-              imatrixDefault=500)
+              rmatrixDefault=500)
 #G._check_sparse(imatrixDefault=500)
 #raw_input("waiting")
 #G2.minimize(gamma=1)

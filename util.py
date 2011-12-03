@@ -110,12 +110,13 @@ def p11(G1,G2,c1,c2): return (           len(cXm & cYm)  )/float(N)
 def p10(G1,G2,c1,c2): return (len(cXm) - len(cXm & cYm)  )/float(N)
 def p01(G1,G2,c1,c2): return (len(cYm) - len(cXm & cYm)  )/float(N)
 def p00(G1,G2,c1,c2): return (  N      - len(cXm | cYm)  )/float(N)
-def H2(GX, GY, cX, cY):
+def H2_python(GX, GY, cX, cY):
     """H(X_k | Y_l)."""
     cXm = set(GX.cmtyContents(cX)) # cmty X members
     cYm = set(GY.cmtyContents(cY)) # cmty Y members
     assert GX.N == GY.N
     N = float(GX.N)  # make it float so that division below works.
+    #print "  p %d %d"%(len(cXm & cYm), len(cXm | cYm))
     hP11 = h((           len(cXm & cYm)  )/N)
     hP10 = h((len(cXm) - len(cXm & cYm)  )/N)
     hP01 = h((len(cYm) - len(cXm & cYm)  )/N)
@@ -128,8 +129,11 @@ def H2(GX, GY, cX, cY):
     hPY1 = h(  (  len(cYm)) / N)
     hPY0 = h(  (N-len(cYm)) / N)
     return hP11+hP00+hP01+hP10 - hPY1 - hPY0
+def H2_c(GX, GY, cX, cY):
+    return cmodels.H2(GX._struct_p, GY._struct_p, cX, cY)
+H2 = H2_c
 
-def HX_Ynorm(GX, GY):
+def HX_Ynorm_python(GX, GY):
     """ """
     HX_Y = Averager()
     for cX in GX.cmtys():
@@ -142,6 +146,9 @@ def HX_Ynorm(GX, GY):
         else:
             HX_Y += HX_Yhere / _
     return HX_Y.mean
+def HX_Ynorm_c(GX, GY):
+    return cmodels.HX_Ynorm(GX._struct_p, GY._struct_p)
+HX_Ynorm = HX_Ynorm_c
 
 def mutual_information_overlap(G0, G1):
     N = 1 - .5 * (HX_Ynorm(G0, G1) + HX_Ynorm(G1, G0) )

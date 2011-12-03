@@ -73,7 +73,7 @@ class Graph(anneal._GraphAnneal, cmodels._cobj, object):
         if overlap:
             self.setOverlap(True)
         seenList = cmodels.LList(N)
-        self.seenList = ctypes.pointer(cmodels.LList(N))
+        self.seenList = ctypes.pointer(seenList)
         self.__dict__['seenList'] = seenList
     def _fillStruct(self, N=None):
         """Fill C structure."""
@@ -98,7 +98,10 @@ class Graph(anneal._GraphAnneal, cmodels._cobj, object):
         state = self.__dict__.copy()
         del state['_struct']
         del state['_struct_p']
-        state['__extra_attrs'] = {'N':self.N, 'oneToOne':self.oneToOne }
+        state['__extra_attrs'] = { }
+        for name in ('N', 'Ncmty', 'oneToOne', 'hasSparse', 'hasFull',
+                     'simatrixDefault', 'srmatrixDefault', 'simatrixLen'):
+            state['__extra_attrs'][name] = getattr(self, name)
         #for name, type_ in self._struct._fields_:
         #    if name in state  and isinstance(state[name], numpy.ndarray):
         #        setattr(self, name, state[name])
@@ -321,7 +324,7 @@ class Graph(anneal._GraphAnneal, cmodels._cobj, object):
             dist = numpy.sqrt(dist)
             matrix[n1, :] = efunc(dist)
         numpy.seterr(**orig_settings)
-    def make_sparse(self, minval, imatrixDefault, rmatrixDefault=0):
+    def make_sparse(self, minval, rmatrixDefault, imatrixDefault=0):
         assert self.hasFull # have full to create sparse from it.
         assert not isinstance(self.rmatrix, numpy.ndarray), \
                                        "sparse does not support rmatrix yet"
@@ -910,14 +913,32 @@ class Graph(anneal._GraphAnneal, cmodels._cobj, object):
     #
     # Methods that deal with visualization
     #
-    def get_colormapper(self, colormap_name='gist_rainbow'):
+    def get_colormapper(self, colormap_name='gist_rainbow',
+                        useGraphColoring=None):
         """Return a colormapper object: colormapper(cmty_id) -> integer_color
 
         This is a helper method which will return an object which can
         be called with communities and return colors.
+
+        useGraphColoring: if True, color graph cleverly.  If False,
+        don't color graph with minimum number of colors.  This is not
+        efficient for large graph, default is True for self.N <= 1000,
+        False otherwise.
         """
-        g = self.supernode_networkx()
-        return util.ColorMapper(g, colormap_name=colormap_name)
+        if useGraphColoring is None:
+            if self.N <= 1000:  useGraphColoring = True
+            else:               useGraphColoring = False
+        if useGraphColoring:
+            g = self.supernode_networkx()
+            return util.ColorMapper(g, colormap_name=colormap_name)
+        else:
+            import matplotlib.cm as cm
+            import matplotlib.colors as mcolors
+
+            colormap = cm.get_cmap(colormap_name)
+            normmap = mcolors.Normalize(vmin=0, vmax=self.Ncmty)
+            return list(colormap(normmap(c)) for c in range(self.Ncmty))
+
     def viz(self, show=True, fname=None):
         """Visualize the detected communities.
 
@@ -976,6 +997,7 @@ class Graph(anneal._GraphAnneal, cmodels._cobj, object):
                 nodes='circles',
                 hulls=None,
                 cmtyColormap=None,
+                dpiScale=1,
                 **kwargs):
         """Save a copy of layout to `fname`.
 
@@ -1004,12 +1026,17 @@ class Graph(anneal._GraphAnneal, cmodels._cobj, object):
 
         `hulls`, if true, will draw convex hulls of communities on the
         background.
+
+        `dpiScale`, a float, is a scale factor for total pixel count
+        of the final image.  This makes images with greater resolution.
         """
         if self.verbosity > 0:
             print "Savefig:", fname
         import matplotlib.figure
         import matplotlib.backends.backend_agg
-        from matplotlib.patches import Circle,CirclePolygon, Rectangle, Polygon
+        from matplotlib.patches import Rectangle, Polygon
+        from matplotlib.patches import Circle
+        #from matplotlib.patches import CirclePolygon as Circle
         import matplotlib.cm as cm
         import matplotlib.colors as colors
 
@@ -1048,7 +1075,7 @@ class Graph(anneal._GraphAnneal, cmodels._cobj, object):
                               color=cmtyColormap[self.cmty[n]],
                               **kwargs)
             ax.add_patch(p)
-            if False and boxsize is not None and nodes == 'circles':
+            if boxsize is not None and nodes == 'circles':
                 greaterthanl=( coords[n] + radii[n] > boxsize  )
                 lessthanzero=( coords[n] - radii[n] < 0        )
                 if greaterthanl.any() or lessthanzero.any():
@@ -1108,7 +1135,8 @@ class Graph(anneal._GraphAnneal, cmodels._cobj, object):
             else:
                 ax.set_xlim(0,boxsize[0])
                 ax.set_ylim(0,boxsize[1])
-        canvas.print_figure(fname, bbox_inches='tight')
+        canvas.print_figure(fname, dpi=fig.get_dpi()*dpiScale,
+                            bbox_inches='tight')
         if self.verbosity > 0:
             print "Done saving"
 

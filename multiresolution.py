@@ -23,41 +23,61 @@ def recursive_dict_update(d, dnew):
 class MultiResolutionCorrelation(object):
     def __init__(self, gamma, Gs, trials=None,
                  nhistbins=50, overlap=False,
-                 lock=None,
                  **kwargs):
+        self.gamma = gamma
         self.overlap = overlap
-        self.calc(gamma, Gs, nhistbins=nhistbins, lock=lock)
         self.replicas = len(Gs)
         self.trials = trials
+        self.overlapTrials = 4
         for k,v in kwargs.iteritems():
             setattr(self, k, v)
 
-    def calc(self, gamma, Gs, nhistbins=50, lock=None):
-        overlapTrials = 4
-
-        pairs = [ ]
-        pairsOverlap = [ ]
-
-        if self.overlap:
-            overlapGs = [ G.copy() for G in Gs ]
-            [ G.trials(gamma, trials=overlapTrials, initial='current',
-                       minimizer='overlapMinimize')
-              for G in overlapGs ]
 
         Gmin = min(Gs, key=lambda G: G.energy(gamma))
         GminIndex = Gs.index(Gmin)
+        self.GminIndex = GminIndex
         self.cmtyState = tuple(G.getcmtystate() for G in Gs)
         self.cmtyStateBest = Gmin.getcmtystate()
 
         if self.overlap:
-            GminOverlap = overlapGs[GminIndex]
+            overlapGs = [ G.copy() for G in Gs ]
+            [ G.trials(gamma, trials=self.overlapTrials, initial='current',
+                       minimizer='overlapMinimize')
+              for G in overlapGs ]
+            self.cmtyStateOverlap = tuple(G.getcmtystate() for G in overlapGs)
         else:
-            GminOverlap = Gmin.copy()
-            #GminOverlap.setOverlap(True)
-            GminOverlap.trials(gamma, trials=overlapTrials, initial='current',
-                               minimizer='overlapMinimize')
-        # Do analysis using GminOverlap
+            overlapGs = None
 
+        self.calc(Gs=Gs, nhistbins=nhistbins,
+                  Gmin=Gmin, overlapGs=overlapGs)
+
+
+    def calc(self, Gs=None, nhistbins=50,
+             Gmin=None, overlapGs=None, graph_list=None):
+        """Calculate properties of minimized replicas.
+
+        You need to give one of these sets of arguments to this method:
+
+        Gs, Gmin, overlapGs: these are the *minimized* configurations.
+
+        graph_list: if this is given, then recalculate everything with
+        this initial list.  Reload state from self.cmtyState*.
+        graph_list is *not* input minimized configurations.
+
+        """
+        # In all of these functions: graph_list is the original
+        # replica Graph objects, but *not* necessarily the minimized
+        # versions.  This variable needs to have its state reloaded.
+        # The Gs variables are the minimized configurations.
+        if Gs is None:
+            Gs = self.getGs(graph_list)
+        if Gmin is None:
+            Gmin = self.getGmin(graph_list)
+        if self.overlap and overlapGs is None:
+            overlapGs = self.getOverlapGs(graph_list)
+
+        pairs = [ ]
+        pairsOverlap = [ ]
 
         for i, G0 in enumerate(Gs):
             for j, G1 in enumerate(Gs[i+1:]):
@@ -78,12 +98,11 @@ class MultiResolutionCorrelation(object):
                            "I", "VI", "In",
                            "n_mean")
 
-        self.gamma   = gamma
         self.q       = numpy.mean(tuple(G.q for G in Gs))
         self.q_std   = numpy.std(tuple(G.q for G in Gs), ddof=1)
         self.qmin    = Gmin.q
 
-        self.E       = numpy.mean(tuple(G.energy(gamma) for G in Gs))
+        self.E       = numpy.mean(tuple(G.energy(self.gamma) for G in Gs))
         self.entropy = numpy.mean(tuple(G.entropy for G in Gs))
 
         self.I       = numpy.mean(Is)
@@ -107,27 +126,46 @@ class MultiResolutionCorrelation(object):
         self.n_hist = n_hists_array.mean(axis=0)
 
         if self.overlap:
-            if lock: lock.acquire()
             NmiO = numpy.mean([ util.mutual_information_overlap(G1, G2)
                                 for G1,G2 in pairsOverlap])
             self.NmiO    = NmiO
             self.n_mean_ov = sum(G.n_mean() for G in overlapGs)/float(len(Gs))
             self.fieldnames += ('NmiO', )
             self.fieldnames += ('n_mean_ov', )
-            if lock: lock.release()
 
-    def getGs(self, Gs):
+    def getGs(self, graph_list):
         """Return the list of all G replicas.
 
         This recreates the list of all Gs, from stored states.  You
-        need to provide a graph instance G, which has the same node
-        arrangement as the original graph(s) used in the multi-replica
-        analysis.
+        need to provide a graph list Gs, which has the same node
+        arrangement as the original graph list used in the
+        multi-replica analysis.
         """
-        Gs = [ G.copy() for G in Gs ]
+        Gs = [ G.copy() for G in graph_list ] # copy is assumed in callers
         for G, state in zip(Gs, self.cmtyState):
             G.setcmtystate(state)
         return Gs
+    def getOverlapGs(self, graph_list):
+        overlapGs = self.getGs(graph_list) # this method ensures we have a copy
+        if hasattr(self, 'cmtyStateOverlap'):
+            for G, state in zip(overlapGs, self.cmtyStateOverlap):
+                G.setcmtystate(state)
+        else:
+            [ G.trials(self.gamma, trials=self.overlapTrials, initial='current',
+                       minimizer='overlapMinimize')
+              for G in overlapGs ]
+            self.cmtyStateOverlap = tuple(G.getcmtystate() for G in overlapGs)
+        return overlapGs
+
+    def getGmin(self, graph_list):
+        if hasattr(self, 'GminIndex'):
+            Gmin = graph_list[self.GminIndex]
+            Gmin.setcmtystate(self.cmtyStateBest)
+            return Gmin
+        else:
+            Gs = self.getGs(graph_list)
+            Gmin = min(Gs, key=lambda G: G.energy(self.gamma))
+            return Gmin
 
 class MultiResolution(object):
     """Class to do full multi-resolution analysis.
@@ -183,7 +221,7 @@ class MultiResolution(object):
         """
         if callback is None:
             callback = self._callback
-        logger.debug("Thread %d MR-minimizing g=%f"%(self.thread_id(), gamma))
+        logger.info("Thread %d MR-minimizing g=%f"%(self.thread_id(), gamma))
         minGs = [ ]
         for G in self._Gs:
             if self._lock:  self._lock.acquire()
@@ -195,38 +233,33 @@ class MultiResolution(object):
                                                       self.thread_id(), gamma))
         # Do the information theory VI, MI, In, etc, stuff on our
         # minimized replicas.
-        logger.debug("Thread %d initializing MRC"%self.thread_id())
+        logger.info("Thread %d initializing MRC g=%f"%(
+                                              self.thread_id(), gamma))
         self._data[gamma] = MultiResolutionCorrelation(
             gamma, minGs, trials=self.trials, overlap=self._overlap,
             lock=self._writelock)
-        logger.debug("Thread %d initializing MRC: done"%self.thread_id())
+        logger.debug("Thread %d initializing MRC g=%f: done"%(
+                                              self.thread_id(), gamma))
         # Save output to a file.
         if self._output is not None and self.lockAcquire(blocking=False):
-            logger.debug("Thread %d writing"%self.thread_id())
+            logger.debug("Thread %d write"%self.thread_id())
             self.write(self._output)
             self.lockRelease()
-            logger.debug("Thread %d writing: done"%self.thread_id())
-        logger.debug("Thread %d pre-savefiging"%self.thread_id())
         if self._savefigargs is not None and self.lockAcquire(blocking=True):
-            logger.debug("Thread %d savefiging"%self.thread_id())
+            logger.debug("Thread %d savefig"%self.thread_id())
             minG = min(minGs, key=lambda x: G.energy(gamma))
             kwargs = self._savefigargs.copy()
             kwargs['fname'] = kwargs['fname']%{'gamma':gamma}
             G.remapCommunities(check=False)
             G.savefig(**kwargs)
-            logger.debug("Thread %d savefiging: done"%self.thread_id())
             self.lockRelease()
         if self._plotargs is not None and self.lockAcquire(blocking=False):
-            logger.debug("Thread %d plotting"%self.thread_id())
-            #kwargs = self._savefigargs.copy()
-            #kwargs['fname'] = kwargs['fname']%{'gamma':gamma}
+            logger.debug("Thread %d plot"%self.thread_id())
             self.plot(**self._plotargs)
- #           if hasattr(self, '_writelock'):
- #               self._writelock.release()
-            logger.debug("Thread %d plotting: done"%self.thread_id())
             self.lockRelease()
         # Run callback if we have it.
         if callback:
+            logger.debug("Thread %d callback"%self.thread_id())
             minG = min(minGs, key=lambda x: G.energy(gamma))
             replica_number = minGs.index(minG)
             callback(G=minG, gamma=gamma,
@@ -259,6 +292,10 @@ class MultiResolution(object):
         import threading
         return threading.current_thread().ident
     def lockAcquire(self, name='writelock', blocking=False):
+        """Acquire lock self._NAME.
+
+        blocking: if true, block for lock to acquire.  If false, don't
+        block, return fals if lock not acquired."""
         logger.debug('Thread %d attempting lock acquisition: %s',
                      self.thread_id(), name)
         if hasattr(self, '_'+name):
@@ -269,6 +306,7 @@ class MultiResolution(object):
         # If we don't have self._LOCKNAME, we don't lock so always return true.
         return True
     def lockRelease(self, name='writelock'):
+        """Release lock self.NAME."""
         logger.debug('Thread %d attempting release: %s',
                      self.thread_id(), name)
         if hasattr(self, '_'+name):
@@ -333,17 +371,20 @@ class MultiResolution(object):
         del self._callback # unmasks class object's _callback=None
 
     _calcDone = False
+    def recalc(self, graph_list):
+        """Rerun .calc() method an all MRCs.
+
+        This is a higher-cost method (reruns various calculations, but
+        doesn't need to rerun minimizations.)"""
+        for gamma, MRC in self._data.iteritems():
+            MRC.calc(graph_list)
     def calc(self):
-        """Put information from all of the MRCs on self.
+        """Compiles data from all MRCs onto self.
 
-        This takes
+        This takes the data from the MRCs on self, and puts it in
+        lists by the field names.  This is the first step to plotting,
+        writing, etc.  This is a low-cost method.
         """
-        # Cache to only do it once.  Need a way to override this.
-        #if self._calcDone:
-        #    return
-        #self._calcDone = True
-
-
         MRCs = [ MRC for i, MRC in sorted(self._data.iteritems()) ]
 
         self.fieldnames = MRCs[0].fieldnames

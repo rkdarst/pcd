@@ -103,6 +103,7 @@ def callback(struct_p):
     return 0
 Callback = ctypes.CFUNCTYPE(c_int, ctypes.POINTER(SimData))
 cGraph._fields_ = [
+    # Note: for integer values here, modify __getstate__ to perserve them.
     ("N",            c_int),
     ("Ncmty",        c_int),
     ("oneToOne",     c_int),
@@ -157,6 +158,8 @@ cfuncs = (
     ("entropy",          c_double,  (cGraph_p, )),
     ("mutual_information",
                          c_double, (cGraph_p, cGraph_p )),
+    ("H2",               c_double, (cGraph_p, cGraph_p, c_int, c_int)),
+    ("HX_Ynorm",         c_double, (cGraph_p, cGraph_p)),
 
     ("energy_naive",  c_double, (cGraph_p, c_double)),
     ("energy",        c_double, (cGraph_p, c_double)),

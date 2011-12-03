@@ -9,7 +9,9 @@
 #include "SFMT.h"
 
 #define DEBUGLISTS (0)
+#ifndef DEBUG
 #define DEBUG (0)
+#endif
 
 int test(Graph_t G) {
   /* Print some test debugging information
@@ -61,12 +63,12 @@ int isInCmty(Graph_t G, int c, int n) {
     /* 					       //&n, */
     /* 					       NULL, NULL); */
     int in_cmty1 = cmtyListIsInCmty(G, c, n);
-    if (DEBUG) {
-      int in_cmty2 = cmtyListIsInCmty(G, c, n);
-      if (DEBUGLISTS) printf("        isInCmty %d %d %d %d\n", c, n,
-			     in_cmty1, in_cmty2);
-      assert(!in_cmty1 == !in_cmty2);
-    }
+    /* if (DEBUG) { */
+    /*   int in_cmty2 = cmtyListIsInCmty(G, c, n); */
+    /*   if (DEBUGLISTS) printf("        isInCmty %d %d %d %d\n", c, n, */
+    /* 			     in_cmty1, in_cmty2); */
+    /*   assert(!in_cmty1 == !in_cmty2); */
+    /* } */
     return(in_cmty1);
   }
 }
@@ -264,8 +266,8 @@ int cmtyListCheck(Graph_t G) {
 
 
 
-int shared_nodes_between_communities(int *cmtyl0, int *cmtyl1,
-				     int  cmtyN0, int  cmtyN1) {
+int n_intersect_nodes(int *cmtyl0, int *cmtyl1,
+		      int  cmtyN0, int  cmtyN1) {
   /* Return the number of nodes that are in both the first and second
    * communities (set intersection)
    */
@@ -287,6 +289,35 @@ int shared_nodes_between_communities(int *cmtyl0, int *cmtyl1,
   }
   return (n_shared);
 }
+int n_union_nodes(int *cmtyl0, int *cmtyl1,
+		  int  cmtyN0, int  cmtyN1) {
+  /* Return the number of nodes that are in the first OR second
+   * communities (set union)
+   */
+  // Start with the number of nodes in the second community.
+  int n_union=cmtyN1;
+  int i, j, n, m;
+  for (i=0 ; i<cmtyN0 ; i++) {
+    // For nodes in the first community
+    n = cmtyl0[i];
+    int is_in_c1=0;
+    for (j=0 ; j<cmtyN1 ; j++) {
+      // For nodes in the second community
+      m = cmtyl1[j];
+      // Is node in c0 also in c1?
+      if (m == n) {
+	is_in_c1 = 1;
+	break;
+      }
+    }
+    // If node in c0 is *not* in c1, then increment n_union.
+    if (! is_in_c1)
+      n_union++;
+  }
+  return (n_union);
+}
+
+
 
 int find_empty_cmty(Graph_t G) {
   /* Find the lowest numbered empty community
@@ -350,8 +381,8 @@ double mutual_information(Graph_t G0, Graph_t G1) {
     for (c1=0 ; c1 < G1->Ncmty ; c1++) {
       n1 = G1->cmtyN[c1];
 
-      n_shared = shared_nodes_between_communities(G0->cmtyl[c0], G1->cmtyl[c1],
-						  n0, n1);
+      n_shared = n_intersect_nodes(G0->cmtyl[c0], G1->cmtyl[c1],
+				   n0, n1);
       if (n_shared == 0)
 	continue;
       MI += (n_shared/(float)N) * log2((double)(n_shared*N/((double)n0*n1)));
@@ -359,6 +390,70 @@ double mutual_information(Graph_t G0, Graph_t G1) {
   }
   return (MI);
 }
+
+inline double h(double p) {
+  if ((p==0) || (p==1))
+    return 0;
+  return -p * log2(p);
+}
+inline double H(Graph_t G, int c) {
+  return (  h((       G->cmtyN[c]) / (double)G->N)
+	  + h((G->N - G->cmtyN[c]) / (double)G->N)
+         );
+}
+double H2(Graph_t GX, Graph_t GY, int cX, int cY) {
+  double N = (double) GX->N;
+  // cX, cY members, cX, cY number in cmty
+  int *cXm = GX->cmtyl[cX];
+  int *cYm = GY->cmtyl[cY];
+  int  cX_n = GX->cmtyN[cX];
+  int  cY_n = GX->cmtyN[cY];
+
+  //printf("  c %d %d\n", n_intersect_nodes(cXm, cYm, cX_n, cY_n),
+  //                 n_union_nodes(cXm, cYm, cX_n, cY_n));
+  double hP11 = h((       n_intersect_nodes(cXm, cYm, cX_n, cY_n))/N);
+  double hP10 = h((cX_n - n_intersect_nodes(cXm, cYm, cX_n, cY_n))/N);
+  double hP01 = h((cY_n - n_intersect_nodes(cXm, cYm, cX_n, cY_n))/N);
+  double hP00 = h(( N   - n_union_nodes    (cXm, cYm, cX_n, cY_n))/N);
+  if (hP11 + hP00 <= hP01 + hP10)
+    return 1/0.;
+  double hPY1 = h( (  cY_n) / N);
+  double hPY0 = h( (N-cY_n) / N);
+  return(hP11+hP00+hP01+hP10 - hPY1 - hPY0);
+}
+double HX_Ynorm(Graph_t GX, Graph_t GY) {
+  double HX_Y_total=0;  // These two are to find the average
+  int HX_Y_n=0;
+  int cX;
+  for (cX=0 ; cX < GX->Ncmty; cX++) {
+    if (GX->cmtyN[cX] == 0)
+      continue;
+    double HX_Yhere=1/0.;
+    int cY;
+    for (cY=0 ; cY < GY->Ncmty ; cY++) {
+      if (GY->cmtyN[cY] == 0)
+	continue;
+      double H2_this = H2(GX, GY, cX, cY);
+      if (H2_this < HX_Yhere)
+	HX_Yhere = H2_this;
+    }
+    if (HX_Yhere == 1/0.)
+      HX_Yhere = H(GX, cX);
+    double _ = H(GX, cX);
+    if (_ == 0) {
+      HX_Y_total += 0;
+      HX_Y_n += 1;
+    }
+    else {
+      HX_Y_total += HX_Yhere / _;
+      HX_Y_n += 1;
+    }
+
+  }
+  return(HX_Y_total / HX_Y_n);
+}
+
+
 
 
 
@@ -588,12 +683,16 @@ double energy_cmty_n_sparse(Graph_t G, double gamma, int c, int n) {
 
   double E = .5 * (attractions + gamma*repulsions);
   /* printf(" e_c_n_s %d %d(%d,%d)\n", c, n, G->cmtyN[c], nUnDefined); */
-  if (DEBUG && E != energy_cmty_n(G, gamma, c, n)) {
-    printf(" e_c_n_s %d %d(%d,%d) (%d) %f %f\n", c, n, G->cmtyN[c], nUnDefined,
-	   isInCmty(G, c, n),
-	   E, energy_cmty_n(G, gamma, c, n));
-    //assert(!cmtyListCheck(G));
-    assert(0);
+  //if (DEBUG && E != energy_cmty_n(G, gamma, c, n)) {
+  if (DEBUG) {
+    double E2 = energy_cmty_n(G, gamma, c, n);
+    if ( fabs(E-E2)>.01  && fabs(E-E2)/E > .0001) {
+      printf(" e_c_n_s %d %d(%d,%d) (%d) %f %f\n", c, n, G->cmtyN[c],nUnDefined,
+	     isInCmty(G, c, n),
+	     E, E2);
+      //assert(!cmtyListCheck(G));
+      assert(0);
+    }
   }
   return(E);
 }
@@ -889,6 +988,7 @@ int overlapMinimize_add(Graph_t G, double gamma) {
    */
   int changes = 0;
   G->oneToOne = 0;
+  assert(G->hasSparse);
 
   /* int nindex, n; */
   /* // Loop over particles */

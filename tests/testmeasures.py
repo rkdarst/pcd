@@ -118,3 +118,23 @@ for i in range(100):
     assert approxequal(util.mutual_information_c(G, G2),
                        util.mutual_information_python(G,G2))
 
+
+# Overlap N tests
+print "\n\n\nOverlap N tests"
+#G.trials(gamma=gamma, trials=5, minimizer='overlapMinimize')
+G2 = G.copy()
+print G.N, G2.N, G.Ncmty, G2.Ncmty
+for c0 in range(G.Ncmty):
+    p = util.H2_python(G, G2, c0, 0)
+    c = util.H2_c(G, G2, c0, 0)
+    assert p == c
+    print p, c
+
+nmio_python = util.mutual_information_overlap(G, G2)
+# extremely unpythoic way of doing this
+util.HX_Ynorm = util.HX_Ynorm_python
+util.H2 = util.H2_python
+
+nmio_c = util.mutual_information_overlap(G, G2)
+
+print nmio_python, nmio_c
