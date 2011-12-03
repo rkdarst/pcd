@@ -32,9 +32,9 @@ class LogInterval(object):
         self.offset = offset
         self.expConstant = exp(log(interval) / density)
         if low:
-            self._indexlow  = int(floor(self.index(low)))
+            self._indexlow  = int(floor(round(self.index(low), 10)))
         if high:
-            self._indexhigh = int(ceil(self.index(high)))
+            self._indexhigh = int(ceil(round(self.index(high), 10)))
     def value(self, index):
         return self.offset * self.expConstant**index
     def index(self, value):
