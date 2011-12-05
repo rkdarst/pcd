@@ -422,7 +422,8 @@ class MultiResolution(object):
         print >> f, "#", time.ctime()
         print >> f, "# replicas:", self.replicas
         print >> f, "# trials per replica:", self.trials
-        print >> f, "#" + " ".join(self.fieldnames)
+        print >> f, "#", " ".join("%d:%s"%(i+1,x)
+                                  for i,x in enumerate(self.fieldnames))
         for i in range(len(self.gamma)):
             print >> f, self.gamma[i],
             for name in self.fieldnames:
