@@ -708,6 +708,7 @@ class Graph(anneal._GraphAnneal, cmodels._cobj, object):
         minCmtyState = self.getcmtystate()
         if initial == 'current':
             initial = self.getcmtystate()
+        nChanges = [ ]
 
         for i in range(trials):
             if initial == 'random':
@@ -715,6 +716,7 @@ class Graph(anneal._GraphAnneal, cmodels._cobj, object):
             else:
                 self.setcmtystate(initial)
             changes = minimizer(gamma, **kwargs)
+            nChanges.append(changes)
             thisE = self.energy(gamma)
             if thisE < minE:
                 minE = thisE
@@ -723,10 +725,12 @@ class Graph(anneal._GraphAnneal, cmodels._cobj, object):
                 print "Trial %d, minimum energy %f"%(i, thisE)
 
         self.setcmtystate(minCmtyState)
+        self.nChanges = numpy.mean(nChanges, axis=0)
         if self.verbosity > 0:
             print "Trials done: %d %s runs (gamma=%f, minE=%f)"%(
-                                     trials, minimizer.func_name, gamma, minE)
-        return changes
+                                     trials, minimizer.func_name, gamma, minE),\
+                                     self.nChanges
+        return self.nChanges
     # Keep backwards compatibility for now.
     minimize_trials = trials
 
@@ -739,12 +743,15 @@ class Graph(anneal._GraphAnneal, cmodels._cobj, object):
         if self.verbosity >= 0:
             print "beginning minimization (n=%s, gamma=%s)"%(self.N, gamma)
         changes = 0
-        combining_rounds = 0
-
         changesCombining = None
+        roundsMoving = 0
+        roundsCombining = 0
+
         for round_ in itertools.count():
             self._gen_random_order()
             changesMoving = self._minimize(gamma=gamma)
+            if changesMoving > 0:
+                roundsMoving += 1
             #if round_%2 == 0:
             #    self.remapCommunities(check=False)
             changes += changesMoving
@@ -761,6 +768,8 @@ class Graph(anneal._GraphAnneal, cmodels._cobj, object):
                 self.remapCommunities(check=False)
                 changesCombining = self.combine_cmtys(gamma=gamma)
                 #changesCombining = self.combine_cmtys_supernodes(gamma=gamma)
+                if changesCombining > 0:
+                    roundsCombining += 1
                 changes += changesCombining
                 if self.verbosity >= 2:
                     print "  (r%2s) greedy: cmtys, changes: %4d %4d"%(
@@ -768,9 +777,7 @@ class Graph(anneal._GraphAnneal, cmodels._cobj, object):
                                                   "(<-- combining communities)"
 
                 self.remapCommunities(check=False)
-                combining_rounds += 1
-                #if combining_rounds >= 2:
-                #    break
+                roundsCombining += 1
             # If we have no changes in regular and combinations, escape
             if changesMoving == 0 and changesCombining == 0:
                 break
@@ -780,7 +787,7 @@ class Graph(anneal._GraphAnneal, cmodels._cobj, object):
         #print set(self.cmty),
         if self._use_overlap:
             self.overlapMinimize(gamma)
-        return changes
+        return roundsMoving, roundsCombining, changes
     def _minimize(self, gamma):
         return cmodels.minimize(self._struct_p, gamma)
     def overlapMinimize(self, gamma):
@@ -788,14 +795,19 @@ class Graph(anneal._GraphAnneal, cmodels._cobj, object):
         """
         if self.verbosity > 0:
             print "Overlap minimize (gamma=%f)"%gamma
-        self._allocArray('cmtyListHash', shape=self.N, dtype=cmodels.c_void_p,
-                        dtype2=cmodels.c_void_p)
+        #self._allocArray('cmtyListHash', shape=self.N, dtype=cmodels.c_void_p,
+        #                dtype2=cmodels.c_void_p)
         #cmodels.C.initHashes(self._struct_p)
         changes = 0
         changes_add = 0
         changes_remove = None
+        roundsAdding = 0
+        roundsRemoving = 0
+
         for round_ in itertools.count():
             changes_add = self._overlapMinimize_add(gamma)
+            if changes_add > 0:
+                roundsAdding += 1
             changes += changes_add
             if self.verbosity >= 2:
                 print "  (r%2s) overlap: adding  : %4d changes, %4d cmtys"%(
@@ -804,6 +816,8 @@ class Graph(anneal._GraphAnneal, cmodels._cobj, object):
                 break
             if changes_add == 0:
                 changes_remove = self._overlapMinimize_remove(gamma)
+                if changes_remove > 0:
+                    roundsRemoving += 1
                 changes += changes_remove
                 if self.verbosity >= 2:
                     print "  (r%2s) overlap: removing: %4d changes, %4d cmtys"%(
@@ -814,7 +828,7 @@ class Graph(anneal._GraphAnneal, cmodels._cobj, object):
                 print "  Exceeding maximum number of rounds"
                 break
         #cmodels.C.destroyHashes(self._struct_p)
-        return changes
+        return roundsAdding, roundsRemoving, changes
     def _overlapMinimize_add(self, gamma):
         return cmodels.overlapMinimize_add(self._struct_p, gamma)
     def _overlapMinimize_remove(self, gamma):

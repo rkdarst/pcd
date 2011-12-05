@@ -112,6 +112,15 @@ class MultiResolutionCorrelation(object):
         self.N       = N = Gs[0].N
         self.n_mean  = sum(G.n_mean() for G in Gs)/float(len(Gs))
 
+        # This records the number of rounds needed to perform the
+        # minimization.
+        if hasattr(Gs[0], 'nChanges'):
+            nChanges = numpy.mean([G.nChanges for G in Gs], axis=0)
+            for i, value in enumerate(nChanges):
+                name = "nChanges%d"%i
+                setattr(self, name, value)
+                self.fieldnames += (name, )
+
         n_hists=[]
         edges=numpy.logspace(0,numpy.log10(N+1),num=nhistbins,endpoint=True)
         for G in Gs:
@@ -132,6 +141,16 @@ class MultiResolutionCorrelation(object):
             self.n_mean_ov = sum(G.n_mean() for G in overlapGs)/float(len(Gs))
             self.fieldnames += ('NmiO', )
             self.fieldnames += ('n_mean_ov', )
+
+            # This records the number of rounds needed to perform the
+            # minimization.
+            if hasattr(overlapGs[0], 'nChanges'):
+                nChanges = numpy.mean([G.nChanges for G in overlapGs], axis=0)
+                for i, value in enumerate(nChanges):
+                    name = "nChangesOverlap%d"%i
+                    setattr(self, name, value)
+                    self.fieldnames += (name, )
+
 
     def getGs(self, graph_list):
         """Return the list of all G replicas.
@@ -236,8 +255,7 @@ class MultiResolution(object):
         logger.info("Thread %d initializing MRC g=%f"%(
                                               self.thread_id(), gamma))
         self._data[gamma] = MultiResolutionCorrelation(
-            gamma, minGs, trials=self.trials, overlap=self._overlap,
-            lock=self._writelock)
+            gamma, minGs, trials=self.trials, overlap=self._overlap)
         logger.debug("Thread %d initializing MRC g=%f: done"%(
                                               self.thread_id(), gamma))
         # Save output to a file.
