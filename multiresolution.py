@@ -185,6 +185,13 @@ class MultiResolutionCorrelation(object):
             Gs = self.getGs(graph_list)
             Gmin = min(Gs, key=lambda G: G.energy(self.gamma))
             return Gmin
+    def getOverlapGmin(self, graph_list):
+        Gs = self.getOverlapGs(graph_list)
+        #minG = min(Gs, key=lambda G: G.energy(self.gamma))
+        minG = Gs[self.GminIndex]
+        del Gs
+        import gc ; gc.collect()
+        return minG
 
 class MultiResolution(object):
     """Class to do full multi-resolution analysis.

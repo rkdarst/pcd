@@ -2,6 +2,7 @@
 
 from taco.mathutil.stats import Averager
 from math import log, exp, floor, ceil
+import numpy
 import random
 
 import networkx
@@ -243,6 +244,28 @@ class ColorMapper(object):
     def color_id(self, c):
         """Return an integer representing the color of th given node."""
         return self.g.node[c]['color']
+
+def wrap_coords(coords, boxsize):
+    """Wrap coordinates to [0, boxsize)"""
+    #return coords - boxsize*numpy.floor(coords/boxsize)
+    return coords % boxsize
+def wrap_dists(coords, boxsize):
+    """Wrap coordinates to [-boxsize/2, boxsize/2)"""
+    return coords - boxsize*numpy.floor((coords/boxsize)+.5)
+
+def mean_position(coords, boxsize):
+    r0 = coords[0]
+    dists = wrap_dists(coords-r0, boxsize)
+    mean = dists.mean(axis=0)
+    mean += r0
+    mean %= boxsize
+    return mean
+
+def mean_position2(coords, boxsize):
+    """Handles wrapped particles"""
+    coords = coords[list(nodelist)]
+    return coords.mean(axis=0)
+#def uniform_image(coords, boxsize):
 
 
 if __name__ == "__main__":

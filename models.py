@@ -1012,6 +1012,7 @@ class Graph(anneal._GraphAnneal, cmodels._cobj, object):
                 hulls=None,
                 cmtyColormap=None,
                 dpiScale=1,
+                explodescale=None,
                 **kwargs):
         """Save a copy of layout to `fname`.
 
@@ -1043,6 +1044,9 @@ class Graph(anneal._GraphAnneal, cmodels._cobj, object):
 
         `dpiScale`, a float, is a scale factor for total pixel count
         of the final image.  This makes images with greater resolution.
+
+        `explodescale`: if given, this is an amount to 'explode' the
+        graph to visualize overlapping communities.
         """
         if self.verbosity > 0:
             print "Savefig:", fname
@@ -1063,6 +1067,7 @@ class Graph(anneal._GraphAnneal, cmodels._cobj, object):
             raise Exception("If coords is not given, self.coords must exist.")
         if boxsize is None and hasattr(self, "boxsize"):
             boxsize = self.boxsize
+        coords = coords % boxsize
 
         #f = matplotlib.backends.backend_agg.Figure()
         fig = matplotlib.figure.Figure()
@@ -1076,29 +1081,68 @@ class Graph(anneal._GraphAnneal, cmodels._cobj, object):
         else:
             radii=numpy.ones(self.N)*base_radius
 
-        for n in range(self.N):
-            if nodes == 'circles':
-                p = Circle(coords[n], radius=radii[n], axes=ax,
-                           #color=colormap.to_rgba(n),
-                           color=cmtyColormap[self.cmty[n]],
-                           **kwargs)
-            elif nodes == 'squares':
-                p = Rectangle(coords[n]-(base_radius,base_radius),
-                              width=2*base_radius, height=2*base_radius,
-                              axes=ax,
-                              color=cmtyColormap[self.cmty[n]],
-                              **kwargs)
-            ax.add_patch(p)
-            if boxsize is not None and nodes == 'circles':
-                greaterthanl=( coords[n] + radii[n] > boxsize  )
-                lessthanzero=( coords[n] - radii[n] < 0        )
-                if greaterthanl.any() or lessthanzero.any():
-                    p = Circle(
-                        coords[n]-boxsize*greaterthanl+boxsize*lessthanzero,
-                        radius=radii[n],
-                        color=cmtyColormap[self.cmty[n]],
-                        **kwargs)
+        if explodescale is not None:
+            escale = explodescale
+        else:
+            escale = 1
+
+        if explodescale is None:
+            for n in range(self.N):
+                if nodes == 'circles':
+                    p = Circle(coords[n], radius=radii[n], axes=ax,
+                               #color=colormap.to_rgba(n),
+                               color=cmtyColormap[self.cmty[n]],
+                               **kwargs)
+                elif nodes == 'squares':
+                    p = Rectangle(coords[n]-(base_radius,base_radius),
+                                  width=2*base_radius, height=2*base_radius,
+                                  axes=ax,
+                                  color=cmtyColormap[self.cmty[n]],
+                                  **kwargs)
+                ax.add_patch(p)
+                if boxsize is not None and nodes == 'circles':
+                    greaterthanl=( coords[n] + radii[n] > boxsize  )
+                    lessthanzero=( coords[n] - radii[n] < 0        )
+                    if greaterthanl.any() or lessthanzero.any():
+                        p = Circle(
+                           coords[n]-boxsize*greaterthanl+boxsize*lessthanzero,
+                            radius=radii[n],
+                            color=cmtyColormap[self.cmty[n]],
+                            **kwargs)
+                        ax.add_patch(p)
+
+        else:
+            # Exploded community map
+            for c in range(self.Ncmty):
+                if self.cmtyN[c] == 0: continue
+                #coords = coords % boxsize
+                cmtynodes = list(self.cmtyContents(c))
+                cmtycoords = coords[cmtynodes]
+                mean_position = util.mean_position(
+                    cmtycoords[[ i for i,n in enumerate(cmtynodes)
+                                if self.cmty[n]==c ]],
+                    boxsize)
+                cmtycoords = util.wrap_dists(cmtycoords-mean_position,boxsize)\
+                             + mean_position
+
+                cmtycoords += (escale-1) * mean_position
+                cmtycoords %= escale*boxsize
+
+                #pos_addition = (escale-1) * mean_position
+                for i, n in enumerate(cmtynodes):
+                    if self.cmty[n] == c:
+                        alpha = 1
+                    else:
+                        alpha = .25
+                    p = Circle(cmtycoords[i],
+                               radius=radii[n], axes=ax,
+                               #color=colormap.to_rgba(n),
+                               color=cmtyColormap[c],
+                               alpha=alpha,
+                               linewidth=0,
+                               **kwargs)
                     ax.add_patch(p)
+
 
         if energies is not None:
             e_colormap = cm.get_cmap('RdYlBu')
@@ -1144,12 +1188,12 @@ class Graph(anneal._GraphAnneal, cmodels._cobj, object):
         ax.autoscale_view(tight=True)
         if boxsize is not None:
             if isinstance(boxsize, numbers.Number):
-                ax.set_xlim(0,boxsize)
-                ax.set_ylim(0,boxsize)
+                ax.set_xlim(0,boxsize*escale)
+                ax.set_ylim(0,boxsize*escale)
             else:
-                ax.set_xlim(0,boxsize[0])
-                ax.set_ylim(0,boxsize[1])
-        canvas.print_figure(fname, dpi=fig.get_dpi()*dpiScale,
+                ax.set_xlim(0,boxsize[0]*escale)
+                ax.set_ylim(0,boxsize[1]*escale)
+        canvas.print_figure(fname, dpi=fig.get_dpi()*dpiScale*escale,
                             bbox_inches='tight')
         if self.verbosity > 0:
             print "Done saving"
