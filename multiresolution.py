@@ -23,9 +23,11 @@ def recursive_dict_update(d, dnew):
 class MultiResolutionCorrelation(object):
     def __init__(self, gamma, Gs, trials=None,
                  nhistbins=50, overlap=False,
+                 pairstyle=None,
                  **kwargs):
         self.gamma = gamma
         self.overlap = overlap
+        self.pairstyle = pairstyle
         self.replicas = len(Gs)
         self.trials = trials
         self.overlapTrials = 4
@@ -76,22 +78,26 @@ class MultiResolutionCorrelation(object):
         if self.overlap and overlapGs is None:
             overlapGs = self.getOverlapGs(graph_list)
 
-        pairs = [ ]
-        pairsOverlap = [ ]
+        pairIndexes = [ ]
+        if self.pairstyle == "all":
+            for i in range(len(Gs)):
+                for j in range(i+1, len(Gs)):
+                    pairIndexes.append((i, j))
+        elif self.pairstyle == "adjacent":
+            pairIndexes.extend(zip(range(len(Gs)-1), range(1, len(Gs))))
+        else:
+            raise ValueError("Pairstyle %s not known"%self.pairstyle)
+        print pairIndexes
 
-        for i, G0 in enumerate(Gs):
-            for j, G1 in enumerate(Gs[i+1:]):
-                pairs.append((G0, G1))
-                if self.overlap:
-                    pairsOverlap.append((overlapGs[i], overlapGs[j]))
 
-        Is = [ util.mutual_information(G0,G1) for G0,G1 in pairs ]
+        Is = [ util.mutual_information(Gs[i],Gs[j])
+               for i,j in pairIndexes ]
 
-        VI = numpy.mean([G0.entropy + G1.entropy - 2*mi
-                         for ((G0,G1), mi) in zip(pairs, Is)])
-        In = numpy.mean([2*mi / (G0.entropy + G1.entropy)
-                         for ((G0,G1), mi) in zip(pairs, Is)
-                         if G0.q!=1 or G0.q!=1])
+        VI = numpy.mean([Gs[i].entropy + Gs[j].entropy - 2*mi
+                         for ((i,j), mi) in zip(pairIndexes, Is)])
+        In = numpy.mean([2*mi / (Gs[i].entropy + Gs[j].entropy)
+                         for ((i,j), mi) in zip(pairIndexes, Is)
+                         if Gs[i].q!=1 or Gs[j].q!=1])
 
         self.fieldnames = ("gamma", "q", "q_std", "qmin",
                            "E", "entropy",
@@ -135,8 +141,8 @@ class MultiResolutionCorrelation(object):
         self.n_hist = n_hists_array.mean(axis=0)
 
         if self.overlap:
-            NmiO = numpy.mean([ util.mutual_information_overlap(G1, G2)
-                                for G1,G2 in pairsOverlap])
+            NmiO = numpy.mean([ util.mutual_information_overlap(Gs[i], Gs[j])
+                                for i,j in pairIndexes])
             self.NmiO    = NmiO
             self.n_mean_ov = sum(G.n_mean() for G in overlapGs)/float(len(Gs))
             self.fieldnames += ('NmiO', )
@@ -204,7 +210,8 @@ class MultiResolution(object):
                  minkwargs=dict(minimizer='minimize', trials=10),
                  plotargs=None,
                  calckwargs={},
-                 overlap=False):
+                 overlap=False,
+                 pairstyle='all'):
         """Create a multiresolution helper system.
 
         output: save table of gamma, q, H, etc, to this file.
@@ -238,6 +245,7 @@ class MultiResolution(object):
         self._minimizerkwargs = minkwargs
         self._calckwargs = calckwargs
         self._overlap = overlap
+        self._pairstyle = pairstyle
 
         self._data = { } #collections.defaultdict(dict)
     def do_gamma(self, gamma, callback=None):
@@ -262,7 +270,8 @@ class MultiResolution(object):
         logger.info("Thread %d initializing MRC g=%f"%(
                                               self.thread_id(), gamma))
         self._data[gamma] = MultiResolutionCorrelation(
-            gamma, minGs, trials=self.trials, overlap=self._overlap)
+            gamma, minGs, trials=self.trials, overlap=self._overlap,
+            pairstyle=self._pairstyle)
         logger.debug("Thread %d initializing MRC g=%f: done"%(
                                               self.thread_id(), gamma))
         # Save output to a file.
