@@ -1067,7 +1067,8 @@ class Graph(anneal._GraphAnneal, cmodels._cobj, object):
             raise Exception("If coords is not given, self.coords must exist.")
         if boxsize is None and hasattr(self, "boxsize"):
             boxsize = self.boxsize
-        coords = coords % boxsize
+        if boxsize is not None:
+            coords = coords % boxsize
 
         #f = matplotlib.backends.backend_agg.Figure()
         fig = matplotlib.figure.Figure()
