@@ -511,6 +511,10 @@ class MultiResolution(object):
         """
         # Recalculate all the stuff
         self.calc()
+        # remove NmiO if we don't have that attribute
+        if ax1items==['VI', 'In', 'NmiO'] and 'NmiO' in ax1items:
+            if not self.hasattr(self, 'NmiO'):
+                ax1items.remove('NmiO')
         # Prepare plot figure
         if fname:
             from matplotlib.backends.backend_agg import Figure, FigureCanvasAgg

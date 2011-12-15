@@ -12,8 +12,8 @@ G = pcd.graphs.bss2d_n5760_T040()
 
 G2 = G.copy()
 print "reducing"
-G.make_sparse(minval=499.1,
-              rmatrixDefault=500)
+G.make_sparse(cutoff=499.1,
+              default=500)
 #G._check_sparse(imatrixDefault=500)
 #raw_input("waiting")
 #G2.minimize(gamma=1)
@@ -21,12 +21,14 @@ G.make_sparse(minval=499.1,
 #from fitz import interactnow
 
 #G.cmtyCreate()
-gamma=1
+gamma=.0001
 if sys.argv[1] == 's':
     G.trials(gamma=gamma, trials=10)
+    G.trials(gamma=gamma, minimizer='overlapMinimize', trials=10,
+             initial='current')
 else:
     G2.trials(gamma=gamma, trials=10)
 
 
-MR = pcd.MultiResolution()
-MR.do([G]*5, logGammaArgs=dict(low=.001,high=100))
+#MR = pcd.MultiResolution()
+#MR.do([G]*5, logGammaArgs=dict(low=.001,high=100))

@@ -130,7 +130,8 @@ cGraph._fields_ = [
     ("randomOrder",  c_int_p),
     ("randomOrder2", c_int_p),
 
-    ("seenList",     LList_p),
+    #("seenList",     LList_p),
+    ("seenList",     c_void_p),
     ("cmtyListHash", c_void_p),
 
     #("callback", Callback),   # callback to let us get python shell from C
@@ -139,7 +140,7 @@ cGraph._fields_ = [
 cGraph_p = ctypes.POINTER(cGraph)
 cGraph_fields = { }
 for name, t in cGraph._fields_:
-    cGraph_fields[name] = True
+    cGraph_fields[name] = t
 
 
 cfuncs = (
@@ -153,6 +154,13 @@ cfuncs = (
                          None,      (cGraph_p, c_int, c_int)),
     ("cmtyListInit",     None,      (cGraph_p, )),
     ("cmtyListCheck",    c_int,     (cGraph_p, )),
+
+    ("hashCreate",       c_int,    (cGraph_p, )),
+    ("hashInit",         c_int,    (cGraph_p, )),
+    ("hashDestroy",      c_int,    (cGraph_p, )),
+
+    ("SetInit",          c_void_p, ( )),
+    ("SetDestroy",       None,     (c_void_p, )),
 
     ("q",                c_int,     (cGraph_p, )),
     ("entropy",          c_double,  (cGraph_p, )),
@@ -178,6 +186,9 @@ cfuncs = (
                                  c_int, c_double)),
     ("combine_cmtys", c_int,    (cGraph_p, c_double)),
     ("remap_cmtys",   c_int,    (cGraph_p, )),
+
+    ("hashInit",      None,    (cGraph_p, )),
+    ("hashDestroy",   None,    (cGraph_p, )),
 
     )
 

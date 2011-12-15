@@ -65,16 +65,21 @@ class Graph(anneal._GraphAnneal, cmodels._cobj, object):
         """
         self._fillStruct(N)
         self.N = N
-        self.cmtyCreate(randomize=randomize)
         self.oneToOne = 1
         self.hasFull = 1
         if rmatrix:
             self._allocRmatrix()
         if overlap:
             self.setOverlap(True)
-        seenList = cmodels.LList(N)
-        self.seenList = ctypes.pointer(seenList)
-        self.__dict__['seenList'] = seenList
+        #seenList = cmodels.LList(N)
+        #self.seenList = ctypes.pointer(seenList)
+        #self.__dict__['seenList'] = seenList
+        self._struct.seenList = cmodels.C.SetInit()
+        cmodels.C.hashCreate(self._struct_p)
+        self.cmtyCreate(randomize=randomize)
+    def __del__(self):
+        cmodels.C.hashDestroy(self._struct_p)
+        cmodels.C.SetDestroy(self._struct.seenList)
     def _fillStruct(self, N=None):
         """Fill C structure."""
         cmodels._cobj._allocStruct(self, cmodels.cGraph)
@@ -89,6 +94,8 @@ class Graph(anneal._GraphAnneal, cmodels._cobj, object):
         self.randomOrder[:]  = numpy.arange(N)
         self.randomOrder2[:] = numpy.arange(N)
         self._allocArray("imatrix", shape=(N, N))
+        self._allocArray('cmtyListHash', shape=N, dtype=cmodels.c_void_p,
+                        dtype2=cmodels.c_void_p)
     def _allocRmatrix(self):
         """Allocate a matrix for repulsive interactions"""
         self._allocArray("rmatrix", shape=(self.N, self.N))
@@ -98,6 +105,7 @@ class Graph(anneal._GraphAnneal, cmodels._cobj, object):
         state = self.__dict__.copy()
         del state['_struct']
         del state['_struct_p']
+        del state['cmtyListHash']
         state['__extra_attrs'] = { }
         for name in ('N', 'Ncmty', 'oneToOne', 'hasSparse', 'hasFull',
                      'simatrixDefault', 'srmatrixDefault', 'simatrixLen'):
@@ -121,6 +129,11 @@ class Graph(anneal._GraphAnneal, cmodels._cobj, object):
             setattr(self, k, v)
         del state['__extra_attrs']
         self.__dict__.update(state)
+        self._allocArray('cmtyListHash', shape=self.N, dtype=cmodels.c_void_p,
+                        dtype2=cmodels.c_void_p)
+        cmodels.C.hashCreate(self._struct_p)
+        cmodels.C.hashInit(self._struct_p)
+        self._struct.seenList = cmodels.C.SetInit()
     def copy(self):
         """Return a copy of the object (not sharing data arrays).
         """
@@ -180,6 +193,7 @@ class Graph(anneal._GraphAnneal, cmodels._cobj, object):
             self.cmty[:] = state['cmtyList']
         else:
             raise Exception("Unknown version of state to load communities.")
+        self.hashInit()
         #self.check() # can't check non-oneToOne (yet)
     def hash(self):
         """Hash of state of self.
@@ -324,19 +338,25 @@ class Graph(anneal._GraphAnneal, cmodels._cobj, object):
             dist = numpy.sqrt(dist)
             matrix[n1, :] = efunc(dist)
         numpy.seterr(**orig_settings)
-    def make_sparse(self, minval, rmatrixDefault, imatrixDefault=0):
+    def make_sparse(self, default, cutoff=None,
+                    imatrixDefault=0, imatrixCutoff=None):
         assert self.hasFull # have full to create sparse from it.
         assert not isinstance(self.rmatrix, numpy.ndarray), \
                                        "sparse does not support rmatrix yet"
+        if default == 'auto':
+            default = self.imatrix.max()
+        if cutoff is None:
+            cutoff = default
+
         self.simatrixDefault = imatrixDefault
-        self.srmatrixDefault = rmatrixDefault
+        self.srmatrixDefault = default
 
         imatrix = self.imatrix
         #simatrixLen = 0
         #for row in imatrix:
         #    x = numpy.sum(row < minval)
         #    simatrixLen = max(x, simatrixLen)
-        simatrixLen = (imatrix<minval).sum(axis=1).max()
+        simatrixLen = (imatrix<cutoff).sum(axis=1).max()
         print "Making graph sparse: %d nodes, %d reduced nodes"%(
             self.N, simatrixLen)
         print "  imatrix max/min:", numpy.min(imatrix), numpy.max(imatrix)
@@ -350,7 +370,7 @@ class Graph(anneal._GraphAnneal, cmodels._cobj, object):
         self._allocArray("simatrixIdl", shape=self.N, dtype=ctypes.c_void_p)
         self._allocArrayPointers(self.simatrixIdl, self.simatrixId)
 
-        for i,j in zip(*numpy.where(imatrix < minval)):
+        for i,j in zip(*numpy.where(imatrix < cutoff)):
             if i == j:
                 continue
             idx = self.simatrixN[i]
@@ -595,7 +615,8 @@ class Graph(anneal._GraphAnneal, cmodels._cobj, object):
         are non-empty, unlike range(G.cmtyN)
         """
         return ( c for c in range(self.Ncmty) if self.cmtyN[c]>0 )
-
+    def hashInit(self):
+        return cmodels.hashInit(self._struct_p)
 
 
     #
@@ -793,11 +814,10 @@ class Graph(anneal._GraphAnneal, cmodels._cobj, object):
     def overlapMinimize(self, gamma):
         """Attempting to add particles to overlapping communities.
         """
+        if not self.hasSparse:
+            self.make_sparse(default='auto')
         if self.verbosity > 0:
             print "Overlap minimize (gamma=%f)"%gamma
-        #self._allocArray('cmtyListHash', shape=self.N, dtype=cmodels.c_void_p,
-        #                dtype2=cmodels.c_void_p)
-        #cmodels.C.initHashes(self._struct_p)
         changes = 0
         changes_add = 0
         changes_remove = None
@@ -827,7 +847,6 @@ class Graph(anneal._GraphAnneal, cmodels._cobj, object):
             if round_ > 250:
                 print "  Exceeding maximum number of rounds"
                 break
-        #cmodels.C.destroyHashes(self._struct_p)
         return roundsAdding, roundsRemoving, changes
     def _overlapMinimize_add(self, gamma):
         return cmodels.overlapMinimize_add(self._struct_p, gamma)

@@ -58,17 +58,17 @@ int isInCmty(Graph_t G, int c, int n) {
   if (G->oneToOne)
     return (G->cmty[n] == c);
   else {
-    /* int in_cmty1 = g_hash_table_lookup_extended(G->cmtyListHash[c], */
-    /* 					       GINT_TO_POINTER(n), */
-    /* 					       //&n, */
-    /* 					       NULL, NULL); */
-    int in_cmty1 = cmtyListIsInCmty(G, c, n);
-    /* if (DEBUG) { */
-    /*   int in_cmty2 = cmtyListIsInCmty(G, c, n); */
-    /*   if (DEBUGLISTS) printf("        isInCmty %d %d %d %d\n", c, n, */
-    /* 			     in_cmty1, in_cmty2); */
-    /*   assert(!in_cmty1 == !in_cmty2); */
-    /* } */
+    int in_cmty1 = g_hash_table_lookup_extended(G->cmtyListHash[c],
+    					       GINT_TO_POINTER(n),
+    					       //&n,
+    					       NULL, NULL);
+    /* int in_cmty1 = cmtyListIsInCmty(G, c, n); */
+    if (DEBUG) {
+      int in_cmty2 = cmtyListIsInCmty(G, c, n);
+      if (DEBUGLISTS) printf("        isInCmty %d %d %d %d\n", c, n,
+    			     in_cmty1, in_cmty2);
+      assert(!in_cmty1 == !in_cmty2);
+    }
     return(in_cmty1);
   }
 }
@@ -101,8 +101,16 @@ inline void cmtyListAddOverlap(Graph_t G, int c, int n) {
    * Adapted for systems that have overlaps.
    */
   if (DEBUGLISTS) printf("        cmtyListAdd %d %d\n", c, n);
-  G->cmtyl[c][G->cmtyN[c]] = n;
+  int position = G->cmtyN[c];
+  G->cmtyl[c][position] = n;
   G->cmtyN[c]++;
+  if (DEBUGLISTS)
+    printf("cLAO: %2d %2d %2d %2d %2d\n", c, n, position,G->cmtyl[c][position],
+			 G->cmty[n]);
+  g_hash_table_insert(G->cmtyListHash[c],
+		      GINT_TO_POINTER(n),
+		      GINT_TO_POINTER(position)
+		      );
   /*G->cmty[n] = c;*/
   if (c >= G->Ncmty)
     G->Ncmty = c+1;
@@ -121,25 +129,46 @@ inline void cmtyListRemoveOverlap(Graph_t G, int c, int n) {
    * Adapted for systems that have overlaps
    */
   if (DEBUGLISTS) printf("        cmtyListRemove %d %d\n", c, n);
-  int i;
-  // Find where it is in the lists
-  for (i=0 ; i<G->cmtyN[c] ; i++) {
-    if (G->cmtyl[c][i] == n)
-      break;
-  }
-  if (G->cmtyl[c][i] != n)
-    printf("****** wrong particle: c=%d n=%d i=%d G->cmty[c][i]=%d\n", c, n, i, G->cmtyl[c][i]);
+  void *position_p=(void *) -2;
+  int found = g_hash_table_lookup_extended(G->cmtyListHash[c],
+					   GINT_TO_POINTER(n),
+					   NULL, &position_p);
+  int position = GPOINTER_TO_INT(position_p);
+
+  if (DEBUGLISTS)
+    printf("cLRO: %2d %2d %2d %2d %2d\n", c, n, position,G->cmtyl[c][position],
+	   G->cmty[n]);
+  assert (found);
+  assert (G->cmtyl[c][position] == n);
+
+  /* // Find where it is in the lists */
+  /* for (position=0 ; position<G->cmtyN[c] ; position++) { */
+  /*   if (G->cmtyl[c][position] == n) */
+  /*     break; */
+  /* } */
+  if (DEBUG && G->cmtyl[c][position] != n)
+    printf("****** wrong particle: c=%d n=%d pos=%d G->cmty[c][pos]=%d\n",
+	   c, n, position, G->cmtyl[c][position]);
   // Remove the particle
-  if (i != G->cmtyN[c]-1) {
-    G->cmtyl[c][i] = G->cmtyl[c][G->cmtyN[c]-1];
+  if (position != G->cmtyN[c]-1) {
+    int m = G->cmtyl[c][G->cmtyN[c]-1];
+    G->cmtyl[c][position] = m;
+    g_hash_table_insert(G->cmtyListHash[c],
+			GINT_TO_POINTER(m),
+			GINT_TO_POINTER(position));
+    g_hash_table_remove(G->cmtyListHash[c],
+			GINT_TO_POINTER(n));
   }
   else {
     //no op, just decrement counter
+    g_hash_table_remove(G->cmtyListHash[c],
+			GINT_TO_POINTER(n));
   }
   G->cmtyN[c]-- ;
   // If we just removed the greatest-numbered community
   if (c == G->Ncmty-1  &&  G->cmtyN[c] == 0 ) {
-    // Altar Ncmty to If we just removed the greatest-numbered community
+    // Altar Ncmty too if we just removed the greatest-numbered community
+    int i;
     for (i=G->Ncmty-1 ; i>=0 ; i--) {
       if (G->cmtyN[i] == 0)
 	G->Ncmty--;
@@ -155,6 +184,13 @@ inline void cmtyListRemove(Graph_t G, int c, int n) {
   // The difference for systems without overlaps is we keep G->cmty[n]
   // up to date
   G->cmty[n] = NO_CMTY;
+}
+inline void cmtyMove(Graph_t G, int n, int cOld, int cNew) {
+  if (DEBUG) assert (G->cmty[n] == cOld);
+  // cOld = G->cmty[n];
+  cmtyListRemoveOverlap(G, cOld, n);
+  cmtyListAddOverlap(G, cNew, n);
+  G->cmty[n] = cNew;
 }
 inline void cmtyListInit(Graph_t G) {
   /* Initialize the community lists.
@@ -185,6 +221,7 @@ inline void cmtyListInit(Graph_t G) {
       break;
     }
   }
+  hashInit(G);
 }
 int cmtyListCheck(Graph_t G) {
   /* Check the community lists for consistency.
@@ -262,6 +299,48 @@ int cmtyListCheck(Graph_t G) {
   }
   return (errors);
 }
+
+void hashCreate(Graph_t G) {
+  assert(G->cmtyListHash[0] == NULL  &&  G->cmtyListHash[1] == NULL);
+  int c;
+  for (c=0 ; c<G->N ; c++) {
+    G->cmtyListHash[c] = g_hash_table_new(g_direct_hash,
+					  g_direct_equal
+					  );
+  }
+}
+void hashInit(Graph_t G) {
+  /* Initialize hashes from community lists */
+  int c, i;
+  for (c=0 ; c<G->N ; c++) {
+    //assert(g_hash_table_size(G->cmtyListHash[c]) == 0);
+    g_hash_table_remove_all(G->cmtyListHash[c]);
+    for (i=0 ; i<G->cmtyN[c] ; i++) {
+      g_hash_table_insert(G->cmtyListHash[c],
+			  GINT_TO_POINTER(G->cmtyl[c][i]),
+			  GINT_TO_POINTER(i)
+			  );
+    }
+  }
+}
+void hashDestroy(Graph_t G) {
+  int c;
+  for (c=0 ; c<G->N ; c++) {
+    g_hash_table_destroy(G->cmtyListHash[c]);
+  }
+  //free(G->cmtyListHash);
+}
+void hashPrintKeys(GHashTable *HT) {
+  void printkey(void *key, void *value, void *data) {
+    value=NULL;
+    data=NULL;
+    printf("%d ", GPOINTER_TO_INT(key));
+  }
+  g_hash_table_foreach(HT, printkey, NULL);
+  printf("\n");
+}
+
+
 
 
 
@@ -460,6 +539,7 @@ double HX_Ynorm(Graph_t GX, Graph_t GY) {
 double energy_naive(Graph_t G, double gamma) {
   /* Naive energy loop, looping over all pairs of particles.  SLOW.
    */
+  assert(0);
   assert(G->hasFull);
   imatrix_t attractions=0;
   imatrix_t repulsions =0;
@@ -728,6 +808,7 @@ double energy_n(Graph_t G, double gamma, int n) {
 int minimize_naive(Graph_t G, double gamma) {
   /* OBSELETE minimization routine.
    */
+  assert(0);
   assert(G->hasFull);
   int changes=0;
   int i, n;
@@ -851,8 +932,7 @@ int minimize(Graph_t G, double gamma) {
       assert(bestcmty != -1);
     }
     if (oldcmty != bestcmty) {
-      cmtyListRemove(G, oldcmty, n);
-      cmtyListAdd(G, bestcmty, n);
+      cmtyMove(G, n, oldcmty, bestcmty);
       changes += 1;
     }
   }
@@ -895,7 +975,7 @@ int minimize_sparse(Graph_t G, double gamma) {
     // that has the lowest new energy.
     // There are various ways of doing this inner loop:
 
-    LListClear(G->seenList);
+    SetClear(G->seenList);
     int j;
     for(j=0 ; j<G->simatrixN[n] ; j++) {
       if (G->simatrix[G->simatrixLen*n + j] >= 0)
@@ -909,9 +989,9 @@ int minimize_sparse(Graph_t G, double gamma) {
       if (G->cmtyN[newcmty] == 0) {
 	continue;
       }
-      if (LListContains(G->seenList, newcmty))
+      if (SetContains(G->seenList, newcmty))
       	continue;
-      LListAdd(G->seenList, newcmty);
+      SetAdd(G->seenList, newcmty);
 
       double deltaEnewCmty = energy_cmty_n_sparse(G, gamma, newcmty, n);
 
@@ -929,52 +1009,13 @@ int minimize_sparse(Graph_t G, double gamma) {
       assert(bestcmty != -1);
     }
     if (oldcmty != bestcmty) {
-      cmtyListRemove(G, oldcmty, n);
-      cmtyListAdd(G, bestcmty, n);
+      cmtyMove(G, n, oldcmty, bestcmty);
       changes += 1;
     }
   }
   return (changes);
 }
 
-void initHashes(Graph_t G) {
-  int c;
-  //G->cmtyListHash = calloc(G->N, sizeof(GHashTable *));
-  for (c=0 ; c<G->N ; c++) {
-    G->cmtyListHash[c] = g_hash_table_new(
-					  g_direct_hash,
-					  g_direct_equal
-					  //g_int_hash,
-					  //g_int_equal
-					  );
-    int i;
-    for (i=0 ; i<G->cmtyN[c] ; i++) {
-      if (DEBUGLISTS) printf("        initHash insert %d %d(%d)\n",
-			     c, G->cmtyl[c][i], i);
-      g_hash_table_insert(G->cmtyListHash[c],
-			  GINT_TO_POINTER(G->cmtyl[c][i]),
-			  //&(G->cmtyl[c][i]),
-			  GINT_TO_POINTER(G->cmtyl[c][i])
-			  );
-    }
-  }
-}
-void destroyHashes(Graph_t G) {
-  int c;
-  for (c=0 ; c<G->N ; c++) {
-    g_hash_table_destroy(G->cmtyListHash[c]);
-  }
-  //free(G->cmtyListHash);
-}
-void print_keys(GHashTable *HT) {
-  void printkey(void *key, void *value, void *data) {
-    value=NULL;
-    data=NULL;
-    printf("%d ", GPOINTER_TO_INT(key));
-  }
-  g_hash_table_foreach(HT, printkey, NULL);
-  printf("\n");
-}
 
 int overlapMinimize_add(Graph_t G, double gamma) {
   /* Do a minimization attempt, but adding particles to new
@@ -1039,7 +1080,7 @@ int overlapMinimize_add(Graph_t G, double gamma) {
   for (c=0 ; c<G->Ncmty ; c++) {
     if (G->cmtyN[c] == 0)
       continue;
-    LListClear(G->seenList);
+    SetClear(G->seenList);
     int mindex;
     for (mindex=0 ; mindex<G->cmtyN[c] ; mindex++) {
       int m;
@@ -1050,9 +1091,9 @@ int overlapMinimize_add(Graph_t G, double gamma) {
 	continue;
       int n;
       n = G->simatrixIdl[m][nindex];
-      if (LListContains(G->seenList, n))
-    	continue;
-      LListAdd(G->seenList, c);
+      if (SetContains(G->seenList, n))
+      	continue;
+      SetAdd(G->seenList, c);
 
 
 
@@ -1072,12 +1113,6 @@ int overlapMinimize_add(Graph_t G, double gamma) {
       if (deltaE < 0) {
 	if (DEBUGLISTS) printf("    Adding in overlapmin_add %d %d\n", c, n);
 	cmtyListAddOverlap(G, c, n);
-	/* g_hash_table_insert(G->cmtyListHash[c], */
-	/* 		    GINT_TO_POINTER(n), */
-	/* 		    //&n, */
-	/* 		    GINT_TO_POINTER(n) */
-	/* 		    //NULL */
-	/* 		    ); */
 	changes++;
       }
 
@@ -1117,10 +1152,6 @@ int overlapMinimize_remove(Graph_t G, double gamma) {
       if (deltaE > 0) {
 	if (DEBUGLISTS) printf("    Removing in overlapmin_rem %d %d\n", c, n);
 	cmtyListRemoveOverlap(G, c, n);
-	/* g_hash_table_remove(G->cmtyListHash[c], */
-	/* 		    GINT_TO_POINTER(n) */
-	/* 		    //&n */
-	/* 		    ); */
 	changes++;
       }
     }
@@ -1159,8 +1190,7 @@ int anneal(Graph_t G, double gamma, double beta,
     double ran = genrand_real2();
     if (ran < x) {
       // accept
-      cmtyListRemove(G, c_old, n);
-      cmtyListAdd(G, c, n);
+      cmtyMove(G, n, c_old, c);
       changes += 1;
     }
     else {
@@ -1232,18 +1262,15 @@ int combine_cmtys(Graph_t G, double gamma) {
     if (c1 == bestcmty)
       continue;
 
-    int c1oldN = G->cmtyN[c1];
     int c2oldN = G->cmtyN[bestcmty];
     //Move all from bestcmty into c1
     int i;
-    for (i=0 ; i<c2oldN ; i++) {
-      G->cmtyl[c1][i+c1oldN] = G->cmtyl[bestcmty][i];
-      G->cmty[G->cmtyl[bestcmty][i]] = c1;
+    for (i=c2oldN-1 ; i>=0 ; i--) {
+      cmtyMove(G, G->cmtyl[bestcmty][i], bestcmty, c1);
     }
-    // FIX - breaks for multiple community
-    G->cmtyN[c1] = c1oldN + c2oldN;
-    G->cmtyN[bestcmty] = 0;
+
     changes += 1;
+
 
   }
   return (changes);
@@ -1291,7 +1318,7 @@ int combine_cmtys_sparse(Graph_t G, double gamma) {
     /* 	continue; */
 
 
-    LListClear(G->seenList);
+    SetClear(G->seenList);
     int ii;
     for (ii=0 ; ii<G->cmtyN[c1] ; ii++ ) {
       int n = G->cmtyl[c1][ii];
@@ -1303,11 +1330,11 @@ int combine_cmtys_sparse(Graph_t G, double gamma) {
       int m = G->simatrixId[G->simatrixLen*n + j];
       int c2 = G->cmty[m];
       //printf("  m %d %d %d %d\n", c1, j, m, c2);
-      if (c1==c2 || LListContains(G->seenList, c2)) {
+      if (c1==c2 || SetContains(G->seenList, c2)) {
     	//printf("already in: %d\n", c2);
       	continue;
       }
-      LListAdd(G->seenList, c2);
+      SetAdd(G->seenList, c2);
       //printf("adding: %d\n", c2);
 
 
@@ -1339,17 +1366,13 @@ int combine_cmtys_sparse(Graph_t G, double gamma) {
       continue;
     //printf("  c %d %d combining\n", c1, c2);
 
-    int c1oldN = G->cmtyN[c1];
     int c2oldN = G->cmtyN[bestcmty];
     //Move all from bestcmty into c1
     int i;
-    for (i=0 ; i<c2oldN ; i++) {
-      G->cmtyl[c1][i+c1oldN] = G->cmtyl[bestcmty][i];
-      G->cmty[G->cmtyl[bestcmty][i]] = c1;
+    for (i=c2oldN-1 ; i>=0 ; i--) {
+      cmtyMove(G, G->cmtyl[bestcmty][i], bestcmty, c1);
     }
-    // FIX - breaks for multiple community
-    G->cmtyN[c1] = c1oldN + c2oldN;
-    G->cmtyN[bestcmty] = 0;
+
     changes += 1;
 
   }
@@ -1374,29 +1397,13 @@ int remap_cmtys(Graph_t G) {
       break;
     if (cNew == -1)
       break;
+
     // Do the actual remapping:
     int i;
-    for(i=0 ; i<G->cmtyN[c] ; i++) {
-      G->cmtyl[cNew][i] = G->cmtyl[c][i];
+    for(i=G->cmtyN[c]-1 ; i>=0 ; i--) {
+      cmtyMove(G, G->cmtyl[c][i], c, cNew);
     }
-    int n;
-    for (n=0 ; n<G->N ; n++) {
-      if (G->cmty[n] == c)
-	G->cmty[n] = cNew;
-    }
-    // Change cmtyN and Ncmty
-    G->cmtyN[cNew] = G->cmtyN[c];
-    G->cmtyN[c] = 0;
     changes++;
-    G->Ncmty--;
-  }
-  // Fix Ncmty to indicate our new max cmty number.
-  int i;
-  for (i=G->Ncmty-1 ; i>=0 ; i--) {
-    if (G->cmtyN[i] == 0)
-      G->Ncmty--;
-    else
-      break;
   }
   return(changes);
 }

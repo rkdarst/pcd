@@ -26,7 +26,7 @@ graph = pcd.graphs.dolphins(weightFriend=-1)
 import networkx.drawing.layout as layout
 layout = layout.spring_layout(graph)
 
-G = pcd.Graph.fromNetworkX(graph, defaultweight=1, layout=layout)
+G = pcd.Graph.fromNetworkX(graph, defaultweight=1, coords=layout)
 G.minimize_trials(gamma=gamma, trials=10)
 
 print G.q

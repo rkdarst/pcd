@@ -127,7 +127,8 @@ print G.N, G2.N, G.Ncmty, G2.Ncmty
 for c0 in range(G.Ncmty):
     p = util.H2_python(G, G2, c0, 0)
     c = util.H2_c(G, G2, c0, 0)
-    assert p == c
+    if p==float('inf') and c==float('inf'): continue
+    assert round(p-c,10)==0, "%r %r"%(p, c)
     print p, c
 
 nmio_python = util.mutual_information_overlap(G, G2)
