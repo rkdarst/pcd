@@ -51,6 +51,12 @@ int test(Graph_t G) {
   return (0);
 }
 
+void threadInit() {
+  //assert(g_thread_supported());
+  //assert(!g_thread_get_initialized());
+  g_thread_init(NULL);
+  //assert(g_thread_get_initialized());
+}
 
 int isInCmty(Graph_t G, int c, int n) {
   /* assert(G->oneToOne); */

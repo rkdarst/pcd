@@ -144,7 +144,8 @@ for name, t in cGraph._fields_:
 
 
 cfuncs = (
-    ("test",          c_int,    (cGraph_p, )),
+    ("test",             c_int,     (cGraph_p, )),
+    ("threadInit",       None,      ( )),
 
     ("cmtyListAdd",      None,      (cGraph_p, c_int, c_int)),
     ("cmtyListAddOverlap",
@@ -205,3 +206,4 @@ C.init_gen_rand(random.randrange(2**32-1))
 
 
 
+C.threadInit()

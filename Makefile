@@ -39,10 +39,10 @@ imatrix_t.py: always
 	fi
 
 _cmodels.so: cmodels.o SFMT.o
-	$(CC) ${opts} ${CFLAGS} -lm `pkg-config --libs glib-2.0` cmodels.o SFMT.o -o _cmodels.so
+	$(CC) ${opts} ${CFLAGS} -lm `pkg-config --libs glib-2.0` `pkg-config --libs gthread-2.0` cmodels.o SFMT.o -o _cmodels.so
 
 cmodels.o: ${TYPEDEFS} cmodels.c cmodels.h
-	$(CC) ${opts} ${CFLAGS} `pkg-config --cflags glib-2.0` -c cmodels.c
+	$(CC) ${opts} ${CFLAGS} `pkg-config --cflags glib-2.0` `pkg-config --cflags gthread-2.0` -c cmodels.c
 
 SFMT.o: SFMT.c SFMT.h
 	$(CC) ${opts} ${CFLAGS} -DMEXP=19937 -include SFMT-params.h -c SFMT.c
