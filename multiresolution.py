@@ -30,7 +30,11 @@ class MultiResolutionCorrelation(object):
         self.pairstyle = pairstyle
         self.replicas = len(Gs)
         self.trials = trials
-        self.overlapTrials = 4
+        # overlap variable can also be used to set number of trials.
+        if self.overlap and self.overlap is not True:
+            self.overlapTrials = int(overlap)
+        else:
+            self.overlapTrials = 4
         for k,v in kwargs.iteritems():
             setattr(self, k, v)
 
