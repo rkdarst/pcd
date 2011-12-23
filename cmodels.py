@@ -145,16 +145,23 @@ for name, t in cGraph._fields_:
 
 cfuncs = (
     ("test",             c_int,     (cGraph_p, )),
-    ("threadInit",       None,      ( )),
+    ("gThreadInit",      None,      ( )),
 
+    ("hashInit",         None,      (cGraph_p, )),
+    ("hashDestroy",      None,      (cGraph_p, )),
+
+    ("cmtyListInit",     None,      (cGraph_p, )),
+    ("cmtyListCheck",    c_int,     (cGraph_p, )),
     ("cmtyListAdd",      None,      (cGraph_p, c_int, c_int)),
     ("cmtyListAddOverlap",
                          None,      (cGraph_p, c_int, c_int)),
     ("cmtyListRemove",   None,      (cGraph_p, c_int, c_int)),
     ("cmtyListRemoveOverlap",
                          None,      (cGraph_p, c_int, c_int)),
-    ("cmtyListInit",     None,      (cGraph_p, )),
-    ("cmtyListCheck",    c_int,     (cGraph_p, )),
+    ("cmtyMove",         None,      (cGraph_p, c_int, c_int, c_int)),#n,old,new
+    ("cmtyMoveSafe",     None,      (cGraph_p, c_int, c_int, c_int)),#n,old,new
+    ("isInCmty",         c_int,     (cGraph_p, c_int, c_int)),
+    ("cmtyIsSubset",     c_int,     (cGraph_p, c_int, c_int)), # csmall, cbig
 
     ("hashCreate",       c_int,    (cGraph_p, )),
     ("hashInit",         c_int,    (cGraph_p, )),
@@ -188,9 +195,6 @@ cfuncs = (
     ("combine_cmtys", c_int,    (cGraph_p, c_double)),
     ("remap_cmtys",   c_int,    (cGraph_p, )),
 
-    ("hashInit",      None,    (cGraph_p, )),
-    ("hashDestroy",   None,    (cGraph_p, )),
-
     )
 
 filename = os.path.join(os.path.dirname(os.path.abspath(__file__)), '_cmodels.so')
@@ -206,4 +210,4 @@ C.init_gen_rand(random.randrange(2**32-1))
 
 
 
-C.threadInit()
+C.gThreadInit()

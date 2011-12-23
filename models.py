@@ -578,6 +578,8 @@ class Graph(anneal._GraphAnneal, cmodels._cobj, object):
         cmodels.cmtyListInit(self._struct_p)
     def cmtyListClear(self):
         """Clear all particles from all communities"""
+        #raise NotImplementedError("Update this for hash lists.")
+        #cmodels.hashInit(self._struct_p)
         self.cmty[:] = NO_CMTY
         self.cmtyN[:] = 0
         self.Ncmty = 0
@@ -593,12 +595,29 @@ class Graph(anneal._GraphAnneal, cmodels._cobj, object):
     def cmtyListRemoveOverlap(self, c, n):
         """Remove node n from community c (overlaps allowed)."""
         cmodels.cmtyListRemoveOverlap(self._struct_p, c, n)
+    def cmtyMove(self, n, cold, cnew):
+        """Move node n from cmty cold to cmty cnew.
+
+        This assumes that particle is currently in cold, and is *not*
+        currently in cnew."""
+        return cmodels.cmtyMove(self._struct_p, n, cold, cnew)
+    def cmtyMoveSafe(self, n, cold, cnew):
+        """Move node n from cmty cold to cmty cnew.
+
+        Does additional errorchecking to get around limitations of cmtyMove."""
+        return cmodels.cmtyMoveSafe(self._struct_p, n, cold, cnew)
     def cmtySet(self, n, c):
         """Set the community of a particle."""
         raise NotImplementedError("cmtySet not implemented yet.")
     def cmtyContents(self, c):
         """Array of all nodes in community c."""
         return self.cmtyll[c, :self.cmtyN[c]]
+    def cmtyContains(self, c, n):
+        """True if cmty c contains node n."""
+        return cmodels.isInCmty(self._struct_p, c, n)
+    def cmtyIsSubset(self, csmall, cbig):
+        """Is cmty csmall a subset of cmty cbig?"""
+        return cmodels.cmtyIsSubset(self._struct_p, csmall, cbig)
     def cmtyDict(self):
         """Return dict of community state.
 

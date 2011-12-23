@@ -51,7 +51,7 @@ int test(Graph_t G) {
   return (0);
 }
 
-void threadInit() {
+void gThreadInit() {
   //assert(g_thread_supported());
   //assert(!g_thread_get_initialized());
   g_thread_init(NULL);
@@ -106,7 +106,8 @@ inline void cmtyListAddOverlap(Graph_t G, int c, int n) {
    *
    * Adapted for systems that have overlaps.
    */
-  if (DEBUGLISTS) printf("        cmtyListAdd %d %d\n", c, n);
+  if (DEBUG)
+    assert(!isInCmty(G, c, n));
   int position = G->cmtyN[c];
   G->cmtyl[c][position] = n;
   G->cmtyN[c]++;
@@ -134,7 +135,6 @@ inline void cmtyListRemoveOverlap(Graph_t G, int c, int n) {
    *
    * Adapted for systems that have overlaps
    */
-  if (DEBUGLISTS) printf("        cmtyListRemove %d %d\n", c, n);
   void *position_p=(void *) -2;
   int found = g_hash_table_lookup_extended(G->cmtyListHash[c],
 					   GINT_TO_POINTER(n),
@@ -192,10 +192,27 @@ inline void cmtyListRemove(Graph_t G, int c, int n) {
   G->cmty[n] = NO_CMTY;
 }
 inline void cmtyMove(Graph_t G, int n, int cOld, int cNew) {
+  /* Move node n from cOld to cNew.
+   * This function assumes: the * particle's primary community is
+   * cOld, and it is not already in * cNew.
+   */
   if (DEBUG) assert (G->cmty[n] == cOld);
   // cOld = G->cmty[n];
   cmtyListRemoveOverlap(G, cOld, n);
   cmtyListAddOverlap(G, cNew, n);
+  G->cmty[n] = cNew;
+}
+inline void cmtyMoveSafe(Graph_t G, int n, int cOld, int cNew) {
+  /* Move node n from cOld to cNew.
+
+   * Differes from cmtyMove in that this function can handle several
+   * corner c
+   */
+  if (DEBUG) assert (isInCmty(G, cOld, n));
+  //if (isInCmty(G, cOld, n))
+  cmtyListRemoveOverlap(G, cOld, n);
+  if (! isInCmty(G, cNew, n))
+    cmtyListAddOverlap(G, cNew, n);
   G->cmty[n] = cNew;
 }
 inline void cmtyListInit(Graph_t G) {
@@ -215,7 +232,9 @@ inline void cmtyListInit(Graph_t G) {
   G->Ncmty = 0;
   // Iterate through particles adding them to community lists
   for (n=0 ; n<G->N ; n++) {
-    cmtyListAdd(G, G->cmty[n], n);
+    int c = G->cmty[n];
+    G->cmty[n] = NO_CMTY; // Without this line, cmtyListAdd fails errorcheck
+    cmtyListAdd(G, c, n);
     if (G->cmty[n] >= G->Ncmty)
       printf("****** community %d is greater than Ncmty=%d\n", G->cmty[n], 
 	     G->Ncmty);
@@ -333,6 +352,7 @@ void hashDestroy(Graph_t G) {
   int c;
   for (c=0 ; c<G->N ; c++) {
     g_hash_table_destroy(G->cmtyListHash[c]);
+    G->cmtyListHash[c] = NULL;
   }
   //free(G->cmtyListHash);
 }
@@ -401,7 +421,24 @@ int n_union_nodes(int *cmtyl0, int *cmtyl1,
   }
   return (n_union);
 }
-
+int cmtyIsSubset(Graph_t G, int csmall, int cbig) {
+  /* is csmall a subset of cbig?  This also allows csmall to be equal
+   * to cbig (not a strict superset).  */
+  GHashTableIter hashIter;
+  GHashTable *hashSmall = G->cmtyListHash[csmall];
+  GHashTable *hashBig   = G->cmtyListHash[cbig];
+  g_hash_table_iter_init(&hashIter, hashSmall);
+  void *n_p;
+  while (g_hash_table_iter_next(&hashIter, &n_p, NULL)) {
+    //int n = GPOINTER_TO_INT(n_p);
+    int found = g_hash_table_lookup_extended(hashBig,
+					     &n_p,
+					     NULL, NULL);
+    if (!found)
+      return(FALSE);
+  }
+  return (TRUE);
+}
 
 
 int find_empty_cmty(Graph_t G) {
