@@ -21,6 +21,7 @@ def recursive_dict_update(d, dnew):
 
 
 class MultiResolutionCorrelation(object):
+    calcMethods = [ ]
     def __init__(self, gamma, Gs, trials=None,
                  nhistbins=50, overlap=False,
                  pairstyle=None,
@@ -82,6 +83,11 @@ class MultiResolutionCorrelation(object):
         if self.overlap and overlapGs is None:
             overlapGs = self.getOverlapGs(graph_list)
 
+        data = { }
+        data['Gs'] = Gs
+        data['Gmin'] = Gmin
+        data['overlapGs'] = overlapGs
+
         pairIndexes = [ ]
         if self.pairstyle == "all":
             for i in range(len(Gs)):
@@ -91,17 +97,17 @@ class MultiResolutionCorrelation(object):
             pairIndexes.extend(zip(range(len(Gs)-1), range(1, len(Gs))))
         else:
             raise ValueError("Pairstyle %s not known"%self.pairstyle)
-        print pairIndexes
+        data['pairIndexes'] = pairIndexes
 
 
         Is = [ util.mutual_information(Gs[i],Gs[j])
                for i,j in pairIndexes ]
-
         VI = numpy.mean([Gs[i].entropy + Gs[j].entropy - 2*mi
                          for ((i,j), mi) in zip(pairIndexes, Is)])
         In = numpy.mean([2*mi / (Gs[i].entropy + Gs[j].entropy)
                          for ((i,j), mi) in zip(pairIndexes, Is)
                          if Gs[i].q!=1 or Gs[j].q!=1])
+        #Is = VI = In = 0
 
         self.fieldnames = ("gamma", "q", "q_std", "qmin",
                            "E", "entropy",
@@ -113,7 +119,10 @@ class MultiResolutionCorrelation(object):
         self.qmin    = Gmin.q
 
         self.E       = numpy.mean(tuple(G.energy(self.gamma) for G in Gs))
-        self.entropy = numpy.mean(tuple(G.entropy for G in Gs))
+        if Gs[0].oneToOne:
+            self.entropy = numpy.mean(tuple(G.entropy for G in Gs))
+        else:
+            self.entropy = 0
 
         self.I       = numpy.mean(Is)
         self.VI      = VI
@@ -160,6 +169,13 @@ class MultiResolutionCorrelation(object):
                     name = "nChangesOverlap%d"%i
                     setattr(self, name, value)
                     self.fieldnames += (name, )
+
+        # Calculate things defined in other methods:
+        for func in self.calcMethods:
+            ret = func(self, data=data)
+            for name, value in ret:
+                self.fieldnames += (name, )
+                setattr(self, name, value)
 
 
     def getGs(self, graph_list):
@@ -517,7 +533,7 @@ class MultiResolution(object):
         self.calc()
         # remove NmiO if we don't have that attribute
         if ax1items==['VI', 'In', 'NmiO'] and 'NmiO' in ax1items:
-            if not self.hasattr(self, 'NmiO'):
+            if not hasattr(self, 'NmiO'):
                 ax1items.remove('NmiO')
         # Prepare plot figure
         if fname:
