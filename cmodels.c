@@ -366,10 +366,49 @@ void hashPrintKeys(GHashTable *HT) {
   printf("\n");
 }
 
+int cmtyIntersect(Graph_t G0, int c0, Graph_t G1, int c1) {
+  // We want 0 to be the smaller one, since we linearly iterate
+  // over it.
+  if (G0->cmtyN[c0] > G1->cmtyN[c1]) {
+    Graph_t Gtmp = G0;  G0 = G1 ; G1 = Gtmp;
+    int     ctmp = c0;  c0 = c1 ; c1 = ctmp;
+  }
 
+  GHashTableIter hashIter;
+  int n_intersect = 0;
+  void *n_p;
 
+  g_hash_table_iter_init(&hashIter, G0->cmtyListHash[c0]);
+  while (g_hash_table_iter_next(&hashIter, &n_p, NULL)) {
+    int n = GPOINTER_TO_INT(n_p);
+    if (isInCmty(G1, c1, n))
+      n_intersect += 1;
+    }
+  if (DEBUG) assert(n_intersect<=G0->cmtyN[c0] && n_intersect<=G1->cmtyN[c1]);
+  return (n_intersect);
+}
+int cmtyUnion(Graph_t G0, int c0, Graph_t G1, int c1) {
+  assert(0); // This needs debugging before use.
+  // We want 0 to be the smaller one, since we linearly iterate
+  // over it.
+  if (G0->cmtyN[c0] > G1->cmtyN[c1]) {
+    Graph_t Gtmp = G0;  G0 = G1 ; G1 = Gtmp;
+    int     ctmp = c0;  c0 = c1 ; c1 = ctmp;
+  }
 
+  GHashTableIter hashIter;
+  int n_union = G0->cmtyN[c0];
+  void *n_p;
 
+  g_hash_table_iter_init(&hashIter, G0->cmtyListHash[c0]);
+  while (g_hash_table_iter_next(&hashIter, &n_p, NULL)) {
+    int n = GPOINTER_TO_INT(n_p);
+    if (!isInCmty(G1, c1, n))
+      n_union += 1;
+    }
+  if (DEBUG) assert(n_union <= G0->cmtyN[c0] + G1->cmtyN[c1]);
+  return (n_union);
+}
 
 int n_intersect_nodes(int *cmtyl0, int *cmtyl1,
 		      int  cmtyN0, int  cmtyN1) {
