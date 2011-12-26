@@ -3,6 +3,7 @@
 from math import log, exp, floor, ceil
 import numpy
 import time
+import types
 
 import logging
 logger = logging.getLogger('pcd.mr')
@@ -22,23 +23,11 @@ def recursive_dict_update(d, dnew):
 
 class MultiResolutionCorrelation(object):
     calcMethods = [ ]
-    def __init__(self, gamma, Gs, trials=None,
-                 nhistbins=50, overlap=False,
-                 pairstyle=None,
-                 **kwargs):
+    def __init__(self, gamma, Gs,
+                 nhistbins=50, calcSettings={}):
         self.gamma = gamma
-        self.overlap = overlap
-        self.pairstyle = pairstyle
         self.replicas = len(Gs)
-        self.trials = trials
-        # overlap variable can also be used to set number of trials.
-        if self.overlap and self.overlap is not True:
-            self.overlapTrials = int(overlap)
-        else:
-            self.overlapTrials = 4
-        for k,v in kwargs.iteritems():
-            setattr(self, k, v)
-
+        self.calcSettings = calcSettings
 
         Gmin = min(Gs, key=lambda G: G.energy(gamma))
         GminIndex = Gs.index(Gmin)
@@ -46,21 +35,29 @@ class MultiResolutionCorrelation(object):
         self.cmtyState = tuple(G.getcmtystate() for G in Gs)
         self.cmtyStateBest = Gmin.getcmtystate()
 
-        if self.overlap:
+        if calcSettings.get('overlap'):
+            overlapTrials = calcSettings.get('overlap')
+            #if overlapTrials is True:
+            #    overlapTrials = self.trials
+            #self.overlapTrials = overlapTrials
+
             overlapGs = [ G.copy() for G in Gs ]
-            [ G.trials(gamma, trials=self.overlapTrials, initial='current',
-                       minimizer='overlapMinimize')
+            [ G.trials(gamma, trials=overlapTrials, initial='current',
+                       minimizer=calcSettings.get('overlapMinimizer',
+                                                'overlapMinimize'))
               for G in overlapGs ]
             self.cmtyStateOverlap = tuple(G.getcmtystate() for G in overlapGs)
         else:
             overlapGs = None
 
-        self.calc(Gs=Gs, nhistbins=nhistbins,
-                  Gmin=Gmin, overlapGs=overlapGs)
+        self.calc(gamma, Gs=Gs, nhistbins=nhistbins,
+                  Gmin=Gmin, overlapGs=overlapGs,
+                  calcSettings=calcSettings)
 
 
-    def calc(self, Gs=None, nhistbins=50,
-             Gmin=None, overlapGs=None, graph_list=None):
+    def calc(self, gamma, Gs=None, nhistbins=50,
+             Gmin=None, overlapGs=None, graph_list=None,
+             calcSettings=None):
         """Calculate properties of minimized replicas.
 
         You need to give one of these sets of arguments to this method:
@@ -80,66 +77,33 @@ class MultiResolutionCorrelation(object):
             Gs = self.getGs(graph_list)
         if Gmin is None:
             Gmin = self.getGmin(graph_list)
-        if self.overlap and overlapGs is None:
+        if calcSettings.get('overlap') and overlapGs is None:
             overlapGs = self.getOverlapGs(graph_list)
+
+        self.fieldnames = ('gamma', )
+        self.gamma = gamma
 
         data = { }
         data['Gs'] = Gs
         data['Gmin'] = Gmin
         data['overlapGs'] = overlapGs
+        data['gamma'] = gamma
 
         pairIndexes = [ ]
-        if self.pairstyle == "all":
+        pairStyle = calcSettings.get('pairStyle', 'all')
+        if pairStyle == "all":
             for i in range(len(Gs)):
                 for j in range(i+1, len(Gs)):
                     pairIndexes.append((i, j))
-        elif self.pairstyle == "adjacent":
+        elif pairStyle == "adjacent":
             pairIndexes.extend(zip(range(len(Gs)-1), range(1, len(Gs))))
         else:
-            raise ValueError("Pairstyle %s not known"%self.pairstyle)
+            raise ValueError("pairStyle %s not known"%pairStyle)
         data['pairIndexes'] = pairIndexes
 
 
-        Is = [ util.mutual_information(Gs[i],Gs[j])
-               for i,j in pairIndexes ]
-        VI = numpy.mean([Gs[i].entropy + Gs[j].entropy - 2*mi
-                         for ((i,j), mi) in zip(pairIndexes, Is)])
-        In = numpy.mean([2*mi / (Gs[i].entropy + Gs[j].entropy)
-                         for ((i,j), mi) in zip(pairIndexes, Is)
-                         if Gs[i].q!=1 or Gs[j].q!=1])
-        #Is = VI = In = 0
-
-        self.fieldnames = ("gamma", "q", "q_std", "qmin",
-                           "E", "entropy",
-                           "I", "VI", "In",
-                           "n_mean")
-
-        self.q       = numpy.mean(tuple(G.q for G in Gs))
-        self.q_std   = numpy.std(tuple(G.q for G in Gs), ddof=1)
-        self.qmin    = Gmin.q
-
-        self.E       = numpy.mean(tuple(G.energy(self.gamma) for G in Gs))
-        if Gs[0].oneToOne:
-            self.entropy = numpy.mean(tuple(G.entropy for G in Gs))
-        else:
-            self.entropy = 0
-
-        self.I       = numpy.mean(Is)
-        self.VI      = VI
-        self.In      = In
-
-        self.N       = N = Gs[0].N
-        self.n_mean  = sum(G.n_mean() for G in Gs)/float(len(Gs))
-
-        # This records the number of rounds needed to perform the
-        # minimization.
-        if hasattr(Gs[0], 'nChanges'):
-            nChanges = numpy.mean([G.nChanges for G in Gs], axis=0)
-            for i, value in enumerate(nChanges):
-                name = "nChanges%d"%i
-                setattr(self, name, value)
-                self.fieldnames += (name, )
-
+        # Not moved to a method yet, this is special.
+        N = Gs[0].N
         n_hists=[]
         edges=numpy.logspace(0,numpy.log10(N+1),num=nhistbins,endpoint=True)
         for G in Gs:
@@ -153,30 +117,96 @@ class MultiResolutionCorrelation(object):
         n_hists_array = numpy.array(n_hists)
         self.n_hist = n_hists_array.mean(axis=0)
 
-        if self.overlap:
-            NmiO = numpy.mean([ util.mutual_information_overlap(Gs[i], Gs[j])
-                                for i,j in pairIndexes])
-            self.NmiO    = NmiO
-            self.n_mean_ov = sum(G.n_mean() for G in overlapGs)/float(len(Gs))
-            self.fieldnames += ('NmiO', )
-            self.fieldnames += ('n_mean_ov', )
-
-            # This records the number of rounds needed to perform the
-            # minimization.
-            if hasattr(overlapGs[0], 'nChanges'):
-                nChanges = numpy.mean([G.nChanges for G in overlapGs], axis=0)
-                for i, value in enumerate(nChanges):
-                    name = "nChangesOverlap%d"%i
-                    setattr(self, name, value)
-                    self.fieldnames += (name, )
 
         # Calculate things defined in other methods:
         for func in self.calcMethods:
-            ret = func(self, data=data)
+            if isinstance(func, types.MethodType):
+                ret = func(data=data, calcSettings=calcSettings)
+            ret = func(self, data=data, calcSettings=calcSettings)
             for name, value in ret:
                 self.fieldnames += (name, )
                 setattr(self, name, value)
 
+    def calc_static(self, data, calcSettings):
+        Gs = data['Gs']
+        return [('n_mean', sum(G.n_mean() for G in Gs)/float(len(Gs))),
+                ('q',      numpy.mean(tuple(G.q for G in Gs))),
+                ('q_std',  numpy.std(tuple(G.q for G in Gs), ddof=1)),
+                ('qmin',   data['Gmin'].q),
+                ('nodes',  Gs[0].N),
+                ]
+    calcMethods.append(calc_static)
+    def calc_thermo(self, data, calcSettings):
+        Gs = data['Gs']
+        E = numpy.mean(tuple(G.energy(data['gamma']) for G in Gs))
+        if Gs[0].oneToOne:
+            entropy = numpy.mean(tuple(G.entropy for G in Gs))
+        else:
+            entropy = 0
+        return [('E', E),
+                   ('entropy', entropy)
+                ]
+
+    calcMethods.append(calc_thermo)
+    def calc_changes(self, data, calcSettings):
+        Gs = data['Gs']
+        returns = [ ]
+        # This records the number of rounds needed to perform the
+        # minimization.
+        if hasattr(Gs[0], 'nChanges'):
+            nChanges = numpy.mean([G.nChanges for G in Gs], axis=0)
+            for i, value in enumerate(nChanges):
+                name = "nChanges%d"%i
+                returns.append((name, value))
+        return returns
+    calcMethods.append(calc_changes)
+    def calc_multualInformation(self, data, calcSettings):
+        Gs = data['Gs']
+        pairIndexes = data['pairIndexes']
+        Is = [ util.mutual_information(Gs[i],Gs[j])
+               for i,j in pairIndexes ]
+        VI = numpy.mean([Gs[i].entropy + Gs[j].entropy - 2*mi
+                         for ((i,j), mi) in zip(pairIndexes, Is)])
+        In = numpy.mean([2*mi / (Gs[i].entropy + Gs[j].entropy)
+                         for ((i,j), mi) in zip(pairIndexes, Is)
+                         if Gs[i].q!=1 or Gs[j].q!=1])
+        returns = [('I',  numpy.mean(Is)),
+                   ('VI', VI),
+                   ('In', In),
+                   ]
+
+        Nmi = numpy.mean(
+            [ util.mutual_information_overlap(Gs[i], Gs[j])
+              for i,j in data['pairIndexes'] ])
+        returns.append(('N',  Nmi))
+
+        return returns
+    calcMethods.append(calc_multualInformation)
+    def calc_overlap(self, data, calcSettings):
+        overlapGs = data.get('overlapGs', None)
+        if overlapGs is None:
+            return [ ]
+        NmiO = numpy.mean(
+            [ util.mutual_information_overlap(overlapGs[i], overlapGs[j])
+              for i,j in data['pairIndexes'] ])
+        n_mean_ov = sum(G.n_mean() for G in overlapGs)/float(len(overlapGs))
+
+        returns = [('ov_N',      NmiO),
+                   ('ov_n_mean', n_mean_ov),
+                   ('ov_E',    numpy.mean(tuple(G.energy(data['gamma'])
+                                                for G in overlapGs))),
+                   ]
+
+        # This records the number of rounds needed to perform the
+        # minimization.
+        data2 = data.copy()
+        data2['Gs'] = data['overlapGs']
+        ov_ret = self.calc_changes(data=data2, calcSettings=calcSettings)
+        returns.extend(('ov_'+name, value)
+                       for name, value in ov_ret)
+
+        return returns
+    calcMethods.append(calc_overlap)
 
     def getGs(self, graph_list):
         """Return the list of all G replicas.
@@ -229,9 +259,9 @@ class MultiResolution(object):
                  minimizer='trials',
                  minkwargs=dict(minimizer='minimize', trials=10),
                  plotargs=None,
-                 calckwargs={},
-                 overlap=False,
-                 pairstyle='all'):
+                 #overlap=False,
+                 #pairstyle='all',
+                 calcSettings={}):
         """Create a multiresolution helper system.
 
         output: save table of gamma, q, H, etc, to this file.
@@ -263,9 +293,7 @@ class MultiResolution(object):
         self._plotargs = plotargs
         self._minimizer = minimizer
         self._minimizerkwargs = minkwargs
-        self._calckwargs = calckwargs
-        self._overlap = overlap
-        self._pairstyle = pairstyle
+        self._calcSettings = calcSettings
 
         self._data = { } #collections.defaultdict(dict)
     def do_gamma(self, gamma, callback=None):
@@ -290,8 +318,8 @@ class MultiResolution(object):
         logger.info("Thread %d initializing MRC g=%f"%(
                                               self.thread_id(), gamma))
         self._data[gamma] = MultiResolutionCorrelation(
-            gamma, minGs, trials=self.trials, overlap=self._overlap,
-            pairstyle=self._pairstyle)
+            gamma, minGs,
+            calcSettings=self._calcSettings)
         logger.debug("Thread %d initializing MRC g=%f: done"%(
                                               self.thread_id(), gamma))
         # Save output to a file.
@@ -368,24 +396,21 @@ class MultiResolution(object):
                          self.thread_id(), name)
             return getattr(self, '_'+name).release()
     def do(self, Gs, gammas=None, logGammaArgs=None,
-           trials=None, threads=1, callback=None):
+           threads=1, callback=None):
         """Do multi-resolution analysis on replicas Gs with `trials` each."""
         # If multiple threads requested, do that version instead:
         if gammas is None and logGammaArgs is not None:
             gammas = LogInterval(**logGammaArgs).values()
         if gammas is None:
             raise ValueError("Either gammas or logGammaArgs must be given.")
-        if trials is not None:
-            self._minimizerkwargs['trials'] = trials
         if threads > 1:
-            return self.do_mt(Gs, gammas, trials=trials, threads=threads,
+            return self.do_mt(Gs, gammas, threads=threads,
                               callback=callback)
 
         # Non threaded version:
         self._callback = callback
         self._Gs = Gs
         self.replicas = len(Gs)
-        self.trials = trials
         for gamma in gammas:
             self.do_gamma(gamma)
             if self._output:
@@ -393,14 +418,13 @@ class MultiResolution(object):
         del self._Gs
         del self._callback # unmasks the class object's _callback=None
 
-    def do_mt(self, Gs, gammas, trials=10, threads=2, callback=None):
+    def do_mt(self, Gs, gammas, threads=2, callback=None):
         """Do multi-resolution analysis on replicas Gs with `trials` each.
 
         Multi-threaded version."""
         self._Gs = Gs
         self._callback = callback
         self.replicas = len(Gs)
-        self.trials = trials
 
         import threading
         import Queue
@@ -446,7 +470,7 @@ class MultiResolution(object):
             setattr(self, fieldname,
                     numpy.asarray([getattr(mrc, fieldname) for mrc in MRCs]))
 
-        self.N         = N         = MRCs[0].N
+        #self.N         = N         = MRCs[0].N
 
         self.n_hist       = n_hist       = [mrc.n_hist       for mrc in MRCs]
         self.n_hist_edges = n_hist_edges = [mrc.n_hist_edges for mrc in MRCs]
@@ -457,7 +481,9 @@ class MultiResolution(object):
         f = open(fname, 'w')
         print >> f, "#", time.ctime()
         print >> f, "# replicas:", self.replicas
-        print >> f, "# trials per replica:", self.trials
+        print >> f, "# minimizer and kwargs:", self._minimizer, \
+                                               self._minimizerkwargs
+
         print >> f, "#", " ".join("%d:%s"%(i+1,x)
                                   for i,x in enumerate(self.fieldnames))
         for i in range(len(self.gamma)):
@@ -520,6 +546,7 @@ class MultiResolution(object):
             c.print_figure(fname, bbox_inches='tight')
 
     def plot(self, fname=None, ax1items=['VI', 'In', 'NmiO'], ax2items=['q'],
+             xaxis='gamma',
              plotstyles={}):
         """Plot things from a multiresolution plot.
 
@@ -552,9 +579,11 @@ class MultiResolution(object):
         # Defaults (move outside of the function eventually)
         legenditems = [ ]
         defaultplotstyles = {
+            'gamma':  dict(label='$\gamma$',color='blue', linestyle='-'),
             'VI':     dict(label='$VI$',color='blue', linestyle='-'),
             'In':     dict(label='$I_n$',color='red', linestyle='--'),
-            'NmiO':   dict(label='$N$',color='green', linestyle='-.'),
+            'N':      dict(label='$N$',color='green', linestyle='-.'),
+            'ov_N':   dict(label='$N_{ov}$',color='green', linestyle='-.'),
             'q':      dict(label='$q$',color='black', linestyle=':'),
             'n_mean': dict(label='$<n>$',color='blue',linestyle=':'),
             'n_mean_ov':dict(label='$<n_{ov}>$',color='green',linestyle=':'),
@@ -593,7 +622,8 @@ class MultiResolution(object):
         ax1labels = ', '
         ax1.set_ylabel(', '.join(axLabels(ax1items)))
         ax2.set_ylabel(', '.join(axLabels(ax2items)))
-        ax1.set_xlabel('$\gamma$')
+        ax1.set_xlabel(defaultplotstyles.get('gamma',
+                                             dict(label=xaxis))['label'])
 
         if fname:
             c.print_figure(fname, bbox_inches='tight')
