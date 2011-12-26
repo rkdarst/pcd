@@ -634,6 +634,35 @@ class Graph(anneal._GraphAnneal, cmodels._cobj, object):
         are non-empty, unlike range(G.cmtyN)
         """
         return ( c for c in range(self.Ncmty) if self.cmtyN[c]>0 )
+    def cmtyConnectivitySingle(self, c, nodes=None):
+        if not nodes:
+            nodes = tuple(self.cmtyContents(c))
+        nodes = set(nodes)
+        connections = [ ]
+        for n in nodes:
+            conn = 0
+            connInCmty = 0
+            for i in range(self.simatrixN[n]):
+                n2 = self.simatrixId[n,i]
+                interaction = self.simatrix[n,i]
+                if interaction >= 0: continue
+                conn += 1
+                if n2 in nodes:
+                    connInCmty += 1
+            connections.append((conn, connInCmty))
+        #print connections
+        return \
+           sum(i for c,i in connections)/float(sum(c for c,i in connections)),\
+           sum(1 for c,i in connections if i>.5*c)/float(len(connections))
+    def cmtyConnectivity(self, c=None, nodes=None):
+        if nodes is not None:
+            return numpy.mean([self.cmtyConnectivitySingle(c=None, nodes=ns)
+                               for ns in nodes],
+                              axis=0)
+        if c is None:
+            c = self.cmtys()
+        return numpy.mean([self.cmtyConnectivitySingle(c=c_) for c_ in c],
+                          axis=0)
     def hashInit(self):
         return cmodels.hashInit(self._struct_p)
 
