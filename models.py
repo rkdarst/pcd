@@ -67,6 +67,7 @@ class Graph(anneal._GraphAnneal, cmodels._cobj, object):
         self.N = N
         self.oneToOne = 1
         self.hasFull = 1
+        self.hasPrimaryCmty = 1
         if rmatrix:
             self._allocRmatrix()
         if overlap:
@@ -108,6 +109,7 @@ class Graph(anneal._GraphAnneal, cmodels._cobj, object):
         del state['cmtyListHash']
         state['__extra_attrs'] = { }
         for name in ('N', 'Ncmty', 'oneToOne', 'hasSparse', 'hasFull',
+                     'hasPrimaryCmty',
                      'simatrixDefault', 'srmatrixDefault', 'simatrixLen'):
             state['__extra_attrs'][name] = getattr(self, name)
         #for name, type_ in self._struct._fields_:
@@ -165,6 +167,7 @@ class Graph(anneal._GraphAnneal, cmodels._cobj, object):
         state = { }
         state['version'] = 0
         state['oneToOne'] = self.oneToOne
+        state['hasPrimaryCmty'] = self.hasPrimaryCmty
         state['cmtyContents'] = { }
         for c in self.cmtys():
             state['cmtyContents'][c] = tuple(self.cmtyContents(c))
@@ -190,6 +193,7 @@ class Graph(anneal._GraphAnneal, cmodels._cobj, object):
             if state['oneToOne'] and not actuallyOneToOne:
                 raise Exception("oneToOne value does not match.")
             self.oneToOne = state['oneToOne']
+            self.hasPrimaryCmty = state['hasPrimaryCmty']
             self.cmty[:] = state['cmtyList']
         else:
             raise Exception("Unknown version of state to load communities.")
@@ -447,7 +451,7 @@ class Graph(anneal._GraphAnneal, cmodels._cobj, object):
         showing that every community is connected to every other
         community.
         """
-        self.remapCommunities()
+        self.remap()
         N = self.q
         G = self.__class__(N=N)
         for c1 in range(N):
@@ -745,7 +749,7 @@ class Graph(anneal._GraphAnneal, cmodels._cobj, object):
     # Methods that deal with minimization/optimization
     #
     def trials(self, gamma, trials, initial='random',
-               minimizer='minimize', **kwargs):
+               minimizer='greedy', **kwargs):
         """Minimize system using .minimize() and `trials` trials.
 
         This will minimize `trials` number of times, and set the final
@@ -803,7 +807,38 @@ class Graph(anneal._GraphAnneal, cmodels._cobj, object):
     # Keep backwards compatibility for now.
     minimize_trials = trials
 
-    def minimize(self, gamma):
+    def alternate(self, funcs, mode="restart"):
+        """Alternately call funcA and funcB.
+        """
+        if self.verbosity >= 0:
+            print "beginning alternating", " ".join(f.func_name for f in funcs)
+        lastChanges = [ None ] * len(funcs)
+        rounds = [ 0 ] * len(funcs)
+
+        for round_ in itertools.count():
+            # For each of the `funcs` passed,
+            for i, func in enumerate(funcs):
+                changes = func()
+                self.remap(check=False)
+                if changes > 0:
+                    rounds[i] += 1
+                lastChanges[i] = changes
+                if self.verbosity >= 2:
+                    print "  (r%2s) %s: cmtys, changes: %4d %4d"%(
+                        round_, func.func_name, self.q, changes)
+                # At the first function that makes any changes, start over
+                if mode == "restart" and changes > 0:
+                    break
+            if None not in lastChanges and sum(lastChanges) == 0:
+                break
+
+            if round_ > 250:
+                print "  Exceeding maximum number of rounds."
+                break
+        return tuple(rounds) + (sum(lastChanges), )
+
+
+    def greedy(self, gamma):
         """Minimize the communities at a certain gamma.
 
         This function requires a good starting configuration.  To do
@@ -818,7 +853,7 @@ class Graph(anneal._GraphAnneal, cmodels._cobj, object):
 
         for round_ in itertools.count():
             self._gen_random_order()
-            changesMoving = self._minimize(gamma=gamma)
+            changesMoving = self._greedy(gamma=gamma)
             if changesMoving > 0:
                 roundsMoving += 1
             #if round_%2 == 0:
@@ -834,8 +869,8 @@ class Graph(anneal._GraphAnneal, cmodels._cobj, object):
             # If we got no changes, then try combining communities
             # before breaking out.
             if changesMoving == 0:
-                self.remapCommunities(check=False)
-                changesCombining = self.combine_cmtys(gamma=gamma)
+                self.remap(check=False)
+                changesCombining = self.combine(gamma=gamma)
                 #changesCombining = self.combine_cmtys_supernodes(gamma=gamma)
                 if changesCombining > 0:
                     roundsCombining += 1
@@ -845,7 +880,7 @@ class Graph(anneal._GraphAnneal, cmodels._cobj, object):
                                           round_, self.q, changesCombining), \
                                                   "(<-- combining communities)"
 
-                self.remapCommunities(check=False)
+                self.remap(check=False)
                 roundsCombining += 1
             # If we have no changes in regular and combinations, escape
             if changesMoving == 0 and changesCombining == 0:
@@ -855,11 +890,12 @@ class Graph(anneal._GraphAnneal, cmodels._cobj, object):
                 break
         #print set(self.cmty),
         if self._use_overlap:
-            self.overlapMinimize(gamma)
+            self.greedyOverlap(gamma)
         return roundsMoving, roundsCombining, changes
-    def _minimize(self, gamma):
-        return cmodels.minimize(self._struct_p, gamma)
-    def overlapMinimize(self, gamma):
+    minimize = greedy
+    def _greedy(self, gamma):
+        return cmodels.greedy(self._struct_p, gamma)
+    def greedyOverlap(self, gamma):
         """Attempting to add particles to overlapping communities.
         """
         if not self.hasSparse:
@@ -873,7 +909,7 @@ class Graph(anneal._GraphAnneal, cmodels._cobj, object):
         roundsRemoving = 0
 
         for round_ in itertools.count():
-            changes_add = self._overlapMinimize_add(gamma)
+            changes_add = self._overlapAdd(gamma)
             if changes_add > 0:
                 roundsAdding += 1
             changes += changes_add
@@ -883,7 +919,7 @@ class Graph(anneal._GraphAnneal, cmodels._cobj, object):
             if changes_add == 0 and changes_remove == 0:
                 break
             if changes_add == 0:
-                changes_remove = self._overlapMinimize_remove(gamma)
+                changes_remove = self._overlapRemove(gamma)
                 if changes_remove > 0:
                     roundsRemoving += 1
                 changes += changes_remove
@@ -896,15 +932,27 @@ class Graph(anneal._GraphAnneal, cmodels._cobj, object):
                 print "  Exceeding maximum number of rounds"
                 break
         return roundsAdding, roundsRemoving, changes
-    def _overlapMinimize_add(self, gamma):
-        return cmodels.overlapMinimize_add(self._struct_p, gamma)
-    def _overlapMinimize_remove(self, gamma):
-        return cmodels.overlapMinimize_remove(self._struct_p, gamma)
+    def _overlapAdd(self, gamma):
+        return cmodels.overlapAdd(self._struct_p, gamma)
+    def _overlapRemove(self, gamma):
+        return cmodels.overlapRemove(self._struct_p, gamma)
+    def ovgreedy(self, gamma):
+        def A(): return cmodels.overlapAdd(self._struct_p, gamma)
+        def B(): return cmodels.overlapRemove(self._struct_p, gamma)
+        def C(): return cmodels.combine_sparse_overlap(self._struct_p, gamma)
+        def D(): return self.combineSubsets()
+        return self.alternate(funcs=(A, B, C, D))
+    def ovfree(self, gamma):
+        def A(): return cmodels.overlapAdd(self._struct_p, gamma)
+        def B(): return cmodels.overlapRemove2(self._struct_p, gamma)
+        def C(): return cmodels.combine_sparse_overlap(self._struct_p, gamma)
+        def D(): return self.combineSubsets()
+        return self.alternate(funcs=(A, B, C, D))
 
-    def combine_cmtys(self, gamma):
+    def combine(self, gamma):
         """Attempt to combine communities if energy decreases."""
-        return cmodels.combine_cmtys(self._struct_p, gamma)
-    def combine_cmtys_supernodes(self, gamma, maxdepth=1):
+        return cmodels.combine(self._struct_p, gamma)
+    def combine_supernodes(self, gamma, maxdepth=1):
         """Attempt to combine communities if energy decreases.
 
         Uses a more general recursive-Graph method."""
@@ -920,7 +968,7 @@ class Graph(anneal._GraphAnneal, cmodels._cobj, object):
         # If entire interaction matrix is positive, combining is futile.
         if not numpy.any(subG.imatrix < 0):
             return 0
-        changes = subG.minimize(gamma=gamma)
+        changes = subG.greedy(gamma=gamma)
         # No need to try to reload subgraph if no changes.
         if changes == 0:
             return 0
@@ -933,8 +981,27 @@ class Graph(anneal._GraphAnneal, cmodels._cobj, object):
         print "==== done minimizing subgraph, depth:", depth
 #        raw_input(str(changes)+'>')
         return changes
+    def combineSubsets(self):
+        print "combineSubsets:"
+        changes = 0
+        for c0 in range(self.Ncmty):
+            #print "c0:", c0
+            if self.cmtyN[c0] == 0: continue
+            for c1 in range(self.Ncmty-1, c0, -1):
+                if self.cmtyN[c1] == 0: continue
+                if self.cmtyIsSubset(c1, c0):  # is c1 a subset of c0?
+                    # if so, delete c1, move these items into c0:
+                    print "moving c1=%d (cN=%d) into c0=%s (cN=%d)"%(
+                        c1, self.cmtyN[c1], c0, self.cmtyN[c0])
+                    #print "c0:", len(cset0)
+                    #print "c1:", len(cset1)
+                    for n in tuple(self.cmtyContents(c1)):
+                        #print "moving n:", n
+                        self.cmtyMoveSafe(n, c1, c0)
+                    changes += 1
+        return changes
 
-    def remapCommunities_python(self, check=True):
+    def remap_python(self, check=True):
         """Collapse all communities into the lowest number needed to
         represent everything.
 
@@ -979,15 +1046,15 @@ class Graph(anneal._GraphAnneal, cmodels._cobj, object):
             self.Ncmty -= 1;
         if check:
             self.check()
-    def remapCommunities_c(self, check=False):
+    def remap_c(self, check=False):
         if self.verbosity >= 2:
             print "        remapping communities (c):",
-        changes = cmodels.remap_cmtys(self._struct_p)
+        changes = cmodels.remap(self._struct_p)
         if self.verbosity >= 2:
             print changes, "changes"
         if check:
             self.check()
-    remapCommunities = remapCommunities_c
+    remap = remap_c
 
 
 
@@ -1285,7 +1352,7 @@ if __name__ == "__main__":
         G.cmtyCreate()
         G.check()
         #G.test()
-        G.minimize(gamma=1.0)
+        G.greedy(gamma=1.0)
         #G.remapCommunities()
         #G.remapCommunities()
         #G.check()

@@ -18,6 +18,7 @@ typedef struct Graph {
   int N;
   int Ncmty;
   int oneToOne;
+  int hasPrimaryCmty;
 
   int *cmty;
   imatrix_t *imatrix;
@@ -55,8 +56,8 @@ double energy_cmty(Graph_t G, double gamma, int c);
 double energy_cmty_n(Graph_t G, double gamma, int c, int n);
 
 double energy_sparse(Graph_t G, double gamma);
-int minimize_sparse(Graph_t G, double gamma);
-int combine_cmtys_sparse(Graph_t G, double gamma);
+int greedy_sparse(Graph_t G, double gamma);
+int combine_sparse(Graph_t G, double gamma);
 
 
 

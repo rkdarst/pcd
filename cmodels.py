@@ -13,6 +13,7 @@ c_long   = ctypes.c_long
 c_float  = ctypes.c_float
 c_double = ctypes.c_double
 c_int_p  = ctypes.POINTER(c_int)
+c_double_p = ctypes.POINTER(c_double)
 
 _fname = os.path.join(os.path.dirname(__file__),'imatrix_t.py')
 imatrix_t = eval(open(_fname).read())
@@ -107,6 +108,7 @@ cGraph._fields_ = [
     ("N",            c_int),
     ("Ncmty",        c_int),
     ("oneToOne",     c_int),
+    ("hasPrimaryCmty",c_int),
 
     ("cmty",         c_int_p),
     ("imatrix",      imatrix_t_p),
@@ -149,6 +151,10 @@ cfuncs = (
 
     ("hashInit",         None,      (cGraph_p, )),
     ("hashDestroy",      None,      (cGraph_p, )),
+    ("hashCreate",       c_int,     (cGraph_p, )),
+
+    ("SetInit",          c_void_p, ( )),
+    ("SetDestroy",       None,     (c_void_p, )),
 
     ("cmtyListInit",     None,      (cGraph_p, )),
     ("cmtyListCheck",    c_int,     (cGraph_p, )),
@@ -163,12 +169,7 @@ cfuncs = (
     ("isInCmty",         c_int,     (cGraph_p, c_int, c_int)),
     ("cmtyIsSubset",     c_int,     (cGraph_p, c_int, c_int)), # csmall, cbig
 
-    ("hashCreate",       c_int,    (cGraph_p, )),
-    ("hashInit",         c_int,    (cGraph_p, )),
-    ("hashDestroy",      c_int,    (cGraph_p, )),
 
-    ("SetInit",          c_void_p, ( )),
-    ("SetDestroy",       None,     (c_void_p, )),
 
     ("q",                c_int,     (cGraph_p, )),
     ("entropy",          c_double,  (cGraph_p, )),
@@ -176,6 +177,8 @@ cfuncs = (
                          c_double, (cGraph_p, cGraph_p )),
     ("H2",               c_double, (cGraph_p, cGraph_p, c_int, c_int)),
     ("HX_Ynorm",         c_double, (cGraph_p, cGraph_p)),
+    ("F1_one",           c_double, (cGraph_p, c_int, cGraph_p,
+                                    c_double_p, c_double_p)),
 
     ("energy_naive",  c_double, (cGraph_p, c_double)),
     ("energy",        c_double, (cGraph_p, c_double)),
@@ -184,16 +187,16 @@ cfuncs = (
     ("energy_cmty_cmty", c_double, (cGraph_p, c_double, c_int, c_int)),
     ("energy_n",      c_double, (cGraph_p, c_double, c_int)),
 
-    ("minimize_naive",c_int,    (cGraph_p, c_double)),
-    ("minimize",      c_int,    (cGraph_p, c_double)),
-    ("overlapMinimize_add",
-                      c_int,    (cGraph_p, c_double)),
-    ("overlapMinimize_remove",
-                      c_int,    (cGraph_p, c_double)),
+    ("greedy_naive",  c_int,    (cGraph_p, c_double)),
+    ("greedy",        c_int,    (cGraph_p, c_double)),
+    ("overlapAdd",    c_int,    (cGraph_p, c_double)),
+    ("overlapRemove", c_int,    (cGraph_p, c_double)),
+    ("overlapRemove2",c_int,    (cGraph_p, c_double)),
     ("anneal",        c_int,    (cGraph_p, c_double, c_double,
                                  c_int, c_double)),
-    ("combine_cmtys", c_int,    (cGraph_p, c_double)),
-    ("remap_cmtys",   c_int,    (cGraph_p, )),
+    ("combine",       c_int,    (cGraph_p, c_double)),
+    ("combine_sparse_overlap",c_int,    (cGraph_p, c_double)),
+    ("remap",         c_int,    (cGraph_p, )),
 
     )
 

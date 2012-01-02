@@ -3,12 +3,15 @@
 import numpy
 import random
 import networkx.algorithms
+import os
 
 import pcd
 import pcd.graphs
 import pcd.util
 
 fast = globals().get('fast', False)
+if not os.access('tests-output/tribes/', os.F_OK):
+    os.mkdir('tests-output/tribes/')
 
 # weights of -1, 2, 6 seem to make it match the paper... for q.
 g = pcd.graphs.polopa_tribes(weightAllied=-1, weightHostile=2)
@@ -46,20 +49,24 @@ while True:
 #exit(2)
 
 ntrials, ldensity = 100, 100
-#if fast:
-#    ntrials, ldensity = 10, 10
+ntrials, ldensity = 5, 30
+if fast:
+    ntrials, ldensity = 10, 10
 
 #for a,b in [random.sample(range(G.N), 2) for _ in range(1000)]:
 #    pcd.util.matrix_swap_basis(G.imatrix, a, b)
 from pcd import LogInterval
-MR = pcd.MultiResolution()
+import pcd.F1
+MR = pcd.MultiResolution(calcSettings=dict(ntrials=ntrials))
 MR.do(Gs=[G]*12, gammas=LogInterval(low=.01, high=10, density=ldensity),
-      trials=ntrials)
-MR.write("tmp-polopatribes.txt")
+      )
+MR.write("tests-output/tribes/tribes.txt")
+MR.plot("tests-output/tribes/tribes.png",
+        ax1items=('VI', 'In', 's_F1'))
 #MR.viz()
 
 #for a,b in [random.sample(range(G2.N), 2) for _ in range(1000)]:
 #    pcd.util.matrix_swap_basis(G2.imatrix, a, b)
 #MR = pcd.MultiResolution(low=.01, high=10)
 #MR.do(Gs=[G2]*12, trials=50)
-#MR.write("tmp-polopatribes2.txt")
+#MR.write("tests-outputs/tribes/tmp-polopatribes2.txt")

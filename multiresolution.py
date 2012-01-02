@@ -44,7 +44,7 @@ class MultiResolutionCorrelation(object):
             overlapGs = [ G.copy() for G in Gs ]
             [ G.trials(gamma, trials=overlapTrials, initial='current',
                        minimizer=calcSettings.get('overlapMinimizer',
-                                                'overlapMinimize'))
+                                                  'greedyOverlap'))
               for G in overlapGs ]
             self.cmtyStateOverlap = tuple(G.getcmtystate() for G in overlapGs)
         else:
@@ -163,11 +163,14 @@ class MultiResolutionCorrelation(object):
     def calc_multualInformation(self, data, calcSettings):
         Gs = data['Gs']
         pairIndexes = data['pairIndexes']
+        def _entropy(G):
+            if G.oneToOne: return G.entropy
+            else: return 1
         Is = [ util.mutual_information(Gs[i],Gs[j])
                for i,j in pairIndexes ]
-        VI = numpy.mean([Gs[i].entropy + Gs[j].entropy - 2*mi
+        VI = numpy.mean([_entropy(Gs[i]) + _entropy(Gs[j]) - 2*mi
                          for ((i,j), mi) in zip(pairIndexes, Is)])
-        In = numpy.mean([2*mi / (Gs[i].entropy + Gs[j].entropy)
+        In = numpy.mean([2*mi / (_entropy(Gs[i]) + _entropy(Gs[j]))
                          for ((i,j), mi) in zip(pairIndexes, Is)
                          if Gs[i].q!=1 or Gs[j].q!=1])
         returns = [('I',  numpy.mean(Is)),
@@ -227,7 +230,7 @@ class MultiResolutionCorrelation(object):
                 G.setcmtystate(state)
         else:
             [ G.trials(self.gamma, trials=self.overlapTrials, initial='current',
-                       minimizer='overlapMinimize')
+                       minimizer='greedyOverlap')
               for G in overlapGs ]
             self.cmtyStateOverlap = tuple(G.getcmtystate() for G in overlapGs)
         return overlapGs

@@ -27,13 +27,13 @@ import networkx.drawing.layout as layout
 layout = layout.spring_layout(graph)
 
 G = pcd.Graph.fromNetworkX(graph, defaultweight=1, coords=layout)
-G.minimize_trials(gamma=gamma, trials=10)
+G.trials(gamma=gamma, trials=10)
 
 print G.q
 print G.energy(gamma=gamma)
 print sorted(G.n_counts().iteritems())
 
-G.overlapMinimize(gamma=gamma)
+G.greedyOverlap(gamma=gamma)
 print G.q
 print G.energy(gamma=gamma)
 print sorted(G.n_counts().iteritems())
@@ -44,7 +44,7 @@ print sorted(G.n_counts().iteritems())
 #
 G = pcd.graphs.fractalsquare(L=16)
 G.minimize(gamma=.1)
-G.overlapMinimize(gamma=.1)
+G.greedyOverlap(gamma=.1)
 
 G.savefig(os.path.join(outputdir, 'blah.png'),
           hulls=True, base_radius=.1)
@@ -74,7 +74,7 @@ import graphs
 G = graphs.bss2d_n240_T050()
 G.setOverlap(True)
 
-G.minimize(gamma=.1)
+G.greedy(gamma=.1)
 #G.overlapMinimize(gamma=.1)
 
 # Note: G.coords and G.boxsize are set by get_test_G so we don't need
@@ -86,7 +86,7 @@ print G.n_counts()
 print "ov degree:", overlapDegree(G)
 
 
-G.minimize_trials(gamma=.1, trials=10)
+G.trials(gamma=.1, trials=10)
 G.savefig(os.path.join(outputdir, 'amorphous_10trials.png'),
           hulls=True, base_radius=.1)
 print G.q
