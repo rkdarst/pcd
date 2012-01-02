@@ -473,7 +473,7 @@ class MultiResolution(object):
             setattr(self, fieldname,
                     numpy.asarray([getattr(mrc, fieldname) for mrc in MRCs]))
 
-        #self.N         = N         = MRCs[0].N
+        self.Nnodes         = N         = MRCs[0].nodes
 
         self.n_hist       = n_hist       = [mrc.n_hist       for mrc in MRCs]
         self.n_hist_edges = n_hist_edges = [mrc.n_hist_edges for mrc in MRCs]
@@ -512,7 +512,7 @@ class MultiResolution(object):
             ax.set_title("$\gamma=%f$"%self.gamma[i])
             ax.bar( histedges[:-1], histdata, width=(histedges[1:]-histedges[:-1]) )
             ax.set_xscale('log')
-            ax.set_xlim( 0.1 , self.N )
+            ax.set_xlim( 0.1 , self.Nnodes )
             ax.set_ylim( 0   , 1      )
             pp.savefig(f)
 
