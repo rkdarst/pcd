@@ -35,10 +35,12 @@ class _GraphAnneal(object):
             beta = 1./self._find_average_E(gamma)
         else:
             beta = 1./Escale
+        totChanges = 0
         running_changes = collections.deque((None,)*stablelength)
 
-        for i in itertools.count():
+        for nRounds in itertools.count():
             changes = self._anneal(gamma, beta=beta, steps=self.N*attempts)
+            totChanges += changes
             E = self.energy(gamma)
             if self.verbosity >= 2:
                 print "  (a%6d) %9.5f %7.2f %6d"%(i, beta, E, changes)
@@ -48,7 +50,7 @@ class _GraphAnneal(object):
             del running_changes[0]
             if all(x==0 for x in running_changes):
                 break
-        return i
+        return (nRounds, totChanges)
 
 
     def _anneal(self, gamma, beta, steps=None, deltabeta=0):

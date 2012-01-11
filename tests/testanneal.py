@@ -18,7 +18,7 @@ if not os.path.exists(dirname):
 #G = pcd.Graph.fromNetworkX(g, defaultweight=1)
 
 
-G = pcd.graphs.bss2d_n240()
+G = pcd.graphs.bss2d_n240_T050()
 
 
 print "N nodes", G.N
@@ -35,8 +35,9 @@ print G.energy(gamma)
 
 MR = pcd.MultiResolution(
     minimizer='trials',
-    minkwargs=dict(minimizer='anneal', Escale=10000, attempts=10, trials=10,
-                   betafactor=1.01),
-    savefigfname=dirname+'gamma%(gamma)09.4f.png')
+    minimizerargs=dict(minimizer='anneal', Escale=10000, attempts=10,
+                       trials=5,
+                   betafactor=1.1),
+    savefigargs=dict(fname=dirname+'gamma%(gamma)09.4f.png'))
 
-MR.do([G]*5, logGammaArgs=dict(low=.001, high=100))
+MR.do([G]*2, logGammaArgs=dict(low=.01, high=10, density=2))

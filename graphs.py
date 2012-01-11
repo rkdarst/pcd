@@ -21,6 +21,7 @@ except ImportError:
     from networkx.convert import relabel_nodes as nx_relabel_nodes
 
 import models
+from models import Graph
 import util
 
 def random_graph(graph=None, size=10, cluster=True, layout=None):
@@ -165,7 +166,10 @@ def nussinov_256node(weight=-1):
         #d['weight'] = -1
         g.edge[a][b]['weight'] = weight
     return g
-
+def nussinov_256node_G(weight=-1):
+    graph = nussinov_256node(weight=weight)
+    G = Graph.fromNetworkX(graph, defaultweight=1)
+    return G
 
 def hierarchical_graph(l, probs, random=random):
     """A hierarchical graph

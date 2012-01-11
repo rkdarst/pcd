@@ -28,7 +28,12 @@ print G.imatrix
 assert numpy.all(G.imatrix - G.imatrix.T == 0)
 
 from numpy import array
-G._layout = {'GAVEV': array([ 0.53410183,  0.06217559]), 'KOHIK': array([ 0.       ,  0.1474209]), 'UHETO': array([ 0.14830981,  0.34515878]), 'KOTUN': array([ 0.37326864,  0.        ]), 'NAGAM': array([ 0.26417734,  0.41649365]), 'ASARO': array([ 0.56901665,  0.49511319]), 'MASIL': array([ 0.55606811,  0.41225591]), 'NOTOH': array([ 0.07688195,  0.24116678]), 'UKUDZ': array([ 0.70980807,  0.41850366]), 'ALIKA': array([ 1.        ,  0.17964178]), 'GEHAM': array([ 0.43121325,  0.39188928]), 'GAHUK': array([ 0.56559475,  0.2937324 ]), 'GAMA': array([ 0.3887513 ,  0.17512021]), 'OVE': array([ 0.80835312,  0.17731299]), 'NAGAD': array([ 0.28961018,  0.10020374]), 'SEUVE': array([ 0.27922518,  0.62217477])}
+layout = {'GAVEV': array([ 0.53410183,  0.06217559]), 'KOHIK': array([ 0.       ,  0.1474209]), 'UHETO': array([ 0.14830981,  0.34515878]), 'KOTUN': array([ 0.37326864,  0.        ]), 'NAGAM': array([ 0.26417734,  0.41649365]), 'ASARO': array([ 0.56901665,  0.49511319]), 'MASIL': array([ 0.55606811,  0.41225591]), 'NOTOH': array([ 0.07688195,  0.24116678]), 'UKUDZ': array([ 0.70980807,  0.41850366]), 'ALIKA': array([ 1.        ,  0.17964178]), 'GEHAM': array([ 0.43121325,  0.39188928]), 'GAHUK': array([ 0.56559475,  0.2937324 ]), 'GAMA': array([ 0.3887513 ,  0.17512021]), 'OVE': array([ 0.80835312,  0.17731299]), 'NAGAD': array([ 0.28961018,  0.10020374]), 'SEUVE': array([ 0.27922518,  0.62217477])}
+G.coords = dict((n, layout[G._nodeLabel[n]]) for n in range(G.N))
+
+G.trials(gamma=1, trials=10)
+G.savefig('tests-output/tribes/gamma1.png', base_radius=.02)
+G.savefig('tests-output/tribes/gamma1.svg', base_radius=.02)
 
 while True:
     break

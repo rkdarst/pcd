@@ -1,11 +1,14 @@
 # Richard Darst, August 2011
 
+import os
+
 import pcd.graphs
 
-graph = pcd.graphs.nussinov_256node(weight=-1)
-#graph = pcd.graphs.relabel_nodes(graph)
-G = pcd.Graph.fromNetworkX(graph, defaultweight=1)
-G.minimize(.1)
+if not os.access("tests-output/256node", os.F_OK):
+    os.mkdir("tests-output/256node")
+
+G = pcd.graphs.nussinov_256node_G()
+G.greedy(.1)
 #G.viz()
 #exit(2)
 
@@ -15,8 +18,7 @@ print G.imatrix
 #G.viz()
 #exit()
 
-from pcd import LogInterval
-MR = pcd.MultiResolution()
-MR.do(Gs=[G]*12, gammas=LogInterval(low=.06, high=12), trials=10)
-MR.write("tmp-256node.txt")
+MR = pcd.MultiResolution(calcSettings=dict(overlap=True))
+MR.do(Gs=[G]*12, logGammaArgs=dict(low=.06, high=12))
+MR.write("tests-output/256node/mr.txt")
 #MR.viz()
