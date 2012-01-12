@@ -18,6 +18,100 @@ def distance(p1, p2, boxsize=None):
     numpy.sqrt(d, d)
     return d
 
+# This class is copied from fitz.mathutil
+class Averager(object):
+    """Numerically Stable Averager
+
+    Calculate averages and standard deviations in a numerically stable way.
+
+    From the 'On-Line Algorithm' from
+    http://en.wikipedia.org/wiki/Algorithms_for_calculating_variance
+
+    The optional initialization argument datatype= should be a
+    generator function which returns zeros of the type being averaged.
+    For example, to average numpy arrays of ten values, use:
+      Averager(datatype=lambda: numpy.zeros(10))
+    """
+    def __init__(self, datatype=float):
+        self._n      = 0
+        self._mean   = datatype()   # mean
+        self._M2     = datatype()   # variance accumulator
+    def __setstate__(self, state):
+        if 'n' in state:
+            state['_n'] = state['n']
+            del state['n']
+        self.__dict__.update(state)
+    def add(self, value):
+        """Add a new number to the dataset.
+        """
+        if isinstance(value, Averager):
+            # Add a sub-averager
+            return self._add_child(value)
+        n = self.n + 1
+        delta = value - self._mean
+        mean = self._mean + delta/n
+        M2 = self._M2 + delta*(value - mean)
+        self._n = n
+        self._mean = mean
+        self._M2 = M2
+        return self
+    __iadd__ = add
+
+    def _add_child(self, child):
+        if hasattr(self, "_child"):
+            self._child.add(child)
+        else:
+            self._child = child
+        return self
+
+    @property
+    def n(self):
+        """Number of points"""
+        if hasattr(self, "_child"):
+            return self._n + self._child.n
+        return self._n
+    @property
+    def mean(self):
+        """Mean"""
+        if hasattr(self, "_child"):
+            #if self._n > 1e3 and self._child.n > 1e3:
+            #    # Large value one
+            #    return (self._n*self._mean + self._child.n*self._child.mean) /\
+            #           (self._n + self._child.n)
+
+            delta = self._child.mean - self._mean
+            return self._mean + delta * self._child.n/(self._n+self._child.n)
+        return self._mean
+    @property
+    def M2(self):
+        """M2 algorithm parameter"""
+        if hasattr(self, "_child"):
+            delta = self._child.mean - self._mean
+            return self._M2 + self._child.M2 + \
+                   delta**2 * (self._n*self._child.n)/(self._n+self._child.n)
+        return self._M2
+    @property
+    def std(self):
+        """Population Variance"""
+        if self.n == 0: return float('nan')
+        return math.sqrt(self.M2 / self.n)
+    @property
+    def stdsample(self):
+        """Sample Variance"""
+        if self.n <= 1: return float('nan')
+        return math.sqrt(self.M2 / (self.n-1))
+    @property
+    def var(self):
+        """Population Standard Deviation"""
+        if self.n == 0: return float('nan')
+        return self.M2 / self.n
+    @property
+    def varsample(self):
+        """Sample Standard Deviation"""
+        if self.n <= 1: return float('nan')
+        return self.M2 / (self.n-1)
+
+
 # This class is copied from fitz.loginterval
 class LogInterval(object):
     """

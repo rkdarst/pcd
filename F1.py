@@ -58,7 +58,7 @@ def F1(G0, G):
             numpy.mean(vals[1]),  # precision
             numpy.mean(vals[2]),) # recall
 
-def calc_P0(self, data, calcSettings):
+def calc_P0(self, data, settings):
     Gs = data['Gs']
     overlapGs = data['overlapGs']
 
@@ -74,8 +74,8 @@ def calc_P0(self, data, calcSettings):
             ('PO_ov_std', PO_ov_std),
             ]
 #pcd.MultiResolutionCorrelation.calcMethods.append(calc_P0)
-def calc_F1(self, data, calcSettings):
-    G0 = calcSettings.get('G0', None)
+def calc_F1(self, data, settings):
+    G0 = getattr(self, 'G0', None)
     Gs = data['Gs']
     overlapGs = data.get('overlapGs', None)
     returns = [ ]
@@ -123,4 +123,4 @@ def calc_F1(self, data, calcSettings):
             ('s_F1_ov_recl',   numpy.mean(s_recl_ovs)),
             ])
     return returns
-pcd.MultiResolutionCorrelation.calcMethods.append(calc_F1)
+pcd.MultiResolution.calcMethods.append(calc_F1)
