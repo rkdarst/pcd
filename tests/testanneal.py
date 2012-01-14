@@ -36,8 +36,8 @@ print G.energy(gamma)
 MR = pcd.MultiResolution(
     minimizer='trials',
     minimizerargs=dict(minimizer='anneal', Escale=10000, attempts=10,
-                       trials=5,
-                   betafactor=1.1),
+                       trials=1,
+                       betafactor=1.1),
     savefigargs=dict(fname=dirname+'gamma%(gamma)09.4f.png'))
 
-MR.do([G]*2, logGammaArgs=dict(low=.01, high=10, density=2))
+MR.run([G]*2, gammas=dict(low=.01, high=10, density=2))

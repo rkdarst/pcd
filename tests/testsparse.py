@@ -6,8 +6,8 @@ import sys
 import pcd
 import pcd.graphs
 
-#G = pcd.graphs.bss2d_n240_T050()
-G = pcd.graphs.bss2d_n5760_T040()
+G = pcd.graphs.bss2d_n240_T050()
+#G = pcd.graphs.bss2d_n5760_T040()
 #G = pcd.graphs.bss2d_n23040_T040()
 
 G2 = G.copy()
@@ -22,14 +22,14 @@ G.make_sparse(cutoff=499.1,
 
 #G.cmtyCreate()
 gamma=.0001
-if sys.argv[1] == 's':
+if len(sys.argv) > 1 and sys.argv[1] != 's':
+    G2.trials(gamma=gamma, trials=10)
+else:
     G.trials(gamma=gamma, trials=10)
     #G.trials(gamma=gamma, minimizer='overlapMinimize', trials=10,
     #         initial='current')
-else:
-    G2.trials(gamma=gamma, trials=10)
-
 
 MR = pcd.MultiResolution()
-MR.do([G]*5, logGammaArgs=dict(low=.001,high=100),
+MR.run([G]*5, gammas=dict(low=.001,high=100),
       threads=2)
+

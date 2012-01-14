@@ -18,7 +18,8 @@ print G.imatrix
 #G.viz()
 #exit()
 
-MR = pcd.MultiResolution(calcSettings=dict(overlap=True))
-MR.do(Gs=[G]*12, logGammaArgs=dict(low=.06, high=12))
+MR = pcd.MultiResolution(overlap=True)
+runner = MR.runner()
+runner.do(Gs=[G]*12, gammas=dict(low=.06, high=12))
 MR.write("tests-output/256node/mr.txt")
 #MR.viz()

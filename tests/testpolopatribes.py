@@ -62,9 +62,18 @@ if fast:
 #    pcd.util.matrix_swap_basis(G.imatrix, a, b)
 from pcd import LogInterval
 import pcd.F1
-MR = pcd.MultiResolution(calcSettings=dict(ntrials=ntrials))
-MR.do(Gs=[G]*12, gammas=LogInterval(low=.01, high=10, density=ldensity),
-      )
+
+MR = pcd.MultiResolution(overlap=5)
+G.make_sparse('auto')
+G.verbosity = -1
+
+MRR = pcd.MRRunner(MR)
+#raw_input('before MRR >')
+MRR.do(Gs=[G]*12,
+       #gammas=LogInterval(low=.01, high=10, density=ldensity).values(),
+       gammas=dict(low=.01, high=10, density=ldensity),
+       )
+#raw_input('after MRR >')
 MR.write("tests-output/tribes/tribes.txt")
 MR.plot("tests-output/tribes/tribes.png",
         ax1items=('VI', 'In', 's_F1'))

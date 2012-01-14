@@ -46,11 +46,10 @@ MR = pcd.MultiResolution(
         base_radius=0.4),
     minimizerargs=dict(trials=ntrials),
     )
-MR.do([G]*nreplicas, gammas, threads=1,
-      )
+MR.run([G]*nreplicas, gammas, threads=1,
+       )
 #MR = pcd.MultiResolution(0.1, 1, callback=callback, number=10)
 #MR.do([G]*10, trials=10, threads=2)
-MR.calc()
 MR.write(os.path.join(dirname, "mr.txt"))
 #MR.plot(os.path.join(dirname, amorphous_mr.png"))
 #MR.plot_nmean(os.path.join(dirname, "amorphous_mr_nmean.png"))

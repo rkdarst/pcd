@@ -33,7 +33,7 @@ print G.q
 print G.energy(gamma=gamma)
 print sorted(G.n_counts().iteritems())
 
-G.greedyOverlap(gamma=gamma)
+G.ovGreedy(gamma=gamma)
 print G.q
 print G.energy(gamma=gamma)
 print sorted(G.n_counts().iteritems())
@@ -44,7 +44,7 @@ print sorted(G.n_counts().iteritems())
 #
 G = pcd.graphs.fractalsquare(L=16)
 G.minimize(gamma=.1)
-G.greedyOverlap(gamma=.1)
+G.ovGreedy(gamma=.1)
 
 G.savefig(os.path.join(outputdir, 'blah.png'),
           hulls=True, base_radius=.1)
@@ -72,7 +72,7 @@ G.savefig(os.path.join(outputdir, 'blah.png'),
 
 import graphs
 G = graphs.bss2d_n240_T050()
-G.setOverlap(True)
+#G.setOverlap(True)
 
 G.greedy(gamma=.1)
 #G.overlapMinimize(gamma=.1)

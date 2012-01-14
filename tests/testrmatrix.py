@@ -30,7 +30,8 @@ G = pcd.Graph.from_coords_and_efunc(coords, e_inverse_6,
 if not os.path.exists('tests-output/rmatrix'):
     os.makedirs('tests-output/rmatrix')
 
-def callback(G, gamma, **kwargs):
+def callback(gamma, data, state, **kwargs):
+    G = data['Gmin']
     G.remapCommunities(check=False)
     fname = 'tests-output/rmatrix/gamma%09.4f.png'%gamma
     Es = [ G.energy_n(gamma, n) for n in range(G.N) ]
@@ -42,7 +43,8 @@ if globals().get('fast', False):
     nreplicas, ntrials, ldensity = 5, 5, 10
 
 MR = pcd.MultiResolution()
-MR.do([G]*nreplicas, logGammaArgs=dict(low=.00001, high=100, density=ldensity),
-      trials=ntrials, threads=2, callback=callback)
+MR.run([G]*nreplicas,
+       gammas=dict(low=.00001, high=100, density=ldensity),
+       threads=2, callback=callback)
 MR.calc()
 MR.plot("tests-output/rmatrix/multiresolution.png")

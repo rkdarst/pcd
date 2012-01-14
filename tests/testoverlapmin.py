@@ -51,8 +51,12 @@ for i,n1 in enumerate(nodes):
 
 G = pcd.Graph.fromNetworkX(g, defaultweight=1)
 
-G.trials(gamma=1, trials=10)
-G.trials(gamma=1, trials=10, minimizer='overlapMinimize')
+trials = 10 ; density = 10
+if 'fast' in globals():
+    trials = 2 ; density = 3
+
+G.trials(gamma=1, trials=trials)
+G.trials(gamma=1, trials=trials, minimizer='ovGreedy')
 
 
 #nx.drawing.nx_pydot.pydot_layout(g)
@@ -73,10 +77,16 @@ print G.coords
 #G.viz()
 #exit()
 
+trials=10
+density=10
+if 'fast' in globals():
+    trials = 2 ; density = 3
+
+
 MR = pcd.MultiResolution(
     #savefigargs=dict(fname='tests-output/overlapmin/mr.png'),
-    minkwargs=dict(minimizer='overlapMinimize', trials=10),
+    minimizerargs=dict(minimizer='ovGreedy', trials=trials),
     plotargs=dict(fname='tests-output/overlapmin/mr.png'),
-    overlap=True)
-MR.do([G]*5, logGammaArgs=dict(low=.001,high=100))
+    overlap=5)
+MR.run([G]*5, gammas=dict(low=.001,high=100, density=density))
 

@@ -895,7 +895,7 @@ class Graph(anneal._GraphAnneal, cmodels._cobj, object):
     minimize = greedy
     def _greedy(self, gamma):
         return cmodels.greedy(self._struct_p, gamma)
-    def greedyOverlap(self, gamma):
+    def ovGreedy(self, gamma):
         """Attempting to add particles to overlapping communities.
         """
         if not self.hasSparse:

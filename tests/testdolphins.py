@@ -22,8 +22,9 @@ print G.imatrix
 #G.viz()
 #exit()
 import pcd.F1
-MR = pcd.MultiResolution(calcSettings=dict(overlap=True))
-MR.do(Gs=[G]*12, logGammaArgs=dict(low=.007, high=11))
+MR = pcd.MultiResolution(overlap=5)
+MR.run(Gs=[G]*12, gammas=dict(low='auto', high=11))
+
 MR.write("tests-output/dolphins/tmp-dolphins.txt")
 MR.plot(fname='tests-output/dolphins/mr.png',
         ax1items=('VI', 'In', 'ov_N', 'entropy', 's_F1'))

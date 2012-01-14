@@ -18,7 +18,7 @@ if fast:
     ldensity = 10
 
 MR = pcd.MultiResolution()
-MR.do([G]*10, logGammaArgs=dict(low=0.05, high=50, density=ldensity),
-      trials=10, threads=2)
+MR.run([G]*10, gammas=dict(low=0.05, high=50, density=ldensity),
+      threads=2)
 MR.write('tmp-karate.txt')
 MR.plot("karate_.png")

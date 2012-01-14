@@ -47,8 +47,8 @@ assert (G.cmtyl != G2.cmtyl).any()
 #sys.exit(1)
 G .check()
 G2.check()
-G .minimize(1.0)
-G2.minimize(.01) # use different gammas, otherwise it is too likely to
+G .greedy(1.0)
+G2.greedy(.01) # use different gammas, otherwise it is too likely to
                  # be identical results
 G .check()
 G2.check()
@@ -73,13 +73,13 @@ G.cmtyListInit()
 G.check()
 
 # Test various ways of manipulating the lists
-G.minimize(1.0)
+G.greedy(1.0)
 G.check()
 
-G.minimize(0)
+G.greedy(0)
 G.check()
 
-G.remapCommunities()
+G.remap()
 G.check()
 
 
@@ -131,7 +131,7 @@ for i in range(10):
 # Assert that gamma=0 and we get only one community at the end
 # (everything collapses to one cmty at gamma=0)
 G.cmtyCreate()
-G.minimize(gamma=0)
+G.greedy(gamma=0)
 assert G.q == 1
 
 
@@ -140,7 +140,7 @@ assert G.q == 1
 assert G.hash() == G.hash()
 assert G.copy().hash() == G.hash()
 G2 = G.copy()
-G2.minimize(gamma=1)
+G2.greedy(gamma=1)
 assert G.hash() != G2.hash()
 
 # Test getting and setting community state.

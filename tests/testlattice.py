@@ -20,7 +20,7 @@ print (numpy.sum(G.imatrix) - numpy.sum(G.imatrix.diagonal()))/(400**2-400.)
 assert numpy.all(G.imatrix - G.imatrix.T == 0)
 
 MR = pcd.MultiResolution()
-MR.do([G]*5, logGammaArgs=dict(low=.1, high=100, density=10), trials=10)
+MR.run([G]*5, gammas=dict(low=.1, high=100, density=10))
 MR.write('tmp-lattice.txt')
 #MR.viz()
 

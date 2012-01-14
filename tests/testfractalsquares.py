@@ -47,8 +47,9 @@ if not os.path.exists('imgs'):
     print "Creating dir:",os.path.join(os.getcwd(),'imgs')
     os.mkdir('imgs')
 
-def callback(G, gamma, **kwargs):
-    G.remapCommunities(check=False)
+def callback(gamma, data, state, **kwargs):
+    G = data['Gmin']
+    G.remap(check=False)
     fname = 'imgs/gamma%011.5f.png'%gamma
     Es = [ G.energy_n(gamma, n) for n in range(G.N) ]
     G.savefig(fname, coords=coords, energies=Es,
@@ -59,7 +60,7 @@ if globals().get('fast', True):
     nreplicas, ntrials, ldensity = 5, 5, 10
 
 MR = pcd.MultiResolution()
-MR.do([G]*nreplicas, logGammaArgs=dict(low=.001, high=100, density=ldensity),
-      trials=ntrials, threads=2, callback=callback)
-MR.calc()
+MR.run([G]*nreplicas, gammas=dict(low=.001, high=100, density=ldensity),
+      threads=2, callback=callback)
+#MR.calc()
 MR.plot("imgs.png")
