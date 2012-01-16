@@ -85,11 +85,12 @@ class Graph(anneal._GraphAnneal, cmodels._cobj, object):
         """Fill C structure."""
         cmodels._cobj._allocStruct(self, cmodels.cGraph)
 
-        self._allocArray("cmtyll", shape=[N]*2)
-        self._allocArray("cmtyl", shape=N, dtype=ctypes.c_void_p)
-        self._allocArrayPointers(self.cmtyl, self.cmtyll)
+        #self._allocArray("cmtyll", shape=[N]*2)
+        #self._allocArray("cmtyl", shape=N, dtype=ctypes.c_void_p)
+        #self._allocArrayPointers(self.cmtyl, self.cmtyll)
         self._allocArray("cmty",  shape=N)
         self._allocArray("cmtyN", shape=N)
+        self._allocArray("tmp",  shape=N)
         self._allocArray("randomOrder", shape=N)
         self._allocArray("randomOrder2", shape=N)
         self.randomOrder[:]  = numpy.arange(N)
@@ -116,6 +117,7 @@ class Graph(anneal._GraphAnneal, cmodels._cobj, object):
         #    if name in state  and isinstance(state[name], numpy.ndarray):
         #        setattr(self, name, state[name])
         #        del state[name]
+        state['cmtystate'] = self.getcmtystate()
         return state
     def __setstate__(self, state):
         """Set state when unpickling"""
@@ -126,16 +128,18 @@ class Graph(anneal._GraphAnneal, cmodels._cobj, object):
             if name in state and isinstance(state[name], numpy.ndarray):
                 self._allocArray(name, array=state[name])
                 del state[name]
-        self._allocArrayPointers(self.cmtyl, self.cmtyll)
+        #self._allocArrayPointers(self.cmtyl, self.cmtyll)
         for k, v in state['__extra_attrs'].items():
             setattr(self, k, v)
         del state['__extra_attrs']
+        cmtystate = state.pop('cmtystate')
         self.__dict__.update(state)
         self._allocArray('cmtyListHash', shape=self.N, dtype=cmodels.c_void_p,
                         dtype2=cmodels.c_void_p)
         cmodels.C.hashCreate(self._struct_p)
         cmodels.C.hashInit(self._struct_p)
         self._struct.seenList = cmodels.C.SetInit()
+        self.setcmtystate(cmtystate)
     def copy(self):
         """Return a copy of the object (not sharing data arrays).
         """
@@ -182,6 +186,7 @@ class Graph(anneal._GraphAnneal, cmodels._cobj, object):
             actuallyOneToOne = True
             for c, nodes in sorted(state['cmtyContents'].items()):
                 for n in nodes:
+                    #print "clAO:", c, n, self.cmtyN[c]
                     self.cmtyListAddOverlap(c, n)
                 # Detect if we have a repeat of any nodes.  If so, we
                 # can not be one to one.
@@ -197,7 +202,7 @@ class Graph(anneal._GraphAnneal, cmodels._cobj, object):
             self.cmty[:] = state['cmtyList']
         else:
             raise Exception("Unknown version of state to load communities.")
-        self.hashInit()
+        #self.hashInit() #cmtyListAddOverlap keeps hashes properly working now.
         #self.check() # can't check non-oneToOne (yet)
     def hash(self):
         """Hash of state of self.
@@ -205,9 +210,12 @@ class Graph(anneal._GraphAnneal, cmodels._cobj, object):
         This is not a real Python hash, since this is a mutable object."""
         return hash((
             self.oneToOne,
+            self.hasPrimaryCmty,
+            self.hasFull, self.hasSparse,
             tuple(self.cmty.flat),
             tuple(self.cmtyN.flat),
-            tuple(tuple(self.cmtyContents(c)) for c in self.cmtys()),
+            tuple(self.cmtys()), # possibly redundant
+            tuple(tuple(sorted(self.cmtyContents(c))) for c in self.cmtys()),
             ))
     def has_rmatrix(self):
         """True if system has self.rmatrix defined
@@ -492,7 +500,16 @@ class Graph(anneal._GraphAnneal, cmodels._cobj, object):
         assert errors == 0, "We have %d errors"%errors
         #errors = self._check_sparse(imatrixDefault=500)
         #assert errors == 0, "We have %d errors (2)"%errors
-        assert self.q == len(set(self.cmty))
+        if self.oneToOne:
+            assert self.q == len(set(self.cmty))
+        # Verify that oneToOne is correct
+        # (no node is in more than one community):
+        if self.oneToOne:
+            for c in self.cmtys():
+                for n in self.cmtyContents(c):
+                    assert self.cmty[n] == c
+                    if self.cmty[n] != c:
+                        errors += 1
         return errors
     def _test(self):
         return cmodels.test(self._struct_p)
@@ -587,6 +604,7 @@ class Graph(anneal._GraphAnneal, cmodels._cobj, object):
         self.cmty[:] = NO_CMTY
         self.cmtyN[:] = 0
         self.Ncmty = 0
+        self.hashClear()
     def cmtyListAdd(self, c, n):
         """Add node n to community c."""
         cmodels.cmtyListAdd(self._struct_p, c, n)
@@ -615,7 +633,12 @@ class Graph(anneal._GraphAnneal, cmodels._cobj, object):
         raise NotImplementedError("cmtySet not implemented yet.")
     def cmtyContents(self, c):
         """Array of all nodes in community c."""
-        return self.cmtyll[c, :self.cmtyN[c]]
+        cN = cmodels.c_int()
+        contents = numpy.zeros(self.cmtyN[c], dtype=ctypes.c_int)
+        cmodels.cmtyGetContents(self._struct_p, c,
+                                contents.ctypes.data_as(cmodels.c_int_p),
+                                ctypes.pointer(cN))
+        return contents
     def cmtyContains(self, c, n):
         """True if cmty c contains node n."""
         return cmodels.isInCmty(self._struct_p, c, n)
@@ -675,6 +698,8 @@ class Graph(anneal._GraphAnneal, cmodels._cobj, object):
                           axis=0)
     def hashInit(self):
         return cmodels.hashInit(self._struct_p)
+    def hashClear(self):
+        return cmodels.hashClear(self._struct_p)
 
 
     #

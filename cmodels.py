@@ -126,11 +126,12 @@ cGraph._fields_ = [
     ("simatrixDefault", imatrix_t),
     ("srmatrixDefault", imatrix_t),
 
-    ("cmtyl",        ctypes.POINTER(c_int_p)),
-    ("cmtyll",       c_int_p),
+    #("cmtyl",        ctypes.POINTER(c_int_p)),
+    #("cmtyll",       c_int_p),
     ("cmtyN",        c_int_p),
     ("randomOrder",  c_int_p),
     ("randomOrder2", c_int_p),
+    ("tmp",          c_int_p),  # tmp array of length N for any function's use
 
     #("seenList",     LList_p),
     ("seenList",     c_void_p),
@@ -150,6 +151,7 @@ cfuncs = (
     ("gThreadInit",      None,      ( )),
 
     ("hashInit",         None,      (cGraph_p, )),
+    ("hashClear",        None,      (cGraph_p, )),
     ("hashDestroy",      None,      (cGraph_p, )),
     ("hashCreate",       c_int,     (cGraph_p, )),
 
@@ -170,6 +172,7 @@ cfuncs = (
     ("cmtyIntersect",    c_int,     (cGraph_p, c_int, cGraph_p, c_int)),
     ("cmtyUnion",        c_int,     (cGraph_p, c_int, cGraph_p, c_int)),
     ("cmtyIsSubset",     c_int,     (cGraph_p, c_int, c_int)), # csmall, cbig
+    ("cmtyGetContents",  c_int,     (cGraph_p,c_int,c_int_p,c_int_p)),#c,tmp,cN
 
 
 
@@ -182,7 +185,7 @@ cfuncs = (
     ("F1_one",           c_double, (cGraph_p, c_int, cGraph_p,
                                     c_double_p, c_double_p)),
 
-    ("energy_naive",  c_double, (cGraph_p, c_double)),
+    #("energy_naive",  c_double, (cGraph_p, c_double)),
     ("energy",        c_double, (cGraph_p, c_double)),
     ("energy_cmty",   c_double, (cGraph_p, c_double, c_int)),
     ("energy_cmty_n", c_double, (cGraph_p, c_double, c_int, c_int)),

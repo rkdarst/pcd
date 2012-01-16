@@ -174,8 +174,8 @@ def mutual_information_python(G0, G1):
             #for n in    G0.cmtyll[c0, :n0]:
             #    if n in G1.cmtyll[c1, :n1]:
             #        n_shared += 1
-            s0 = set(G0.cmtyll[c0, :n0])
-            s1 = set(G1.cmtyll[c1, :n1])
+            s0 = set(G0.cmtyContents(c0))
+            s1 = set(G1.cmtyContents(c1))
             n_shared = len(s0 & s1)
             #assert n_shared == len(s0 & s1)
 

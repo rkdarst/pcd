@@ -36,11 +36,12 @@ typedef struct Graph {
   imatrix_t simatrixDefault;
   imatrix_t srmatrixDefault;
 
-  int **cmtyl;
-  int  *cmtyll;
+  //int **cmtyl;
+  //int  *cmtyll;
   int *cmtyN;
   int *randomOrder;
   int *randomOrder2;
+  int *tmp;
 
   //LList_t seenList;
   GHashTable *seenList;
