@@ -398,7 +398,7 @@ int cmtyIntersect(Graph_t G0, int c0, Graph_t G1, int c1) {
   return (n_intersect);
 }
 int cmtyUnion(Graph_t G0, int c0, Graph_t G1, int c1) {
-  assert(0); // This needs debugging before use.
+  //assert(0); // This needs debugging before use.
   // We want 0 to be the smaller one, since we linearly iterate
   // over it.
   if (G0->cmtyN[c0] > G1->cmtyN[c1]) {
@@ -407,7 +407,7 @@ int cmtyUnion(Graph_t G0, int c0, Graph_t G1, int c1) {
   }
 
   GHashTableIter hashIter;
-  int n_union = G0->cmtyN[c0];
+  int n_union = G1->cmtyN[c1];
   void *n_p;
 
   g_hash_table_iter_init(&hashIter, G0->cmtyListHash[c0]);

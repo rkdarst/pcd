@@ -619,6 +619,12 @@ class Graph(anneal._GraphAnneal, cmodels._cobj, object):
     def cmtyContains(self, c, n):
         """True if cmty c contains node n."""
         return cmodels.isInCmty(self._struct_p, c, n)
+    def cmtyIntersect(self, c1, c2):
+        """Number of nodes in intersect of c1 and c2."""
+        return cmodels.cmtyIntersect(self._struct_p, c1, self._struct_p, c2)
+    def cmtyUnion(self, c1, c2):
+        """Number of nodes in union of c1 and c2."""
+        return cmodels.cmtyUnion(self._struct_p, c1, self._struct_p, c2)
     def cmtyIsSubset(self, csmall, cbig):
         """Is cmty csmall a subset of cmty cbig?"""
         return cmodels.cmtyIsSubset(self._struct_p, csmall, cbig)

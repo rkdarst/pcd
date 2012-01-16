@@ -167,6 +167,8 @@ cfuncs = (
     ("cmtyMove",         None,      (cGraph_p, c_int, c_int, c_int)),#n,old,new
     ("cmtyMoveSafe",     None,      (cGraph_p, c_int, c_int, c_int)),#n,old,new
     ("isInCmty",         c_int,     (cGraph_p, c_int, c_int)),
+    ("cmtyIntersect",    c_int,     (cGraph_p, c_int, cGraph_p, c_int)),
+    ("cmtyUnion",        c_int,     (cGraph_p, c_int, cGraph_p, c_int)),
     ("cmtyIsSubset",     c_int,     (cGraph_p, c_int, c_int)), # csmall, cbig
 
 
