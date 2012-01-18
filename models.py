@@ -43,7 +43,8 @@ class Graph(anneal._GraphAnneal, cmodels._cobj, object):
     verbosity = 2
     _use_overlap = False
 
-    def __init__(self, N, randomize=True, rmatrix=False, overlap=False):
+    def __init__(self, N, randomize=True, rmatrix=False, overlap=False,
+                 sparse=False):
         """Initialize Graph object.
 
         For more easier minimization, look at the various class
@@ -63,10 +64,13 @@ class Graph(anneal._GraphAnneal, cmodels._cobj, object):
         attempting to find overlapping communities at the end of each
         minimization cycle.
         """
-        self._fillStruct(N)
+        self._fillStruct(N, sparse=sparse)
         self.N = N
         self.oneToOne = 1
-        self.hasFull = 1
+        if sparse:
+            self.hasFull = 0
+        else:
+            self.hasFull = 1
         self.hasPrimaryCmty = 1
         if rmatrix:
             self._allocRmatrix()
@@ -81,7 +85,7 @@ class Graph(anneal._GraphAnneal, cmodels._cobj, object):
     def __del__(self):
         cmodels.C.hashDestroy(self._struct_p)
         cmodels.C.SetDestroy(self._struct.seenList)
-    def _fillStruct(self, N=None):
+    def _fillStruct(self, N=None, sparse=False):
         """Fill C structure."""
         cmodels._cobj._allocStruct(self, cmodels.cGraph)
 
@@ -95,7 +99,8 @@ class Graph(anneal._GraphAnneal, cmodels._cobj, object):
         self._allocArray("randomOrder2", shape=N)
         self.randomOrder[:]  = numpy.arange(N)
         self.randomOrder2[:] = numpy.arange(N)
-        self._allocArray("imatrix", shape=(N, N))
+        if not sparse:
+            self._allocArray("imatrix", shape=(N, N))
         self._allocArray('cmtyListHash', shape=N, dtype=cmodels.c_void_p,
                         dtype2=cmodels.c_void_p)
     def _allocRmatrix(self):
@@ -121,7 +126,10 @@ class Graph(anneal._GraphAnneal, cmodels._cobj, object):
         return state
     def __setstate__(self, state):
         """Set state when unpickling"""
-        self.__init__(state['__extra_attrs']['N'])
+        sparse = False
+        if not state['__extra_attrs'].get('hasFull', 1):
+            sparse = True
+        self.__init__(state['__extra_attrs']['N'], sparse=sparse)
         #self._fillStruct(n=state['n'])
         for name, type_ in self._struct._fields_:
             #print name
@@ -350,8 +358,81 @@ class Graph(anneal._GraphAnneal, cmodels._cobj, object):
             dist = numpy.sqrt(dist)
             matrix[n1, :] = efunc(dist)
         numpy.seterr(**orig_settings)
+    @classmethod
+    def from_mapping(cls, nodes, interactions,
+                     maxinteractions=None,
+                     defaultweight=1):
+        """
+
+        interactions: Callable interactions[node1][node2]
+        """
+        G = cls(N=len(nodes))
+        G.imatrix[:] = defaultweight
+
+        G._nodeIndex = { }
+        G._nodeLabel = { }
+        for i, label in enumerate(nodes):
+            G._nodeIndex[label] = i
+            G._nodeLabel[i] = label
+
+        if maxinteractions is None:
+            maxinteractions = max([len(connections) for connections
+                                   in interactions.values()])
+
+        for n1, connections in interactions.items():
+            for n2, interaction in connections.items():
+                #print interaction
+                G.imatrix[G._nodeIndex[n1] , G._nodeIndex[n2]] = interaction
+
+        return G
+    @classmethod
+    def from_sparseiter(cls, nodes, weights, default, maxconn=None,
+                        imatrixDefault=0):
+
+        nodeIndex = { }
+        nodeLabel = { }
+        for i, label in enumerate(nodes):
+            nodeIndex[label] = i
+            nodeLabel[i] = label
+        if maxconn is None:
+            maxconn = len(nodeIndex)
+
+        G = cls(N=maxconn, sparse=True)
+        G._nodeIndex = nodeIndex
+        G._nodeLabel = nodeLabel
+
+        G.simatrixDefault = imatrixDefault
+        G.srmatrixDefault = default
+        G._alloc_sparse(simatrixLen=maxconn)
+
+        for node1, node2, weight in weights:
+            if node1 == node2:
+                continue
+            i = G._nodeIndex[node1]
+            j = G._nodeIndex[node2]
+            idx = G.simatrixN[i]
+            assert idx < G.simatrixLen
+            G.simatrix[i,idx] = weight
+            G.simatrixId[i,idx] = j
+            G.simatrixN[i] += 1
+        return G
+
+
+    def _alloc_sparse(self, simatrixLen):
+        self.hasSparse = 1
+        self.simatrixLen = simatrixLen
+        self._allocArray('simatrix', shape=(self.N, simatrixLen))
+        if isinstance(self.rmatrix, numpy.ndarray):
+            self._allocArray('srmatrix', shape=(self.N, simatrixLen))
+        self._allocArray('simatrixN', shape=self.N)
+        self._allocArray('simatrixId', shape=(self.N, simatrixLen))
+        self._allocArray("simatrixIdl", shape=self.N, dtype=ctypes.c_void_p)
+        self._allocArrayPointers(self.simatrixIdl, self.simatrixId)
+
     def make_sparse(self, default, cutoff=None,
                     imatrixDefault=0, imatrixCutoff=None):
+        if self.hasSparse:
+            return
         assert self.hasFull # have full to create sparse from it.
         assert not isinstance(self.rmatrix, numpy.ndarray), \
                                        "sparse does not support rmatrix yet"
@@ -372,15 +453,7 @@ class Graph(anneal._GraphAnneal, cmodels._cobj, object):
         print "Making graph sparse: %d nodes, %d reduced nodes"%(
             self.N, simatrixLen)
         print "  imatrix max/min:", numpy.min(imatrix), numpy.max(imatrix)
-        self.hasSparse = 1
-        self.simatrixLen = simatrixLen
-        self._allocArray('simatrix', shape=(self.N, simatrixLen))
-        if isinstance(self.rmatrix, numpy.ndarray):
-            self._allocArray('srmatrix', shape=(self.N, simatrixLen))
-        self._allocArray('simatrixN', shape=self.N)
-        self._allocArray('simatrixId', shape=(self.N, simatrixLen))
-        self._allocArray("simatrixIdl", shape=self.N, dtype=ctypes.c_void_p)
-        self._allocArrayPointers(self.simatrixIdl, self.simatrixId)
+        self._alloc_sparse(simatrixLen=simatrixLen)
 
         for i,j in zip(*numpy.where(imatrix < cutoff)):
             if i == j:
