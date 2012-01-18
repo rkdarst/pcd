@@ -139,3 +139,9 @@ util.H2 = util.H2_python
 nmio_c = util.mutual_information_overlap(G, G2)
 
 print nmio_python, nmio_c
+
+
+G.make_sparse('auto')
+assert G.energy(.1) == G.energy_sparse(.1)
+assert G.energy(10) == G.energy_sparse(10)
+assert G.energy(.5) == G.energy_sparse(.5)

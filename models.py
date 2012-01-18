@@ -709,6 +709,9 @@ class Graph(anneal._GraphAnneal, cmodels._cobj, object):
     def energy(self, gamma):
         """Return total energy of the graph."""
         return cmodels.energy(self._struct_p, gamma)
+    def energy_sparse(self, gamma):
+        """Return total energy of the graph."""
+        return cmodels.energy_sparse(self._struct_p, gamma)
     def energy_cmty(self, gamma, c):
         """Return energy due to community c."""
         return cmodels.energy_cmty(self._struct_p, gamma, c)

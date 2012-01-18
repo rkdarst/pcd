@@ -55,6 +55,7 @@ inline int cmtyListIsInCmty(Graph_t G, int c, int n);
 double energy(Graph_t G, double gamma);
 double energy_cmty(Graph_t G, double gamma, int c);
 double energy_cmty_n(Graph_t G, double gamma, int c, int n);
+double energy_cmty_n_sparse(Graph_t G, double gamma, int c, int n);
 
 double energy_sparse(Graph_t G, double gamma);
 int greedy_sparse(Graph_t G, double gamma);

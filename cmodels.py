@@ -187,6 +187,7 @@ cfuncs = (
 
     #("energy_naive",  c_double, (cGraph_p, c_double)),
     ("energy",        c_double, (cGraph_p, c_double)),
+    ("energy_sparse", c_double, (cGraph_p, c_double)),
     ("energy_cmty",   c_double, (cGraph_p, c_double, c_int)),
     ("energy_cmty_n", c_double, (cGraph_p, c_double, c_int, c_int)),
     ("energy_cmty_cmty", c_double, (cGraph_p, c_double, c_int, c_int)),

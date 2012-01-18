@@ -638,25 +638,25 @@ double energy_sparse(Graph_t G, double gamma) {
    *
    * This function is symmetric.
    */
-  assert(0); // Not implemented yet.
   assert(G->hasSparse);
-  imatrix_t attractions=0;
-  imatrix_t repulsions =0;
+  double E=0;
+
+  GHashTableIter hashIter;
+
+
   int c;
-
-  //GHashTableIter hashIterOuter;
-  //GHashTableIter hashIterInner;
-  int n, j;
-
-  int nDefined=0;
-  for (n=0 ; n<G->N ; n++) {
-    int m = G->simatrixId[n*G->simatrixLen + j];
-    if (G->cmty[m] != c)
-      continue;
-    nDefined += 1;
+  for (c=0 ; c<G->Ncmty ; c++) {
+    // for communities c
+    void *n_p;
+    g_hash_table_iter_init(&hashIter, G->cmtyListHash[c]);
+    // For each particle in the community
+    while (g_hash_table_iter_next(&hashIter, &n_p, NULL)) {
+      int n = GPOINTER_TO_INT(n_p);
+      // Add up energy of that particle to the community.
+      E += energy_cmty_n_sparse(G, gamma, c, n);
+    }
   }
-
-  return(.5 * (attractions + gamma*repulsions));
+  return(E);
 }
 
 
@@ -781,7 +781,7 @@ double energy_cmty_n_sparse(Graph_t G, double gamma, int c, int n) {
   double E = .5 * (attractions + gamma*repulsions);
   /* printf(" e_c_n_s %d %d(%d,%d)\n", c, n, G->cmtyN[c], nUnDefined); */
   //if (DEBUG && E != energy_cmty_n(G, gamma, c, n)) {
-  if (DEBUG) {
+  if (DEBUG && G->hasFull) {
     double E2 = energy_cmty_n(G, gamma, c, n);
     if ( fabs(E-E2)>.01  && fabs(E-E2)/E > .0001) {
       printf(" e_c_n_s %d %d(%d,%d) (%d) %f %f\n", c, n, G->cmtyN[c],nUnDefined,
@@ -822,7 +822,7 @@ double energy_cmty_cmty_sparse(Graph_t G, double gamma, int c1, int c2) {
    *
    * This function is asymmetric, c1 -> c2
    */
-  assert(G->hasFull);
+  assert(G->hasSparse);
   double E=0;
   GHashTableIter hashIterOuter;
   void *n_p;
