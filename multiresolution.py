@@ -2,6 +2,7 @@
 
 from math import log, exp, floor, ceil
 import numpy
+import threading
 import time
 import types
 
@@ -49,6 +50,8 @@ class MultiResolution(object):
         self.output = output
         self.savefigargs = savefigargs
         self.plotargs = plotargs
+        self._lock = threading.Lock()
+
     def runner(self):
         return MRRunner(self)
     def run(self, *args, **kwargs):
@@ -100,24 +103,24 @@ class MultiResolution(object):
 
 
         # Calculate things defined in other methods:
+        returns = [ ]
         for func in self.calcMethods:
             if isinstance(func, types.MethodType):
                 ret = func(data=data, settings=self)
             else:
                 ret = func(self, data=data, settings=self)
-            self._addValues(gamma, ret)
-            #for name, value in ret:
-            #    self.fieldnames += (name, )
-            #    setattr(self, name, value)
+            returns.extend(ret)
+        self._addValues(gamma, returns)
 
     def _addValues(self, gamma, namevals):
         """Add a list of (name,value) pairs to the corresponding gamma data"""
-        for name, val in namevals:
-            if name not in self.fieldnames:
-                self.fieldnames.append(name)
-            if gamma not in self._data:
-                self._data[gamma] = GammaData(gamma=gamma)
-            self._data[gamma].add(name, val)
+        with self._lock:
+            for name, val in namevals:
+                if name not in self.fieldnames:
+                    self.fieldnames.append(name)
+                if gamma not in self._data:
+                    self._data[gamma] = GammaData(gamma=gamma)
+                self._data[gamma].add(name, val)
 
     #
     # Calculation methods
@@ -216,16 +219,17 @@ class MultiResolution(object):
         lists by the field names.  This is the first step to plotting,
         writing, etc.  This is a low-cost method.
         """
-        table= { }
-        gammas = numpy.asarray(sorted(self._data.keys()))
-        table['gamma'] = gammas
-        for fieldname in self.fieldnames:
-            # gamma is special cased
-            if fieldname == 'gamma':
-                continue
-            array = numpy.asarray([self._data[gamma].data[fieldname].mean
-                                   for gamma in gammas])
-            table[fieldname] = array
+        with self._lock:
+            table= { }
+            gammas = numpy.asarray(sorted(self._data.keys()))
+            table['gamma'] = gammas
+            for fieldname in self.fieldnames:
+                # gamma is special cased
+                if fieldname == 'gamma':
+                    continue
+                array = numpy.asarray([self._data[gamma].data[fieldname].mean
+                                       for gamma in gammas])
+                table[fieldname] = array
 
         #self.n_hist       = n_hist       = [mrc.n_hist       for mrc in MRCs]
         #self.n_hist_edges = n_hist_edges = [mrc.n_hist_edges for mrc in MRCs]
@@ -613,14 +617,18 @@ class MRRunner(object):
 
     def _getGamma_dict(self):
         """Return next gamma, if self._gammas is a dict for LogInterval"""
+        p = self._gammas
         if not hasattr(self, '_logGammas'):
-            p = self._gammas
             if p.get('high') == 'auto':  p.pop('high')
             if p.get('low')  == 'auto':  p.pop('low')
             self._logGammas = LogInterval(**self._gammas)
         logGammas = self._logGammas
 
         start = 1
+        if isinstance(p.get('high'), int) and p.get('high', 1) < start:
+            start = p['high']
+        if isinstance(p.get('low'), int) and p.get('low', 1) > start:
+            start = p['low']
         high = self._gammas.get('high', 'auto')
         low  = self._gammas.get('low',  'auto')
 
