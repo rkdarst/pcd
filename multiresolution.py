@@ -51,6 +51,13 @@ class MultiResolution(object):
         self.savefigargs = savefigargs
         self.plotargs = plotargs
         self._lock = threading.Lock()
+    def __getstate__(self):
+        state = self.__dict__
+        del state['_lock']
+        return state
+    def __setstate__(self, state):
+        self.__dict__ = state
+        self._lock = threading.Lock()
 
     def runner(self):
         return MRRunner(self)
@@ -345,6 +352,7 @@ class MultiResolution(object):
             'N':      dict(label='$N$',color='green', linestyle='-.'),
             'ov_N':   dict(label='$N_{ov}$',color='green', linestyle='-.'),
             'q':      dict(label='$q$',color='black', linestyle=':'),
+            '_s_F1':   dict(label='$_sF_1$',color='black', linestyle='-.'),
             'n_mean': dict(label='$<n>$',color='blue',linestyle=':'),
             'n_mean_ov':dict(label='$<n_{ov}>$',color='green',linestyle=':'),
             'entropy':dict(label='$H$',color='blue', linestyle='--'),
@@ -387,6 +395,7 @@ class MultiResolution(object):
 
         if fname:
             c.print_figure(fname, bbox_inches='tight')
+        return f
 
     def viz(self):
         import matplotlib.pyplot as pyplot
@@ -465,7 +474,7 @@ class MRRunner(object):
         """
         if callback is None:
             callback = self._callback
-        logger.info("Thread %d MR-minimizing g=%f"%(self.thread_id(), gamma))
+        logger.info("Thread %s MR-minimizing g=%f"%(self.thread_id(), gamma))
 
         data = { }
         state = { }
@@ -508,25 +517,25 @@ class MRRunner(object):
                 state['ovGmin'] = Gmin.getcmtystate()
                 state['ovGmin_index'] = Gmin_index
 
-        logger.debug("Thread %d MR-minimizing g=%f: done"%(
+        logger.info("Thread %s MR-minimizing g=%f: done"%(
                                                       self.thread_id(), gamma))
         # Do the information theory VI, MI, In, etc, stuff on our
         # minimized replicas.
-        logger.info("Thread %d initializing MRD g=%f"%(
+        logger.info("Thread %s initializing MRD g=%f"%(
                                               self.thread_id(), gamma))
         self.MR.add(gamma=gamma, data=data, state=state)
 
-        logger.debug("Thread %d initializing MRD g=%f: done"%(
+        logger.debug("Thread %s initializing MRD g=%f: done"%(
                                               self.thread_id(), gamma))
         # Save output to a file.
         if self.MR.output is not None and self.lockAcquire(blocking=False):
-            logger.debug("Thread %d write"%self.thread_id())
+            logger.debug("Thread %s write"%self.thread_id())
             self.MR.write(self.MR.output)
             self.lockRelease()
         # do .savefig() on the minimum E config
         if self.MR.savefigargs is not None \
                and self.lockAcquire(blocking=True):
-            logger.debug("Thread %d savefig"%self.thread_id())
+            logger.debug("Thread %s savefig"%self.thread_id())
             minG = data['Gmin']
             kwargs = self.MR.savefigargs.copy()
             kwargs['fname'] = kwargs['fname']%{'gamma':gamma}
@@ -535,13 +544,13 @@ class MRRunner(object):
             self.lockRelease()
         # do .plot() on the MultiResolutionData
         if self.MR.plotargs is not None and self.lockAcquire(blocking=False):
-            logger.debug("Thread %d plot"%self.thread_id())
+            logger.debug("Thread %s plot"%self.thread_id())
             #self.plot(**self._plotargs)
             self.MR.plot(**self.MR.plotargs)
             self.lockRelease()
         # Run callback if we have it.
         if callback:
-            logger.debug("Thread %d callback"%self.thread_id())
+            logger.debug("Thread %s callback"%self.thread_id())
             callback(gamma=gamma, data=data, state=state,
                      MR=self.MR, MRR=self)
     def _thread(self):
@@ -557,16 +566,16 @@ class MRRunner(object):
             gamma = self._getGamma()
             if gamma is None:
                 return
-            logger.debug("Thread %d begin gamma=%f"%(
+            logger.info("Thread %s begin gamma=%f"%(
                 self.thread_id(), gamma))
             self.do_gamma(gamma)
-            logger.debug("Thread %d end gamma=%f"%(
+            logger.info("Thread %s end gamma=%f"%(
                 self.thread_id(), gamma))
-        logger.debug("Thread terminated: %d", self.thread_id())
+        logger.info("Thread terminated: %s", self.thread_id())
 
     def thread_id(self):
         import threading
-        return threading.current_thread().ident
+        return threading.current_thread().name
     def lockAcquire(self, name='writelock', blocking=False):
         """Acquire lock self._NAME.
 
@@ -575,25 +584,25 @@ class MRRunner(object):
         # Someday both of these could be made into context managers -
         # the only reason they aren't is that sometimes, we *won't*
         # use the locks (and need to abstract out blocking or not)...
-        logger.debug('Thread %d attempting lock acquisition: %s',
+        logger.debug('Thread %s attempting lock acquisition: %s',
                      self.thread_id(), name)
         if hasattr(self, '_'+name):
             locked = getattr(self, '_'+name).acquire(blocking)
-            logger.debug('Thread %d attempting lock acquisition: %s: %s',
+            logger.debug('Thread %s attempting lock acquisition: %s: %s',
                          self.thread_id(), name, locked)
             return locked
         # If we don't have self._LOCKNAME, we don't lock so always return true.
         return True
     def lockRelease(self, name='writelock'):
         """Release lock self.NAME."""
-        logger.debug('Thread %d attempting release: %s',
+        logger.debug('Thread %s attempting release: %s',
                      self.thread_id(), name)
         if hasattr(self, '_'+name):
-            logger.debug('Thread %d attempting release (phase 2): %s',
+            logger.debug('Thread %s attempting release (phase 2): %s',
                          self.thread_id(), name)
             return getattr(self, '_'+name).release()
     def _getGamma(self):
-        self.lockAcquire(name='gammalock')
+        self.lockAcquire(name='gammalock', blocking=True)
         if not hasattr(self, '_seenGammas'):
             self._seenIndexes = set()
             self._seenGammas = set()
@@ -783,3 +792,24 @@ class MRRunner(object):
         #self._queue.join()
         del (self._Gs, self._gammalock, self._lock, self._writelock, )
         del self._callback # unmasks class object's _callback=None
+
+
+
+def write_table(fname, MRs, values, Vname='V'):
+    f = open(fname, 'w')
+
+    print >> f, "#", " ".join("%d:%s"%(i+1,x)
+                     for i,x in enumerate((Vname,)+tuple(MRs[0].fieldnames)))
+
+    for v, MR in zip(values, MRs):
+        table = MR.table()
+
+        for i in range(len(table['gamma'])):
+            print >> f, v, table['gamma'][i],
+            for name in MR.fieldnames:
+                if name == "gamma": continue
+                print >> f, table[name][i],
+            print >> f
+
+        print >> f
+
