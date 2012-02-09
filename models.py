@@ -386,7 +386,7 @@ class Graph(anneal._GraphAnneal, cmodels._cobj, object):
 
         return G
     @classmethod
-    def from_sparseiter(cls, nodes, weights, default, maxconn=None,
+    def from_sparseiter(cls, nodes, weights, default, maxconn,
                         imatrixDefault=0):
 
         nodeIndex = { }
@@ -394,27 +394,32 @@ class Graph(anneal._GraphAnneal, cmodels._cobj, object):
         for i, label in enumerate(nodes):
             nodeIndex[label] = i
             nodeLabel[i] = label
-        if maxconn is None:
-            maxconn = len(nodeIndex)
+        #if nnodes is None:
+        #    maxconn = len(nodeIndex)
+        nnodes = len(nodeIndex)
 
-        G = cls(N=maxconn, sparse=True)
+        G = cls(N=nnodes, sparse=True)
         G._nodeIndex = nodeIndex
         G._nodeLabel = nodeLabel
 
         G.simatrixDefault = imatrixDefault
         G.srmatrixDefault = default
         G._alloc_sparse(simatrixLen=maxconn)
+        G.simatrix[:] = numpy.nan
 
+        simatrixN = G.simatrixN
+        simatrix = G.simatrix
+        simatrixId = G.simatrixId
         for node1, node2, weight in weights:
             if node1 == node2:
                 continue
-            i = G._nodeIndex[node1]
-            j = G._nodeIndex[node2]
-            idx = G.simatrixN[i]
-            assert idx < G.simatrixLen
-            G.simatrix[i,idx] = weight
-            G.simatrixId[i,idx] = j
-            G.simatrixN[i] += 1
+            i = nodeIndex[node1]
+            j = nodeIndex[node2]
+            idx = simatrixN[i]
+            assert idx < maxconn
+            simatrix[i,idx] = weight
+            simatrixId[i,idx] = j
+            simatrixN[i] += 1
         return G
 
 
