@@ -919,7 +919,7 @@ class Graph(anneal._GraphAnneal, cmodels._cobj, object):
     # Keep backwards compatibility for now.
     minimize_trials = trials
 
-    def alternate(self, funcs, mode="restart"):
+    def alternate(self, funcs, mode="restart", maxrounds=250, maxfunc=10):
         """Alternately call funcA and funcB.
         """
         if self.verbosity >= 0:
@@ -930,27 +930,37 @@ class Graph(anneal._GraphAnneal, cmodels._cobj, object):
         for round_ in itertools.count():
             # For each of the `funcs` passed,
             for i, func in enumerate(funcs):
+                command = 'restart'
+                if isinstance(func, (tuple,list)):
+                    func, command = func
                 changes = func()
                 self.remap(check=False)
-                if changes > 0:
+                if changes is not None:
+                    if changes > 0:
+                        rounds[i] += 1
+                    lastChanges[i] = changes
+                else:
+                    lastChanges[i] = 0
                     rounds[i] += 1
-                lastChanges[i] = changes
                 if self.verbosity >= 2:
                     print "  (r%2s) %s: cmtys, changes: %4d %4d"%(
-                        round_, func.func_name, self.q, changes)
+                        round_, func.func_name, self.q,
+                        changes if changes is not None else 0)
                 # At the first function that makes any changes, start over
+                #if changes is None:
+                #    continue
                 if mode == "restart" and changes > 0:
                     break
             if None not in lastChanges and sum(lastChanges) == 0:
                 break
 
-            if round_ > 250:
+            if round_ > maxrounds:
                 print "  Exceeding maximum number of rounds."
                 break
         return tuple(rounds) + (sum(lastChanges), )
 
 
-    def greedy(self, gamma):
+    def greedy(self, gamma, maxrounds=250):
         """Minimize the communities at a certain gamma.
 
         This function requires a good starting configuration.  To do
@@ -997,7 +1007,7 @@ class Graph(anneal._GraphAnneal, cmodels._cobj, object):
             # If we have no changes in regular and combinations, escape
             if changesMoving == 0 and changesCombining == 0:
                 break
-            if round_ > 250:
+            if round_ > maxrounds:
                 print "  Exceeding maximum number of rounds."
                 break
         #print set(self.cmty),
@@ -1007,7 +1017,7 @@ class Graph(anneal._GraphAnneal, cmodels._cobj, object):
     minimize = greedy
     def _greedy(self, gamma):
         return cmodels.greedy(self._struct_p, gamma)
-    def ovGreedy(self, gamma):
+    def ovGreedy(self, gamma, maxrounds=250):
         """Attempting to add particles to overlapping communities.
         """
         if not self.hasSparse:
@@ -1040,7 +1050,7 @@ class Graph(anneal._GraphAnneal, cmodels._cobj, object):
                         round_, changes_remove, self.q)
             if changes_add == 0 and changes_remove == 0:
                 break
-            if round_ > 250:
+            if round_ > maxrounds:
                 print "  Exceeding maximum number of rounds"
                 break
         return roundsAdding, roundsRemoving, changes
@@ -1048,6 +1058,15 @@ class Graph(anneal._GraphAnneal, cmodels._cobj, object):
         return cmodels.overlapAdd(self._struct_p, gamma)
     def _overlapRemove(self, gamma):
         return cmodels.overlapRemove(self._struct_p, gamma)
+    def greedy2(self, gamma, **kwargs):
+        def A(): self._gen_random_order()
+        def B(): return self._greedy(gamma=gamma)
+        def C(): self.remap(check=False)
+        def D(): return self.combine(gamma=gamma)
+        def E(): self.remap(check=False)
+        return self.alternate(funcs=(A, B, C, D, E), mode='loop',
+                              maxrounds=15)
+
     def ovgreedy(self, gamma):
         def A(): return cmodels.overlapAdd(self._struct_p, gamma)
         def B(): return cmodels.overlapRemove(self._struct_p, gamma)
@@ -1159,10 +1178,10 @@ class Graph(anneal._GraphAnneal, cmodels._cobj, object):
         if check:
             self.check()
     def remap_c(self, check=False):
-        if self.verbosity >= 2:
+        if self.verbosity >= 3:
             print "        remapping communities (c):",
         changes = cmodels.remap(self._struct_p)
-        if self.verbosity >= 2:
+        if self.verbosity >= 3:
             print changes, "changes"
         if check:
             self.check()
