@@ -60,7 +60,7 @@ def F1(G0, G):
 
 def calc_P0(self, data, settings):
     Gs = data['Gs']
-    overlapGs = data['overlapGs']
+    overlapGs = data['ovGs']
 
     POs = [PO(G0, G_) for G_ in Gs ]
     PO_ovs = [PO(G0, G_) for G_ in overlapGs ]
@@ -77,7 +77,7 @@ def calc_P0(self, data, settings):
 def calc_F1(self, data, settings):
     G0 = getattr(self, 'G0', None)
     Gs = data['Gs']
-    overlapGs = data.get('overlapGs', None)
+    overlapGs = data.get('ovGs', None)
     returns = [ ]
 
 
