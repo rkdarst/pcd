@@ -146,6 +146,7 @@ def dolphins(weightFriend=-1):
     for a,b in g.edges_iter():
         #d['weight'] = -1
         g.edge[a][b]['weight'] = weightFriend
+    g.graph['Creator'] = g.graph['Creator'].split('"')[1]
     return g
 
 def dolphins_G():
