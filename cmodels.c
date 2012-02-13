@@ -747,7 +747,7 @@ double energy_cmty_n_sparse(Graph_t G, double gamma, int c, int n) {
   imatrix_t repulsions =0;
 
   int j;
-  int nUnDefined = G->cmtyN[c];
+  int nUnDefinedI = G->cmtyN[c];
   // For each adjoining particle in the list:
   for (j=0 ; j<G->simatrixN[n] ; j++) {
     //int m = G->simatrixId[n*G->simatrixLen + j];
@@ -759,7 +759,7 @@ double energy_cmty_n_sparse(Graph_t G, double gamma, int c, int n) {
     /* if (G->cmty[m] != c) */
     /*   continue; */
 
-    nUnDefined -= 1;
+    nUnDefinedI -= 1;
     if (G->srmatrix == NULL) {
       imatrix_t interaction = G->simatrix[n*G->simatrixLen + j];
       if (interaction > 0)
@@ -774,9 +774,9 @@ double energy_cmty_n_sparse(Graph_t G, double gamma, int c, int n) {
   }
   // -1 comes from self interaction not being counted as undefined.
   if (isInCmty(G, c, n))
-    nUnDefined -= 1;
-  attractions += nUnDefined * G->simatrixDefault;
-  repulsions  += nUnDefined * G->srmatrixDefault;
+    nUnDefinedI -= 1;
+  attractions += nUnDefinedI * G->simatrixDefault;
+  repulsions  += nUnDefinedI * G->srmatrixDefault;
 
   double E = .5 * (attractions + gamma*repulsions);
   /* printf(" e_c_n_s %d %d(%d,%d)\n", c, n, G->cmtyN[c], nUnDefined); */
@@ -784,7 +784,8 @@ double energy_cmty_n_sparse(Graph_t G, double gamma, int c, int n) {
   if (DEBUG && G->hasFull) {
     double E2 = energy_cmty_n(G, gamma, c, n);
     if ( fabs(E-E2)>.01  && fabs(E-E2)/E > .0001) {
-      printf(" e_c_n_s %d %d(%d,%d) (%d) %f %f\n", c, n, G->cmtyN[c],nUnDefined,
+      printf(" e_c_n_s %d %d(%d,%d) (%d) %f %f\n", c, n, G->cmtyN[c],
+	     nUnDefinedI,
 	     isInCmty(G, c, n),
 	     E, E2);
       //assert(!cmtyListCheck(G));
@@ -857,7 +858,7 @@ double energy_cmty_cmty_xor(Graph_t G, double gamma, int c1, int c2) {
   int n_intersect = cmtyIntersect(G, c1, G, c2);
   int n1only = (cmtyN(G, c1) - n_intersect);
   int n2only = (cmtyN(G, c2) - n_intersect);
-  int nUnDefined = n1only * n2only;
+  int nUnDefinedI = n1only * n2only;
 
   GHashTableIter hashIter1;
   void *n1_p;
@@ -880,7 +881,7 @@ double energy_cmty_cmty_xor(Graph_t G, double gamma, int c1, int c2) {
 
       // energy between n1 and n2
 
-      nUnDefined -= 1;
+      nUnDefinedI -= 1;
       if (G->srmatrix == NULL) {
         imatrix_t interaction = G->simatrix[n1*G->simatrixLen + i];
         if (interaction > 0)
@@ -895,8 +896,8 @@ double energy_cmty_cmty_xor(Graph_t G, double gamma, int c1, int c2) {
 
     }
   }
-  attractions += nUnDefined * G->simatrixDefault;
-  repulsions  += nUnDefined * G->srmatrixDefault;
+  attractions += nUnDefinedI * G->simatrixDefault;
+  repulsions  += nUnDefinedI * G->srmatrixDefault;
 
   double E = .5 * (attractions + gamma*repulsions);
   return(E);
