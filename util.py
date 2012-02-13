@@ -1,5 +1,6 @@
 # Richard Darst, July 2011
 
+import ast
 from taco.mathutil.stats import Averager
 from math import log, exp, floor, ceil
 import numpy
@@ -361,6 +362,17 @@ def mean_position2(coords, boxsize):
     return coords.mean(axis=0)
 #def uniform_image(coords, boxsize):
 
+def check_sparse_symmetric(G):
+    for i, row in enumerate(G.simatrixId):
+        for idx, j in enumerate(row):
+            weight = G.simatrix[i, idx]
+            assert i in G.simatraxId[j, :G.simatrixN[j]]
+            invindex = numpy.where(G.simatraxId[j, :G.simatrixN[j]]==i)[0][0]
+            difference = G.simatrix[j]
+
+def leval(s):
+    try:                              return ast.literal_eval(s)
+    except (ValueError,SyntaxError):  return s
 
 if __name__ == "__main__":
     # tests
