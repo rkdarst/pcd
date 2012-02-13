@@ -1463,8 +1463,18 @@ class Graph(anneal._GraphAnneal, cmodels._cobj, object):
                             bbox_inches='tight')
         if self.verbosity > 0:
             print "Done saving"
-
-
+    def colors_to_networkx(self, g):
+        cmtyColormap = self.get_colormapper(useGraphColoring=False)
+        for n in range(self.N):
+            node = g.node[self._nodeLabel[n]]
+            cmty = self.cmty[n]
+            color = cmtyColormap[cmty]
+            color = '#' + ''.join("%02x"%(x*255)
+                                  for x in color[:3])
+            assert len(color) == 7
+            node['color'] = color
+            node['cmty'] = cmty
+            node['label'] = str(cmty)
 
 
 
