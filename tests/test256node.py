@@ -20,6 +20,11 @@ print G.imatrix
 
 MR = pcd.MultiResolution(overlap=True)
 runner = MR.runner()
-runner.do(Gs=[G]*12, gammas=dict(low=.06, high=12))
+runner.do(Gs=[G]*12, gammas=dict(low=.01, high=10, density=20),
+          threads=6)
 MR.write("tests-output/256node/mr.txt")
+f = MR.plot("tests-output/256node/mr.png", ax1items=['VI', 'In'])
 #MR.viz()
+f.axes[0].set_ylim(ymin=0)
+f.savefig('tests-output/256node/MR.pdf', bbox_inches='tight')
+f.savefig('tests-output/256node/MR.eps', bbox_inches='tight')

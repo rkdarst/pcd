@@ -21,6 +21,18 @@ g_p1 = pcd.graphs.polopa_tribes_peter()
 assert networkx.algorithms.is_isomorphic(g, g_p2)
 assert networkx.algorithms.is_isomorphic(g, g_p1, weighted=True)
 
+g_gml = g.copy()
+for n, dat in g_gml.nodes(data=True):
+    dat['name'] = n
+for n1, n2, dat in g_gml.edges(data=True):
+    w = dat['weight']
+    if w == -1:
+        dat['weight'] = 100
+    else:
+        dat['weight'] = -100
+        g_gml.remove_edge(n1, n2)
+import networkx
+networkx.write_gml(g_gml, 'tribes.gml')
 
 G = pcd.Graph.fromNetworkX(g, defaultweight=1, diagonalweight=0)
 G2 = pcd.Graph.fromNetworkX(g_p1, defaultweight=1, diagonalweight=0)
@@ -63,7 +75,9 @@ if fast:
 from pcd import LogInterval
 import pcd.F1
 
-MR = pcd.MultiResolution(overlap=5)
+MR = pcd.MultiResolution(overlap=5,
+        savefigargs=dict(fname="tests-output/tribes/gamma%(gamma)05.3f.png")
+                         )
 G.make_sparse('auto')
 G.verbosity = -1
 
@@ -75,9 +89,12 @@ MRR.do(Gs=[G]*12,
        )
 #raw_input('after MRR >')
 MR.write("tests-output/tribes/tribes.txt")
-MR.plot("tests-output/tribes/tribes.png",
-        ax1items=('VI', 'In', 's_F1'))
+f = MR.plot("tests-output/tribes/tribes.png",
+            ax1items=('VI', 'In', #'s_F1'
+                      ))
 #MR.viz()
+f.axes[1].set_ylim(ymin=0, ymax=6)
+f.savefig("tests-output/tribes/tribes.png")
 
 #for a,b in [random.sample(range(G2.N), 2) for _ in range(1000)]:
 #    pcd.util.matrix_swap_basis(G2.imatrix, a, b)

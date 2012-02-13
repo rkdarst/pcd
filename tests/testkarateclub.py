@@ -1,7 +1,7 @@
 # Richard Darst, September 2011
 
 import pcd
-import graphs
+from pcd import graphs
 
 fast = globals().get('fast', False)
 
@@ -18,7 +18,7 @@ if fast:
     ldensity = 10
 
 MR = pcd.MultiResolution()
-MR.run([G]*10, gammas=dict(low=0.05, high=50, density=ldensity),
+MR.run([G]*10, gammas=dict(low=0.005, high=50, density=ldensity),
       threads=2)
 MR.write('tmp-karate.txt')
-MR.plot("karate_.png")
+MR.plot("karate.png")

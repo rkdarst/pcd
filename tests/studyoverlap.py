@@ -116,24 +116,26 @@ G2.combineSubsets()
 
 G.greedy(gamma=.1)
 #print PO(G0, G)
-G.greedyOverlap(gamma=.1)
+G.ovgreedy(gamma=.1)
 #print PO(G0, G)
 #from fitz import interactnow
 #sys.exit(0)
 
 #sys.exit(0)
 import pcd.F1
-MR = pcd.MultiResolution(minkwargs=dict(minimizer="ovfree",
-                                        trials=5),
+MR = pcd.MultiResolution(minimizerargs=dict(minimizer="ovfree",
+                                            trials=5),
                          output='tests-output/studyoverlap/tmp7c.txt',
-                         calcSettings=dict(G0=G0,
-                                           overlap=3,
-                                           pairstyle='all'),
+                         #G0=G0,
+                         overlap=3,
+                         #pairstyle='all',
                          )
-MR.do([G]*3,
+MR.G0 = G0
+MR.run([G]*3,
       #logGammaArgs=dict(low=.01, high=100, density=10),
       #logGammaArgs=dict(low=.01, high=1000, density=5),
-      logGammaArgs=dict(low=.1, high=10, density=15),
+      gammas=dict(low=.1, high=10, density=15),
       threads=1)
 MR.write('tests-output/studyoverlap/tmp7c.txt')
 MR.plot('tests-output/studyoverlap/tmp7c.png')
+
