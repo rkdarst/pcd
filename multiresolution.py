@@ -328,6 +328,7 @@ class MultiResolution(object):
         # remove NmiO if we don't have that attribute
         if ax1items==['VI', 'In', 'ov_N'] and 'ov_N' in ax1items:
             if 'ov_N' not in table:
+                ax1items = ax1items[:]
                 ax1items.remove('ov_N')
         # Prepare plot figure
         if fname:
