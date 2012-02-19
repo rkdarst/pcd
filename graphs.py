@@ -110,6 +110,11 @@ def polopa_tribes(weightAllied=-1, weightHostile=2):
     #print G.edge['GAVEV']['OVE']
     #from fitz import interactnow
     return g
+def polopa_tribes_G(*args, **kwargs):
+    g = polopa_tribes(*args, **kwargs)
+    G = Graph.fromNetworkX(g, defaultweight=1, diagonalweight=0)
+    return G
+
 
 def polopa_tribes_peter(fname="highland_one.txt"):
     fname = os.path.join(os.path.dirname(__file__),
