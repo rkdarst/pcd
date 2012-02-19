@@ -103,6 +103,13 @@ class Graph(anneal._GraphAnneal, cmodels._cobj, object):
             self._allocArray("imatrix", shape=(N, N))
         self._allocArray('cmtyListHash', shape=N, dtype=cmodels.c_void_p,
                         dtype2=cmodels.c_void_p)
+    @classmethod
+    def from_param(cls, instance):
+        """Argument conversion classmethod for ctypes"""
+        return instance._struct_p
+    @property
+    def _as_parameter_(self):
+        return self._struct_p
     def _allocRmatrix(self):
         """Allocate a matrix for repulsive interactions"""
         self._allocArray("rmatrix", shape=(self.N, self.N))
