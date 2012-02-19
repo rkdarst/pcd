@@ -10,6 +10,8 @@ import networkx
 
 import cmodels
 
+floateq = lambda x,y: abs(x-y) <= 5e-6*max(abs(x),abs(y))
+
 def distance(p1, p2, boxsize=None):
     d = numpy.subtract(p1, p2)
     if not boxsize is None:

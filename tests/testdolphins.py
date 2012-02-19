@@ -41,7 +41,8 @@ for gamma in ('1e-2', '4e-2', '1e-1', '2e-1', '7e-1'):
 # gml2gv research/pcd/tests-output/dolphins/dolphins_gamma2e-1.gml | neato -Tpng -Gsplines=true -Goverlap=false -Epenwidth=2 -Npenwidth=2 -Nfontsize=15 | display
 
 import pcd.F1
-MR = pcd.MultiResolution(overlap=5)
+MR = pcd.MultiResolution(overlap=5,
+                         )
 MR.run(Gs=[G]*12, gammas=dict(low='auto', high=11, density=20))
 
 MR.write("tests-output/dolphins/tmp-dolphins.txt")

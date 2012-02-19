@@ -6,7 +6,7 @@ import graphs
 import models
 import util
 
-approxequal = lambda x,y: abs(x-y) <= 5e-6*(x+y)
+approxequal = lambda x,y: abs(x-y) <= 5e-6*max(abs(x),abs(y))
 gamma = 1.0
 
 # Initialized to one community per list
@@ -142,6 +142,6 @@ print nmio_python, nmio_c
 
 
 G.make_sparse('auto')
-assert G.energy(.1) == G.energy_sparse(.1)
-assert G.energy(10) == G.energy_sparse(10)
-assert G.energy(.5) == G.energy_sparse(.5)
+assert approxequal(G.energy(.1), G.energy_sparse(.1))
+assert approxequal(G.energy(10), G.energy_sparse(10))
+assert approxequal(G.energy(.5), G.energy_sparse(.5))

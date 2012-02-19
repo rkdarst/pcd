@@ -65,25 +65,29 @@ while True:
         raw_input(',')
 #exit(2)
 
-ntrials, ldensity = 100, 100
-ntrials, ldensity = 5, 30
+nreplicas, ntrials, ldensity = 12, 100, 100
+nreplicas, ntrials, ldensity = 12, 5, 30
 if fast:
-    ntrials, ldensity = 10, 10
+    nreplicas, ntrials, ldensity = 3, 10, 10
 
 #for a,b in [random.sample(range(G.N), 2) for _ in range(1000)]:
 #    pcd.util.matrix_swap_basis(G.imatrix, a, b)
 from pcd import LogInterval
 import pcd.F1
 
+if fast:
+    savefigargs = None
+else:
+    savefigargs = dict(fname="tests-output/tribes/gamma%(gamma)05.3f.png")
 MR = pcd.MultiResolution(overlap=5,
-        savefigargs=dict(fname="tests-output/tribes/gamma%(gamma)05.3f.png")
+        savefigargs=savefigargs
                          )
 G.make_sparse('auto')
 G.verbosity = -1
 
 MRR = pcd.MRRunner(MR)
 #raw_input('before MRR >')
-MRR.do(Gs=[G]*12,
+MRR.do(Gs=[G]*nreplicas,
        #gammas=LogInterval(low=.01, high=10, density=ldensity).values(),
        gammas=dict(low=.01, high=10, density=ldensity),
        )
