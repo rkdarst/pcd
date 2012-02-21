@@ -121,10 +121,13 @@ class Graph(anneal._GraphAnneal, cmodels._cobj, object):
         del state['_struct_p']
         del state['cmtyListHash']
         state['__extra_attrs'] = { }
-        for name in ('N', 'Ncmty', 'oneToOne', 'hasSparse', 'hasFull',
-                     'hasPrimaryCmty',
-                     'simatrixDefault', 'srmatrixDefault', 'simatrixLen'):
-            state['__extra_attrs'][name] = getattr(self, name)
+        for name, type_ in self._struct._fields_:
+            val = getattr(self, name)
+            if type_ in (cmodels.c_int, cmodels.c_float,
+                                  cmodels.c_double, cmodels.imatrix_t):
+                state['__extra_attrs'][name] = getattr(self, name)
+
+
         #for name, type_ in self._struct._fields_:
         #    if name in state  and isinstance(state[name], numpy.ndarray):
         #        setattr(self, name, state[name])
