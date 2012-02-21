@@ -7,6 +7,7 @@ import itertools
 import math
 from math import exp, log, floor, ceil
 import numpy
+import operator
 import cPickle as pickle
 import random
 import sys
@@ -445,7 +446,8 @@ class Graph(anneal._GraphAnneal, cmodels._cobj, object):
         self._allocArrayPointers(self.simatrixIdl, self.simatrixId)
 
     def make_sparse(self, default, cutoff=None,
-                    imatrixDefault=0, imatrixCutoff=None):
+                    imatrixDefault=0, imatrixCutoff=None,
+                    cutoff_op=operator.lt):
         if self.hasSparse:
             return
         assert self.hasFull # have full to create sparse from it.
@@ -464,13 +466,13 @@ class Graph(anneal._GraphAnneal, cmodels._cobj, object):
         #for row in imatrix:
         #    x = numpy.sum(row < minval)
         #    simatrixLen = max(x, simatrixLen)
-        simatrixLen = (imatrix<cutoff).sum(axis=1).max()
+        simatrixLen = cutoff_op(imatrix, cutoff).sum(axis=1).max()
         print "Making graph sparse: %d nodes, %d reduced nodes"%(
             self.N, simatrixLen)
         print "  imatrix max/min:", numpy.min(imatrix), numpy.max(imatrix)
         self._alloc_sparse(simatrixLen=simatrixLen)
 
-        for i,j in zip(*numpy.where(imatrix < cutoff)):
+        for i,j in zip(*numpy.where(cutoff_op(imatrix, cutoff))):
             if i == j:
                 continue
             idx = self.simatrixN[i]
