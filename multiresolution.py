@@ -183,9 +183,15 @@ class MultiResolution(object):
                    ('In', In),
                    ]
 
-        Nmi = numpy.mean(
-            [ util.mutual_information_overlap(Gs[i], Gs[j])
-              for i,j in data['pairIndexes'] ])
+        # Avoid calculating N when n_mean is <= 5.  This is because it
+        # takes too long due to the hard recursive and pair-to-pair
+        # calculations it requires.
+        if Gs[0].n_mean() > 5:
+            Nmi = numpy.mean(
+                [ util.mutual_information_overlap(Gs[i], Gs[j])
+                  for i,j in data['pairIndexes'] ])
+        else:
+            Nmi = float('nan')
         returns.append(('N',  Nmi))
 
         return returns
@@ -194,9 +200,15 @@ class MultiResolution(object):
         overlapGs = data.get('ovGs', None)
         if overlapGs is None:
             return [ ]
-        NmiO = numpy.mean(
-            [ util.mutual_information_overlap(overlapGs[i], overlapGs[j])
-              for i,j in data['pairIndexes'] ])
+        # Avoid calculating N when n_mean is <= 5.  This is because it
+        # takes too long due to the hard recursive and pair-to-pair
+        # calculations it requires (same as above).
+        if Gs[0].n_mean() > 5:
+            NmiO = numpy.mean(
+                [ util.mutual_information_overlap(overlapGs[i], overlapGs[j])
+                  for i,j in data['pairIndexes'] ])
+        else:
+            NmiO = float('nan')
         n_mean_ov = sum(G.n_mean() for G in overlapGs)/float(len(overlapGs))
 
         returns = [('ov_N',      NmiO),
