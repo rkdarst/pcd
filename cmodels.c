@@ -846,7 +846,7 @@ double energy_n(Graph_t G, double gamma, int n) {
   return energy_cmty_n(G, gamma, c, n);
 }
 
-double energy_cmty_cmty_xor(Graph_t G, double gamma, int c1, int c2) {
+double energy_cmty_cmty_xor_sparse(Graph_t G, double gamma, int c1, int c2) {
   /*
    *
    * This function is unidirectional c1 -> c2.
@@ -1550,8 +1550,8 @@ int combine_sparse_overlap(Graph_t G, double gamma) {
 
       // Calculate change of energy if we moved c1 into c2
       double deltaE = 0;
-      deltaE += energy_cmty_cmty_xor(G, gamma, c1, c2);
-      deltaE += energy_cmty_cmty_xor(G, gamma, c2, c1);
+      deltaE += energy_cmty_cmty_xor_sparse(G, gamma, c1, c2);
+      deltaE += energy_cmty_cmty_xor_sparse(G, gamma, c2, c1);
 
       //printf("  e %d %d %f %d %f\n", c1, c2, deltaE, bestcmty, deltaEbest);
       // Do we accept this change?
