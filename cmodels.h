@@ -28,13 +28,18 @@ typedef struct Graph {
   int hasSparse;
   int hasFull;
   imatrix_t *simatrix;
-  imatrix_t *srmatrix;
   int simatrixLen;
   int *simatrixN;
   int *simatrixId;
   int **simatrixIdl;
   imatrix_t simatrixDefault;
+  imatrix_t *srmatrix;
+  /* int srmatrixLen; */
+  /* int *srmatrixN; */
+  /* int *srmatrixId; */
+  /* int **srmatrixIdl; */
   imatrix_t srmatrixDefault;
+  imatrix_t srmatrixDefaultOnlyDefined;
 
   //int **cmtyl;
   //int  *cmtyll;

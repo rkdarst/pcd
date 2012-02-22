@@ -20,6 +20,7 @@ imatrix_t = eval(open(_fname).read())
 imatrix_t_p = ctypes.POINTER(imatrix_t)
 del _fname
 
+import pcd
 
 class _cobj(object):
     """Generic code to interface an object with ctypes using the darst method.
@@ -118,13 +119,18 @@ cGraph._fields_ = [
     ("hasSparse",    c_int),
     ("hasFull",      c_int),
     ("simatrix",     imatrix_t_p),
-    ("srmatrix",     imatrix_t_p),
     ('simatrixLen',  c_int),
     ('simatrixN',    c_int_p),
     ('simatrixId',   c_int_p),
     ('simatrixIdl',  ctypes.POINTER(c_int_p)),
     ("simatrixDefault", imatrix_t),
+    ("srmatrix",     imatrix_t_p),
+    #('srmatrixLen',  c_int),
+    #('srmatrixN',    c_int_p),
+    #('srmatrixId',   c_int_p),
+    #('srmatrixIdl',  ctypes.POINTER(c_int_p)),
     ("srmatrixDefault", imatrix_t),
+    ("srmatrixDefaultOnlyDefined", imatrix_t),
 
     #("cmtyl",        ctypes.POINTER(c_int_p)),
     #("cmtyll",       c_int_p),
@@ -190,7 +196,11 @@ cfuncs = (
     ("energy_sparse", c_double, (cGraph_p, c_double)),
     ("energy_cmty",   c_double, (cGraph_p, c_double, c_int)),
     ("energy_cmty_n", c_double, (cGraph_p, c_double, c_int, c_int)),
+    ("energy_cmty_n_sparse",
+                      c_double, (cGraph_p, c_double, c_int, c_int)),
     ("energy_cmty_cmty", c_double, (cGraph_p, c_double, c_int, c_int)),
+    ("energy_cmty_cmty_sparse",
+                      c_double, (cGraph_p, c_double, c_int, c_int)),
     ("energy_n",      c_double, (cGraph_p, c_double, c_int)),
 
     ("greedy_naive",  c_int,    (cGraph_p, c_double)),
@@ -216,6 +226,7 @@ for name, restype, argtypes in cfuncs:
 
 C.init_gen_rand.restype = None
 C.init_gen_rand(random.randrange(2**32-1))
+
 
 
 

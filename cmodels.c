@@ -595,12 +595,11 @@ double energy(Graph_t G, double gamma) {
    */
   if (!G->hasFull) return energy_sparse(G, gamma);
   assert(G->hasFull);
-  imatrix_t attractions=0;
-  imatrix_t repulsions =0;
   int c;
+  double E=0;
 
   GHashTableIter hashIterOuter;
-  GHashTableIter hashIterInner;
+  /* GHashTableIter hashIterInner; */
 
   for (c=0 ; c<G->Ncmty ; c++) {
     // for communities c
@@ -609,27 +608,10 @@ double energy(Graph_t G, double gamma) {
     while (g_hash_table_iter_next(&hashIterOuter, &n_p, NULL)) {
       int n = GPOINTER_TO_INT(n_p);
       // Do symmetric: both directions.
-      void *m_p;
-      g_hash_table_iter_init(&hashIterInner, G->cmtyListHash[c]);
-      while (g_hash_table_iter_next(&hashIterInner, &m_p, NULL)) {
-	int m = GPOINTER_TO_INT(m_p);
-	if (m == n)
-	  continue;
-	if (G->rmatrix == NULL) {
-	  imatrix_t interaction = G->imatrix[n*G->N + m];
-	  if (interaction > 0)
-	    repulsions  += interaction;
-	  else
-	    attractions += interaction;
-	}
-	else {
-	  attractions += G->imatrix[n*G->N + m];
-	  repulsions += G->rmatrix[n*G->N + m];
-	}
-      }
+      E += energy_cmty_n(G, gamma, c, n);
     }
   }
-  return(.5 * (attractions + gamma*repulsions));
+  return(E);
 }
 
 
@@ -668,38 +650,18 @@ double energy_cmty(Graph_t G, double gamma, int c) {
    * This function is symmetric.
    */
   assert(G->hasFull);
-  imatrix_t attractions=0;
-  imatrix_t repulsions =0;
+  double E=0;
 
   GHashTableIter hashIterOuter;
-  GHashTableIter hashIterInner;
+  //GHashTableIter hashIterInner;
 
   void *n_p;
   g_hash_table_iter_init(&hashIterOuter, G->cmtyListHash[c]);
   while (g_hash_table_iter_next(&hashIterOuter, &n_p, NULL)) {
     int n = GPOINTER_TO_INT(n_p);
-    // Do symmetric: both directions.
-    void *m_p;
-    g_hash_table_iter_init(&hashIterInner, G->cmtyListHash[c]);
-    while (g_hash_table_iter_next(&hashIterInner, &m_p, NULL)) {
-      int m = GPOINTER_TO_INT(m_p);
-      if (m == n)
-	continue;
-
-	if (G->rmatrix == NULL) {
-	  imatrix_t interaction = G->imatrix[n*G->N + m];
-	  if (interaction > 0)
-	    repulsions  += interaction;
-	  else
-	    attractions += interaction;
-	}
-	else {
-	  attractions += G->imatrix[n*G->N + m];
-	  repulsions += G->rmatrix[n*G->N + m];
-	}
-    }
+    E += energy_cmty_n(G, gamma, c, n);
   }
-  return(.5 * (attractions + gamma*repulsions));
+  return(E);
 }
 
 double energy_cmty_n(Graph_t G, double gamma, int c, int n) {
@@ -747,7 +709,8 @@ double energy_cmty_n_sparse(Graph_t G, double gamma, int c, int n) {
   imatrix_t repulsions =0;
 
   int j;
-  int nUnDefinedI = G->cmtyN[c];
+  int nDefinedI = 0;
+  //int nDefinedR = 0;
   // For each adjoining particle in the list:
   for (j=0 ; j<G->simatrixN[n] ; j++) {
     //int m = G->simatrixId[n*G->simatrixLen + j];
@@ -756,10 +719,8 @@ double energy_cmty_n_sparse(Graph_t G, double gamma, int c, int n) {
       continue;
     if (! isInCmty(G, c, m))
       continue;
-    /* if (G->cmty[m] != c) */
-    /*   continue; */
 
-    nUnDefinedI -= 1;
+    nDefinedI++;
     if (G->srmatrix == NULL) {
       imatrix_t interaction = G->simatrix[n*G->simatrixLen + j];
       if (interaction > 0)
@@ -772,11 +733,34 @@ double energy_cmty_n_sparse(Graph_t G, double gamma, int c, int n) {
       repulsions += G->srmatrix[n*G->simatrixLen + j];
     }
   }
+  int nUnDefinedI = G->cmtyN[c] - nDefinedI;
+  int nUnDefinedR = nUnDefinedI;
+
   // -1 comes from self interaction not being counted as undefined.
-  if (isInCmty(G, c, n))
+  if (isInCmty(G, c, n)) {
     nUnDefinedI -= 1;
-  attractions += nUnDefinedI * G->simatrixDefault;
-  repulsions  += nUnDefinedI * G->srmatrixDefault;
+    nUnDefinedR -= 1;
+  }
+
+  if (G->srmatrix == NULL) {
+    attractions += nUnDefinedI * G->simatrixDefault;
+    repulsions  += nUnDefinedR * G->srmatrixDefault;
+
+    /* imatrix_t interaction = G->srmatrixDefault; */
+    /* if (interaction > 0) */
+    /*   repulsions  += nUnDefinedI * G->srmatrixDefault; */
+    /* else */
+    /*   attractions += nUnDefinedI * G->simatrixDefault; */
+  }
+  else if (G->srmatrixDefaultOnlyDefined != 0) {
+    attractions += nUnDefinedI * G->simatrixDefault;
+    repulsions  += nUnDefinedR * G->srmatrixDefault;
+    repulsions  += nDefinedI * G->srmatrixDefaultOnlyDefined;
+  }
+  else {
+    attractions += nUnDefinedI * G->simatrixDefault;
+    repulsions  += nUnDefinedR * G->srmatrixDefault;
+  }
 
   double E = .5 * (attractions + gamma*repulsions);
   /* printf(" e_c_n_s %d %d(%d,%d)\n", c, n, G->cmtyN[c], nUnDefined); */
@@ -815,6 +799,7 @@ double energy_cmty_cmty(Graph_t G, double gamma, int c1, int c2) {
   while (g_hash_table_iter_next(&hashIterOuter, &n_p, NULL)) {
     int n = GPOINTER_TO_INT(n_p);
     E += energy_cmty_n(G, gamma, c2, n);
+    /* printf("ecc %d %d %f\n", c2, n, E); */
   }
   return (E);
 }
@@ -832,6 +817,7 @@ double energy_cmty_cmty_sparse(Graph_t G, double gamma, int c1, int c2) {
   while (g_hash_table_iter_next(&hashIterOuter, &n_p, NULL)) {
     int n = GPOINTER_TO_INT(n_p);
     E += energy_cmty_n_sparse(G, gamma, c2, n);
+    /* printf("eccs %d %d %f\n", c2, n, E); */
   }
   return (E);
 }
@@ -894,6 +880,7 @@ double energy_cmty_cmty_xor_sparse(Graph_t G, double gamma, int c1, int c2) {
         repulsions += G->srmatrix[n1*G->simatrixLen + i];
       }
 
+      assert(0); // Needs to be upgraded to handle srmatrix.
     }
   }
   attractions += nUnDefinedI * G->simatrixDefault;
