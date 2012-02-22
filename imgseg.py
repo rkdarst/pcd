@@ -7,6 +7,7 @@ import numpy
 #import numpy.fft
 import scipy.misc
 import scipy.ndimage
+import time
 
 from pcd import Graph, MultiResolution
 import pcd.util
@@ -180,6 +181,7 @@ class ImgSeg(object):
         self.corrlength = corrlength
         #self.cutoff = cutoff
         self.Vbar = Vbar
+        self.rweights = False
 
         self._inner_dtype = numpy.float32
 
@@ -216,6 +218,11 @@ class ImgSeg(object):
             self.outer_func = self.outer_FFT_absdiff
             self.dist_func = self.dist_expdecay
             self._inner_dtype = numpy.complex64
+        elif mode == 'frequency-test':
+            self.inner_func = self.inner_FFT_mean_norm
+            self.outer_func = self.outer_FFT_conj
+            self.dist_func = self.dist_expdecay
+            self._inner_dtype = numpy.complex64
         else:
             raise ValueError("Unknown analysis mode: %s"%mode)
 
@@ -225,6 +232,9 @@ class ImgSeg(object):
             self.dist_func  = self.dist_cutoff
         elif dist is 'exp':
             self.dist_func  = self.dist_expdecay
+        elif dist == 'exp-rweights':
+            self.rweights = True
+            self.dist_func = self.dist_expdecay
         else:
             raise ValueError("Unknown distance mode: %s"%dist)
 
@@ -235,7 +245,9 @@ class ImgSeg(object):
     def dist_expdecay(self, d):
         return math.exp(-d/self.L)
     def dist_cutoff(self, d):
-        return 1 if d <= self.L else 0
+        return 1. if d <= self.L else 0
+    def dist_one(self, d):
+        return 1.
 
     # All of these outer-functions should have lower = more attractive.
 
@@ -261,7 +273,17 @@ class ImgSeg(object):
     # Method 3: frequency domair
     @staticmethod
     def inner_FFT_mean(a):
-        return numpy.fft.fft2(a - numpy.mean(a))
+        return numpy.fft.fftn(a - numpy.mean(a))
+    @staticmethod
+    def inner_FFT_mean_norm(a):
+        """Normalized from -1 -- 0.
+
+        -1 = perfect overlap
+        0 = no overlap."""
+        a = a - a.mean()
+        assert numpy.sum(numpy.abs(a)) > 1e-5
+        a /= math.sqrt(numpy.square(a).sum() / a.size)
+        return a
     #_inner_dtype = numpy.complex64
     @staticmethod
     def outer_FFT_conj(a1, a2):
@@ -270,7 +292,7 @@ class ImgSeg(object):
     # Method 3b: frequency domain
     @staticmethod
     def inner_FFT_paper(a):
-        return numpy.fft.fft2(a - a.flat[0])
+        return numpy.fft.fftn(a - a.flat[0])
     #_inner_dtype = numpy.complex64
     @staticmethod
     def outer_FFT_absdiff(a1, a2):
@@ -291,7 +313,7 @@ class ImgSeg(object):
             G = self.G()
 
         mask = self.Gmask(G)
-        print "before:", \
+        print "    before:", \
               "min:", G.simatrix[mask].min(), \
               "max:", G.simatrix[mask].max(), \
               "mean:", G.simatrix[mask].mean(), \
@@ -323,7 +345,7 @@ class ImgSeg(object):
             G.srmatrixDefault = default
         else:
             G.srmatrixDefault -= V
-        print "after:", \
+        print "    after:", \
               "min:", G.simatrix[mask].min(), \
               "max:", G.simatrix[mask].max(), \
               "mean:", G.simatrix[mask].mean(), \
@@ -394,6 +416,9 @@ class ImgSeg(object):
 
 
     def iterweights(self):
+        """Iterate over values suitable for Graph.from_sparseiter.
+
+        This is used for """
         d_map = collections.defaultdict(list)
         self.mean_conn = self._newarr()
 
@@ -404,9 +429,10 @@ class ImgSeg(object):
                 #print x, y, adjx, adjy
                 a1 = self.blocks[y,x]
                 a2 = self.blocks[adjy,adjx]
-                #print fft1, fft2
-                weight = self.outer_func(a1, a2)
-                weight = weight * self.dist_func(d)
+                #print a1, a2
+                fweight = self.outer_func(a1, a2)
+                dist_weight = self.dist_func(d)
+                weight = fweight * dist_weight
                 #assert weight <= 0
                 #print "%5.2f % 5.2f"%(d, weight)
                 d_map[d].append(weight)
@@ -414,7 +440,12 @@ class ImgSeg(object):
                 node_conn.append(weight)
 
                 #offy, offx = adjy-y+self.corrlength, adjx-+self.corrlength
-                yield (y, x), (adjy, adjx), weight
+                #print (y,x), (adjy, adjx), weight, dist_weight
+                if not self.rweights:
+                    yield (y, x), (adjy, adjx), weight
+                else:
+                    #print (y,x), (adjy, adjx), fweight, dist_weight
+                    yield (y, x), (adjy, adjx), weight, dist_weight
 
                 #self.weights[y][x][offy][offx] = weight
             self.mean_conn[(y,x)] = numpy.mean(node_conn)
@@ -426,63 +457,66 @@ class ImgSeg(object):
     #                for connections in self.weights.values()])
     #print mean_interaction
 
-    def enableVT(self):
+    def enableVT(self, mode="", **kwargs):
         G = self.G()
-        G.enableVT2()
-        print G.srmatrixDefaultOnlyDefined
-        print G.srmatrixDefault
-        #import time ; time.sleep(100)
+        G.enableVT(mode=mode, **kwargs)
 
     def G(self):
         if hasattr(self, "_G"):
             return self._G
         maxconn = (2*self.corrlength +1)**2
+        kwargs = { }
+        if self.rweights:
+            kwargs['rmatrix'] = True
         self._G = Graph.from_sparseiter(nodes=self.iterCoords(),
                                         weights=self.iterweights(),
                                         default=self.defaultweight,
-                                        maxconn=maxconn
+                                        maxconn=maxconn,
+                                        **kwargs
                                         )
         #print G.imatrix
         return self._G
 
     def do_stats(self, basename):
-        print "Information:"
-        print "inner", self.inner_func
-        print "outer", self.outer_func
-        print "dist", self.dist_func
-        print "dtype", self._inner_dtype
-        print "Information on mean_blocks (inner blocks):"
+        print "Information on imgseg object:"
+        print "    inner", self.inner_func
+        print "    outer", self.outer_func
+        print "    dist", self.dist_func
+        print "    dtype", self._inner_dtype
+        print "  Information on mean_blocks (inner blocks):"
         mask = self.mask
         # Make and print average interaction map
         mean_blocks = self.mean_blocks.copy()[mask]
-        print "Blocks stats:", mean_blocks.min(), mean_blocks.max(), \
-                              mean_blocks.mean(), mean_blocks.std()
+        print "    Blocks stats:", mean_blocks.min(), mean_blocks.max(), \
+                                   mean_blocks.mean(), mean_blocks.std()
         mean_blocks -= mean_blocks.min()
         mean_blocks /= mean_blocks.max()
         mean_blocks2 = self.mean_blocks.copy()
         mean_blocks2[mask] = mean_blocks
         mean_blocks = mean_blocks2
-        print imsave(basename+'-blocksmap.png',
-                     mean_blocks)
-                 #replace_channels(R,G,B, channels=dict(H=0, S=0,
-                 #                                      V=mean_blocks)))
+        imsave(basename+'-blocksmap.png', mean_blocks)
 
         # Print mean_conn.
-        print "Information on mean_conn"
+        print "  Information on mean_conn"
         mean_conn = self.mean_conn.copy()
-        print "Connection stats:",mean_conn[mask].min(),mean_conn[mask].max(),\
-                                  mean_conn[mask].mean(), mean_conn[mask].std()
+        print "    Connection stats:", \
+                               mean_conn[mask].min(),mean_conn[mask].max(),\
+                               mean_conn[mask].mean(), mean_conn[mask].std()
         mean_conn[mask] -= mean_conn[mask].min()
         mean_conn[mask] /= mean_conn[mask].max()
-        print imsave(basename+'-connmap.png',
-                     mean_conn)
+        imsave(basename+'-connmap.png', mean_conn)
 
-        print "G stats:"
+        print "  G stats:"
         G = self.G()
         mask = self.Gmask(G)
-        print "imatrix stats:", G.simatrix[mask].min(),G.simatrix[mask].max(),\
-                                G.simatrix[mask].mean(),G.simatrix[mask].std()
-        print "simatrixDefault, srmatrixDefault:", G.simatrixDefault,\
+        print "    imatrix stats:", \
+                            G.simatrix[mask].min(),G.simatrix[mask].max(),\
+                            G.simatrix[mask].mean(),G.simatrix[mask].std()
+        if isinstance(G.srmatrix, numpy.ndarray):
+            print "    rmatrix stats:", \
+                            G.srmatrix[mask].min(),G.srmatrix[mask].max(),\
+                            G.srmatrix[mask].mean(),G.srmatrix[mask].std()
+        print "    simatrixDefault, srmatrixDefault:", G.simatrixDefault,\
               G.srmatrixDefault
 
     def do_connmap(self, orient=None):
@@ -495,7 +529,6 @@ class ImgSeg(object):
         G.trials(gamma, 5, maxrounds=25, minimizer='greedy2')
         print "Plotting cmtys."
         fullimg.plotCmtys(fname, G, self)
-        #sys.exit()
 
     def do(self, basename, gammas=None, replicas=3, trials=2):
         """Do a full MR."""
@@ -509,7 +542,7 @@ class ImgSeg(object):
         def callback(gamma, data, **kwargs):
             G = data['Gmin']
             #fullimg.plotCmtys(basename+'-mr_gamma%011.7f.png'%gamma, G, self)
-            left, right = 10, 5
+            left, right = 5, 5
             fname = basename+'-mr_gamma%%0%d.%df.png'%(left+right+1,right)
             fullimg.plotCmtys(fname%gamma, G, self)
         MR = MultiResolution(overlap=False,
@@ -534,17 +567,18 @@ if __name__ == "__main__":
 
     parser = OptionParser()
     parser.add_option("-g", "--gammas", help="gL,gH[,D] or a dict.")
-    parser.add_option("-w", "--width", type=int, default=0)
-    parser.add_option("-c", "--corrlength", type=int, default=1)
+    parser.add_option("-w", "--width", type=int, default=0, help="Block width (L=w*2+1) (%default)")
+    parser.add_option("-c", "--corrlength", type=int, default=1, help="max distance between pixels (%default)")
     parser.add_option("-L", "--length", type=float, default=2.0, help="Length for exp decay or distance cutoff (%default).")
     parser.add_option("-m", "--mode", default='intensity')
     parser.add_option("--dist", help="Override distance function mode")
     parser.add_option("--VT", default=False, action='store_true', help="Use variable topology potts model")
     parser.add_option("-s", "--shift")
-    parser.add_option("-T", "--trials", type=int, default=2)
+    parser.add_option("-T", "--trials", type=int, default=3)
     parser.add_option("-R", "--replicas", type=int, default=3)
-    parser.add_option("--crop", type=str, help="Python array slice to crop with, example: 10:50,10:50")
-    parser.add_option("--resize", type=float, help="Resize array to this fraction of previous size.  Applied after --crop."  )
+    parser.add_option("--crop", type=str, help="Python array slice to crop with, example: 10:50,10:50 .")
+    parser.add_option("--resize", type=float, help="Resize array to this fraction of previous size.  Applied after --crop.")
+    parser.add_option("--dry-run", action='store_true', help="Abort after initial set-up (useful for testing parameters).")
     options, args = parser.parse_args()
 
 
@@ -587,9 +621,13 @@ if __name__ == "__main__":
     I.do_stats(basename=basename)
 
     if options.VT:
-        I.enableVT()
+        print "Enabling variable topology..."
+        #I.enableVT(mode="onlyDefined")
+        I.enableVT(mode="preDefined", repelValue=0)
+        I.do_stats(basename=basename)
 
     if options.shift:
+        print "Shifting weights..."
         default = None
         shift = pcd.util.leval(options.shift)
         if isinstance(shift, (list,tuple)):
@@ -602,15 +640,10 @@ if __name__ == "__main__":
         I.adjust_weights(shift, default=default)
         #I.adjust_weights('max')
         #I.adjust_weights(.06, default=0)
-    #I.adjust_weights('half', default=0)
+        #I.adjust_weights('half', default=0)
 
-    I.do_stats(basename=basename)
+        I.do_stats(basename=basename)
 
-    #sys.exit(2)
-    #from fitz import interactnow
-    print '>'
-    import time
-    time.sleep(10)
 
     if options.gammas:
         gammas = pcd.util.leval(options.gammas)
@@ -622,10 +655,12 @@ if __name__ == "__main__":
     else:
         gammas = dict(low=.0000001, high=1, density=2)
 
+    if options.dry_run:
+        print "Aborting, --dry-run enabled"
+        sys.exit(0)
+
     if isinstance(gammas, (float, int)):
-        #sys.exit()
         I.do_gamma(basename+'_gamma%09.5f.png'%gammas, gammas)
-        #sys.exit()
     else:
         I.do(basename=basename, gammas=gammas, trials=options.trials,
              replicas=options.replicas)
