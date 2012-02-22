@@ -647,9 +647,9 @@ class MRRunner(object):
         logGammas = self._logGammas
 
         start = 1
-        if isinstance(p.get('high'), int) and p.get('high', 1) < start:
+        if isinstance(p.get('high'), (int,float)) and p.get('high', 1) < start:
             start = p['high']
-        if isinstance(p.get('low'), int) and p.get('low', 1) > start:
+        if isinstance(p.get('low'), (int,float)) and p.get('low', 1) > start:
             start = p['low']
         high = self._gammas.get('high', 'auto')
         low  = self._gammas.get('low',  'auto')
