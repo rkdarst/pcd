@@ -186,7 +186,7 @@ class MultiResolution(object):
         # Avoid calculating N when n_mean is <= 5.  This is because it
         # takes too long due to the hard recursive and pair-to-pair
         # calculations it requires.
-        if Gs[0].n_mean() > 5:
+        if Gs[0].n_mean() > 5 and not getattr(settings, 'no_N', False):
             Nmi = numpy.mean(
                 [ util.mutual_information_overlap(Gs[i], Gs[j])
                   for i,j in data['pairIndexes'] ])
@@ -203,7 +203,7 @@ class MultiResolution(object):
         # Avoid calculating N when n_mean is <= 5.  This is because it
         # takes too long due to the hard recursive and pair-to-pair
         # calculations it requires (same as above).
-        if Gs[0].n_mean() > 5:
+        if Gs[0].n_mean() > 5 and not getattr(settings, 'no_N', False):
             NmiO = numpy.mean(
                 [ util.mutual_information_overlap(overlapGs[i], overlapGs[j])
                   for i,j in data['pairIndexes'] ])
@@ -641,12 +641,14 @@ class MRRunner(object):
         """Return next gamma, if self._gammas is a dict for LogInterval"""
         p = self._gammas
         if not hasattr(self, '_logGammas'):
-            if p.get('high') == 'auto':  p.pop('high')
-            if p.get('low')  == 'auto':  p.pop('low')
-            self._logGammas = LogInterval(**self._gammas)
+            args = p.copy()
+            if args.get('high') == 'auto':  args.pop('high')
+            if args.get('low')  == 'auto':  args.pop('low')
+            if args.get('start'):           args.pop('start')
+            self._logGammas = LogInterval(**args)
         logGammas = self._logGammas
 
-        start = 1
+        start = p.get('start', 1)
         if isinstance(p.get('high'), (int,float)) and p.get('high', 1) < start:
             start = p['high']
         if isinstance(p.get('low'), (int,float)) and p.get('low', 1) > start:
