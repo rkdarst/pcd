@@ -398,7 +398,8 @@ class Graph(anneal._GraphAnneal, cmodels._cobj, object):
         return G
     @classmethod
     def from_sparseiter(cls, nodes, weights, default, maxconn,
-                        imatrixDefault=0):
+                        imatrixDefault=0,
+                        rmatrix=False, rweight=0):
 
         nodeIndex = { }
         nodeLabel = { }
@@ -415,15 +416,26 @@ class Graph(anneal._GraphAnneal, cmodels._cobj, object):
 
         G.simatrixDefault = imatrixDefault
         G.srmatrixDefault = default
-        G._alloc_sparse(simatrixLen=maxconn)
+        G._alloc_sparse(simatrixLen=maxconn, rmatrix=rmatrix)
         G.simatrix[:] = numpy.nan
+        if rmatrix:
+            G.srmatrix[:] = numpy.nan
 
         simatrixN = G.simatrixN
         simatrix = G.simatrix
         simatrixId = G.simatrixId
-        for node1, node2, weight in weights:
+        if rmatrix:
+            srmatrix = G.srmatrix
+
+        for iterval in weights:
+            if rmatrix:
+                node1, node2, weight, rweight = iterval
+            else:
+                node1, node2, weight = iterval
             if node1 == node2:
-                continue
+            #    continue
+                raise ValueError("Nodes must not interact with themselves "
+                                 "(under current assumptions.)")
             i = nodeIndex[node1]
             j = nodeIndex[node2]
             idx = simatrixN[i]
@@ -431,14 +443,16 @@ class Graph(anneal._GraphAnneal, cmodels._cobj, object):
             simatrix[i,idx] = weight
             simatrixId[i,idx] = j
             simatrixN[i] += 1
+            if rmatrix:
+                srmatrix[i, idx] = rweight
         return G
 
 
-    def _alloc_sparse(self, simatrixLen):
+    def _alloc_sparse(self, simatrixLen, rmatrix=False):
         self.hasSparse = 1
         self.simatrixLen = simatrixLen
         self._allocArray('simatrix', shape=(self.N, simatrixLen))
-        if isinstance(self.rmatrix, numpy.ndarray):
+        if isinstance(self.rmatrix, numpy.ndarray) or rmatrix:
             self._allocArray('srmatrix', shape=(self.N, simatrixLen))
         self._allocArray('simatrixN', shape=self.N)
         self._allocArray('simatrixId', shape=(self.N, simatrixLen))
@@ -510,6 +524,35 @@ class Graph(anneal._GraphAnneal, cmodels._cobj, object):
         for i in range(self.N):
             assert list(sorted(self.simatrixId[i,:self.simatrixN[i]])) == \
                    list(self.simatrixId[i,:self.simatrixN[i]])
+    def shiftWeights(self, shift):
+        raise NotImplementedError
+    def enableVT(self, mode="", repelValue=1):
+        """Enable variable topology potts model.
+
+        """
+
+        # handle the case where we hasFull
+        if self.hasFull:
+            self._allocRmatrix()
+            self.rmatrix[:] = repelValue
+
+        # Handle the sparse cases
+        if not isinstance(self.srmatrix, numpy.ndarray):
+            self._allocArray('srmatrix', shape=(self.N, self.simatrixLen))
+
+        if mode == "":
+            self.srmatrix[numpy.isnan(self.srmatrix) == 0] = repelValue
+            self.srmatrixDefault = repelValue
+        elif mode == "onlyDefined":
+            self.srmatrix[numpy.isnan(self.srmatrix) == 0] = 0
+            self.srmatrixDefault = 0
+            self.srmatrixDefaultOnlyDefined = repelValue
+        elif mode == "preDefined":
+            #self.srmatrix -> already defined
+            self.srmatrixDefault = repelValue
+        else:
+            raise ValueError("Unknown mode for enableVT: %s", mode)
+
 
     #
     # Conversion methods
