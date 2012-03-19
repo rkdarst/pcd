@@ -746,7 +746,8 @@ class ImgSeg(object):
         print "Plotting cmtys."
         fullimg.plotCmtys(fname, G, self)
 
-    def do(self, basename, gammas=None, replicas=3, trials=2):
+    def do(self, basename, gammas=None, replicas=3, trials=2,
+           threads=6):
         """Do a full MR."""
         print "Making IS blocks neighborhoods"
 
@@ -770,7 +771,7 @@ class ImgSeg(object):
         MR.no_N = True
         MR.run(Gs=[G]*replicas,
                gammas=gammas,
-               threads=6,
+               threads=threads,
                callback=callback
                )
         MR.plot(basename+'-MR.png')
@@ -1308,6 +1309,7 @@ if __name__ == "__main__":
     parser.add_option("--gtk", action='store_true', help="GTK interface.")
     parser.add_option("--out-suffix", default="", help="Output suffix four automatic output files.")
     parser.add_option("--dry-run", action='store_true', help="Abort after initial set-up (useful for testing parameters).")
+    parser.add_option("--threads", default=6, type=int)
 
     parser.add_option("-g", "--gammas", help="gL,gH[,D] or a dict.")
     parser.add_option("-T", "--trials", type=int, default=3)
@@ -1413,7 +1415,7 @@ if __name__ == "__main__":
         I.do_gamma(basename+'_gamma%09.5f.png'%gammas, gammas)
     else:
         I.do(basename=basename, gammas=gammas, trials=options.trials,
-             replicas=options.replicas)
+             replicas=options.replicas, threads=options.threads)
 
     #I.do(basename=out,
     #     gammas=dict(low=.01, high=.01, density=2))
