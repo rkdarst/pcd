@@ -12,6 +12,7 @@ import cPickle as pickle
 import random
 import sys
 import time
+import threading
 import numbers
 
 import networkx
@@ -916,7 +917,7 @@ class Graph(anneal._GraphAnneal, cmodels._cobj, object):
     # Methods that deal with minimization/optimization
     #
     def trials(self, gamma, trials, initial='random',
-               minimizer='greedy', **kwargs):
+               minimizer='greedy', threads=1, **kwargs):
         """Minimize system using .minimize() and `trials` trials.
 
         This will minimize `trials` number of times, and set the final
@@ -939,6 +940,7 @@ class Graph(anneal._GraphAnneal, cmodels._cobj, object):
         **kwargs: Keyword arguments passed to minimizer function.
         Minimizer is called as minimize(gamma, **kwargs).
         """
+        minimizer_orig = minimizer
         if isinstance(minimizer, str):
             minimizer = getattr(self, minimizer)
         if self.verbosity > 0:
@@ -950,19 +952,37 @@ class Graph(anneal._GraphAnneal, cmodels._cobj, object):
             initial = self.getcmtystate()
         nChanges = [ ]
 
-        for i in range(trials):
-            if initial == 'random':
-                self.cmtyCreate() # randomizes it
-            else:
-                self.setcmtystate(initial)
-            changes = minimizer(gamma, **kwargs)
-            nChanges.append(changes)
-            thisE = self.energy(gamma)
-            if thisE < minE:
-                minE = thisE
-                minCmtyState = self.getcmtystate()
-            if self.verbosity >= 1.5:
-                print "Trial %d, minimum energy %f"%(i, thisE)
+        if threads <= 1:
+            for i in range(trials):
+                if initial == 'random':
+                    self.cmtyCreate() # randomizes it
+                else:
+                    self.setcmtystate(initial)
+                changes = minimizer(gamma, **kwargs)
+                nChanges.append(changes)
+                thisE = self.energy(gamma)
+                if thisE < minE:
+                    minE = thisE
+                    minCmtyState = self.getcmtystate()
+                if self.verbosity >= 1.5:
+                    print "Trial %d, minimum energy %f"%(i, thisE)
+        else:
+            Gs = [ self.copy() for i in range(trials) ]
+            def do(G):
+                if initial == 'random':
+                    G.cmtyCreate() # randomizes it
+                else:
+                    G.setcmtystate(initial)
+                minimizer = getattr(G, minimizer_orig)
+                changes = minimizer(gamma, **kwargs)
+                nChanges.append(changes)
+            threadlist = [ threading.Thread(target=do, args=(Gs[i],))
+                           for i in range(trials) ]
+            [ t.start() for t in threadlist ]
+            for t in threadlist:
+                t.join()
+            minG = min((G for G in Gs), key=lambda x: x.energy(gamma))
+            minCmtyState = minG.getcmtystate()
 
         self.setcmtystate(minCmtyState)
         self.nChanges = numpy.mean(nChanges, axis=0)
