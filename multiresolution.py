@@ -197,6 +197,7 @@ class MultiResolution(object):
         return returns
     calcMethods.append(calc_multualInformation)
     def calc_overlap(self, data, settings):
+        Gs = data['Gs']
         overlapGs = data.get('ovGs', None)
         if overlapGs is None:
             return [ ]
@@ -367,8 +368,9 @@ class MultiResolution(object):
             'q':      dict(label='$q$',color='black', linestyle=':'),
             '_s_F1':   dict(label='$_sF_1$',color='black', linestyle='-.'),
             'n_mean': dict(label='$<n>$',color='blue',linestyle=':'),
-            'n_mean_ov':dict(label='$<n_{ov}>$',color='green',linestyle=':'),
+            'ov_n_mean':dict(label='$<n_{ov}>$',color='green',linestyle=':'),
             'entropy':dict(label='$H$',color='blue', linestyle='--'),
+            's_F1_ov':dict(label='$F1_{s,ov}$'),
             None:   dict(),  # defaults
             }
         plotstyles = recursive_dict_update(defaultplotstyles, plotstyles)

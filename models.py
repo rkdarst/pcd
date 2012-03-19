@@ -1005,8 +1005,12 @@ class Graph(anneal._GraphAnneal, cmodels._cobj, object):
     # Keep backwards compatibility for now.
     minimize_trials = trials
 
-    def alternate(self, funcs, mode="restart", maxrounds=250, maxfunc=10):
+    def alternate(self, funcs, mode="restart", maxrounds=250, maxfunc=10,
+                  minchanges=0):
         """Alternately call funcA and funcB.
+
+        minchanges: when all functions have fewer than this many
+        changes, break.
         """
         if self.verbosity >= 0:
             print "beginning alternating", " ".join(f.func_name for f in funcs)
@@ -1038,6 +1042,8 @@ class Graph(anneal._GraphAnneal, cmodels._cobj, object):
                 if mode == "restart" and changes > 0:
                     break
             if None not in lastChanges and sum(lastChanges) == 0:
+                break
+            if None not in lastChanges and max(lastChanges) < minchanges:
                 break
 
             if round_ > maxrounds:
@@ -1165,6 +1171,10 @@ class Graph(anneal._GraphAnneal, cmodels._cobj, object):
         def C(): return cmodels.combine_sparse_overlap(self._struct_p, gamma)
         def D(): return self.combineSubsets()
         return self.alternate(funcs=(A, B, C, D))
+    def ovexpand(self, gamma):
+        def A(): return cmodels.overlapAdd(self._struct_p, gamma)
+        def B(): return cmodels.overlapRemove(self._struct_p, gamma)
+        return self.alternate(funcs=(A, B))
 
     def combine(self, gamma):
         """Attempt to combine communities if energy decreases."""

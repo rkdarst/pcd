@@ -10,9 +10,9 @@ import types
 from networkx.algorithms import is_isomorphic
 import networkx
 
-import graphs
-import models
-import util
+import pcd.graphs as graphs
+import pcd.models as models
+import pcd.util as util
 
 # Initialized to one community per list
 G = graphs.random_graph(size=5)
