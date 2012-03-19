@@ -527,30 +527,41 @@ class Graph(anneal._GraphAnneal, cmodels._cobj, object):
                    list(self.simatrixId[i,:self.simatrixN[i]])
     def shiftWeights(self, shift):
         raise NotImplementedError
-    def enableVT(self, mode="", repelValue=1):
+    def enableVT(self, mode="standard", repelValue=1):
         """Enable variable topology potts model.
 
         """
 
-        # handle the case where we hasFull
+        assert self.hasSparse, "enableVT assumes hasSparse so far"
+
+        # Allocate the rmatrices if needed...
         if self.hasFull:
             self._allocRmatrix()
-            self.rmatrix[:] = repelValue
-
-        # Handle the sparse cases
         if not isinstance(self.srmatrix, numpy.ndarray):
             self._allocArray('srmatrix', shape=(self.N, self.simatrixLen))
 
-        if mode == "":
+        if mode == "standard":
+            if self.hasFull:
+                self.rmatrix[:] = repelValue
             self.srmatrix[numpy.isnan(self.srmatrix) == 0] = repelValue
             self.srmatrixDefault = repelValue
         elif mode == "onlyDefined":
+            if self.hasFull:
+                raise ValueError("VT mode onlyDefined only makes sense if "
+                                 "not hsFull")
             self.srmatrix[numpy.isnan(self.srmatrix) == 0] = 0
             self.srmatrixDefault = 0
             self.srmatrixDefaultOnlyDefined = repelValue
         elif mode == "preDefined":
+            if self.hasFull:
+                pass
             #self.srmatrix -> already defined
             self.srmatrixDefault = repelValue
+        elif mode == "preDefinedOnly":
+            if self.hasFull:
+                pass
+            #self.srmatrix -> already defined
+            self.srmatrixDefault = 0
         else:
             raise ValueError("Unknown mode for enableVT: %s", mode)
 
