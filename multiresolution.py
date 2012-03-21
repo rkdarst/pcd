@@ -2,6 +2,7 @@
 
 from math import log, exp, floor, ceil
 import numpy
+import sys
 import threading
 import time
 import types
@@ -264,6 +265,7 @@ class MultiResolution(object):
         #print >> f, "# minimizer and kwargs:", self._minimizer, \
         #                                       self._minimizerargs
 
+        print >> f, "#", "Invocation:", repr(sys.argv)
         print >> f, "#", " ".join("%d:%s"%(i+1,x)
                                   for i,x in enumerate(self.fieldnames))
         for i in range(len(table['gamma'])):
@@ -812,9 +814,10 @@ class MRRunner(object):
 
 
 
-def write_table(fname, MRs, values, Vname='V'):
+def write_table(fname, MRs, values, Vname='V', headerlines=[]):
     f = open(fname, 'w')
-
+    for headerline in headerlines:
+        print >> f, "#", headerline
     print >> f, "#", " ".join("%d:%s"%(i+1,x)
                      for i,x in enumerate((Vname,)+tuple(MRs[0].fieldnames)))
 
