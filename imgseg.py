@@ -210,7 +210,8 @@ class ImgSeg(object):
                  VTmode=None,
                  exp_beta=1,
                  blur=0,
-                 shift=None):
+                 shift=None,
+                 overlap=False):
         self.Ly, self.Lx = img.shape
         self.img = img
 
@@ -224,9 +225,13 @@ class ImgSeg(object):
         self.corrlength = corrlength
         #self.cutoff = cutoff
         #self.Vbar = Vbar
-        self.exp_beta = exp_beta
+        if options.exp_beta is not None:
+            self.exp_beta = exp_beta
+        else:
+            self.exp_beta = 1
         self.blur = blur
         self.shift = shift
+        self.overlap = overlap
 
         self.mode = mode
         self.distmode = dist
@@ -762,7 +767,13 @@ class ImgSeg(object):
             left, right = 5, 5
             fname = basename+'-mr_gamma%%0%d.%df.png'%(left+right+1,right)
             fullimg.plotCmtys(fname%gamma, G, self)
-        MR = MultiResolution(overlap=False,
+        if isinstance(self.overlap, (int, float)):
+            overlap = self.overlap
+        elif self.overlap:
+            overlap = trials
+        else:
+            overlap = False
+        MR = MultiResolution(overlap=overlap,
                              minimizerargs=dict(trials=trials,
                                                 maxrounds=25,
                                                 minimizer='greedy2'),
@@ -1117,6 +1128,8 @@ def gtk_main(I, img):
             self.window.resize(min(img.shape[1]+50, 1e3),
                                min(img.shape[0]*2+100, 1e3))
             self.window.connect("destroy_event", lambda w: gtk.main_quit())
+            self.window.set_title("%s - %s"%(globals().get('fname', '???'),
+                                             sys.argv[0]))
 
             # The image
             self.image = image = gtk.Image()
@@ -1321,6 +1334,7 @@ if __name__ == "__main__":
     parser.add_option("-s", "--shift")
     parser.add_option("--exp_beta", type=float, help="beta<1 biases towards closer.")
     parser.add_option("--blur", type=float, default=0, help="guassian blur block matrix.")
+    parser.add_option("--overlap", action="store_true", help="Allow community overlaps.")
     options, args = parser.parse_args()
 
 
@@ -1358,6 +1372,7 @@ if __name__ == "__main__":
                exp_beta=options.exp_beta,
                blur=options.blur,
                shift=options.shift,
+               overlap=options.overlap
                )
     #I.dist_func = I.dist_expdecay
     if options.exp_beta:
