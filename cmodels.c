@@ -473,7 +473,7 @@ double mutual_information(Graph_t G0, Graph_t G1) {
       n_shared = cmtyIntersect(G0, c0, G1, c1);
       if (n_shared == 0)
 	continue;
-      MI += (n_shared/(float)N) * log2((double)(n_shared*N/((double)n0*n1)));
+      MI+=(n_shared/(float)N) * log2((((double)n_shared)*N)/(((double)n0)*n1));
     }
   }
   return (MI);
