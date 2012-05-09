@@ -378,7 +378,8 @@ class MultiResolution(object):
 
         # Add axes
         ax1  = f.add_subplot(111)
-        ax1.set_xscale('log')
+        if xaxis in ('gamma', ):
+            ax1.set_xscale('log')
         ax2 = ax1.twinx()
 
         # Defaults (move outside of the function eventually)
@@ -390,11 +391,13 @@ class MultiResolution(object):
             'N':      dict(label='$N$',color='green', linestyle='-.'),
             'ov_N':   dict(label='$N_{ov}$',color='green', linestyle='-.'),
             'q':      dict(label='$q$',color='black', linestyle=':'),
-            '_s_F1':   dict(label='$_sF_1$',color='black', linestyle='-.'),
             'n_mean': dict(label='$<n>$',color='blue',linestyle=':'),
             'ov_n_mean':dict(label='$<n_{ov}>$',color='green',linestyle=':'),
             'entropy':dict(label='$H$',color='blue', linestyle='--'),
-            's_F1_ov':dict(label='$F1_{s,ov}$'),
+            'F1':     dict(label='$F_1$',color='red', linestyle='-'),
+            'ov_F1':  dict(label='$F_{1,ov}$',color='green', linestyle='-'),
+            's_F1':   dict(label='$_sF_1$',color='cian', linestyle='-'),
+            's_F1_ov':dict(label='$F1_{s,ov}$',color='magenta'),
             None:   dict(),  # defaults
             }
         plotstyles = recursive_dict_update(defaultplotstyles, plotstyles)
@@ -402,7 +405,7 @@ class MultiResolution(object):
         for item in ax1items:
             plotstyle = plotstyles.get(item, {}).copy()
             scale = plotstyle.pop('scale', 1)
-            l = ax1.plot(table['gamma'], table[item]*scale,
+            l = ax1.plot(table[xaxis], table[item]*scale,
                          **plotstyle)[0]
             legenditems.append((l, plotstyle.get('label', item)))
         for item in ax2items:
@@ -410,7 +413,7 @@ class MultiResolution(object):
             scale = plotstyle.pop('scale', 1)
             #plotstyle2 = plotstyle.copy()
             #plotstyle2.pop('scale', None)
-            l = ax2.plot(table['gamma'], table[item]*scale,
+            l = ax2.plot(table[xaxis], table[item]*scale,
                          **plotstyle)[0]
             legenditems.append((l, plotstyle.get('label', item)))
 
@@ -429,7 +432,7 @@ class MultiResolution(object):
         ax1labels = ', '
         ax1.set_ylabel(', '.join(axLabels(ax1items)))
         ax2.set_ylabel(', '.join(axLabels(ax2items)))
-        ax1.set_xlabel(defaultplotstyles.get('gamma',
+        ax1.set_xlabel(defaultplotstyles.get(xaxis,
                                              dict(label=xaxis))['label'])
 
         if fname:
