@@ -77,6 +77,10 @@ class Image(object):
     def __init__(self, channels, mode=None):
         self.channels = channels
 
+        if mode not in (None, 'RGB', 'HSV', 'L'):
+            raise ValueError("Unknown mode")
+        if mode == 'HSV':
+            channels = vhsv_to_rgb(*channels)
         if isinstance(channels, tuple):
             R,G,B = channels
             self.R = R
@@ -121,9 +125,17 @@ class Image(object):
           int: percent of old size
           float: fraction of old size
           tuple: new dimensions
+          '=NN': scale largest dimension to this size
         """
         # Note: see scipy.misc.imresize for docs on how this could be
         # made more flexible than just a fraction.
+        if isinstance(scale, str) and scale.startswith("="):
+            if scale.endswith('h'):
+                scale = int(scale[1:-1]) / float(self.shape[0])
+            elif scale.endswith('w'):
+                scale = int(scale[1:-1]) / float(self.shape[1])
+            else:
+                scale = int(scale[1:])/float(max(self.shape[0],self.shape[1]))
         for channel in self.mode:
             chan = getattr(self, channel)
             chan = scipy.misc.imresize(chan*255, scale, )/255. #interp='cubic'
@@ -673,6 +685,7 @@ class ImgSeg(object):
     def do_blockmean(self, mask=None):
         if mask is None:
             mask = self.mask
+        blocks = self.blocks() # Generate self.mean_blocks in this function.o
         mean_blocks = self.mean_blocks.copy()[mask]
         print "    Blocks stats:", mean_blocks.min(), mean_blocks.max(), \
                                    mean_blocks.mean(), mean_blocks.std()
@@ -996,6 +1009,7 @@ def gtk_main(I, img):
 
             if event is None:
                 self.log.debug("event_imageclick -> None")
+                self.update_values()
                 self.update_img()
                 return
 
@@ -1315,7 +1329,7 @@ if __name__ == "__main__":
 
     parser = OptionParser()
     parser.add_option("--crop", type=str, help="Python array slice to crop with, example: 10:50,10:50 .")
-    parser.add_option("--resize", type=float, help="Resize array to this fraction of previous size.  Applied after --crop.")
+    parser.add_option("--resize", type=str, help="Resize array to this fraction of previous size.  Applied after --crop.")
     parser.add_option("-m", "--mode", default='intensity')
     parser.add_option("--dist", help="Override distance function mode")
     parser.add_option("--wait", action='store_true', help="Wait before main loop.")
@@ -1355,7 +1369,7 @@ if __name__ == "__main__":
         print "new shape", fullimg.shape
     if options.resize:
         print "Resizing",
-        fullimg.resize(options.resize)
+        fullimg.resize(pcd.util.leval(options.resize))
         print "new shape", fullimg.shape
 
     img = fullimg.get()
@@ -1400,13 +1414,7 @@ if __name__ == "__main__":
     #    I.do_shift(options.shift)
 
     if options.gammas:
-        gammas = pcd.util.leval(options.gammas)
-        if isinstance(gammas, (tuple,list)):
-            if len(gammas) == 2:
-                gammas = dict(low=gammas[0], high=gammas[1])
-            elif len(gammas) == 3:
-                gammas = dict(low=gammas[0], high=gammas[1], density=gammas[2])
-            gammas['start'] = .01
+        gammas = pcd.util.eval_gamma_str(options.gammas)
     else:
         gammas = dict(low=.0000001, high=1, density=2)
 
