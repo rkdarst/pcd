@@ -811,8 +811,30 @@ class Graph(anneal._GraphAnneal, cmodels._cobj, object):
         This is a useful method as it only returns communities that
         are non-empty, unlike range(G.cmtyN)
         """
-        return ( c for c in range(self.Ncmty) if self.cmtyN[c]>0 )
+        minsize = getattr(self, 'cmtyMinSize', 1)
+        return ( c for c in range(self.Ncmty) if self.cmtyN[c]>=minsize )
+    def nodeCmtyDict(self):
+        """Return a dict nodes->set(cmtys in that node).
+
+        This allows you to get nodes that are in multiple communities,
+        which self.cmty[n] can't do."""
+        nodeCmtys = { }
+        for n in range(self.N):
+            nodeCmtys[n] = set()
+        for c in self.cmtys():
+            for n in self.cmtyContents(c):
+                nodeCmtys[n].add(c)
+        return nodeCmtys
     def cmtyConnectivitySingle(self, c, nodes=None):
+        """
+
+        For one community c, return tuple
+        (fraction of internal connections,
+         fraction of nodes that have >50% internal connections).
+
+        If 'nodes' is given, then use go from c <-> these nodes.
+        Otherwise, use all nodes in the community c only.
+        """
         if not nodes:
             nodes = tuple(self.cmtyContents(c))
         nodes = set(nodes)
@@ -833,6 +855,12 @@ class Graph(anneal._GraphAnneal, cmodels._cobj, object):
            sum(i for c,i in connections)/float(sum(c for c,i in connections)),\
            sum(1 for c,i in connections if i>.5*c)/float(len(connections))
     def cmtyConnectivity(self, c=None, nodes=None):
+        """
+
+        Return tuple
+        (mean fraction of internal connections per community,
+         mean (fraction of nodes per community with >50% internal connections))
+        """
         if nodes is not None:
             return numpy.mean([self.cmtyConnectivitySingle(c=None, nodes=ns)
                                for ns in nodes],
@@ -880,10 +908,7 @@ class Graph(anneal._GraphAnneal, cmodels._cobj, object):
         The attribute Ncmty is an upper bound for the number of
         communites, but some of those communities may be empty.  This
         attribute returns the number of non-empty communities."""
-        q = len([1 for c in range(self.Ncmty) if self.cmtyN[c] > 0])
-        #q = sum(self.cmtyN > 0)
-        #q = len(set(self.cmty))  #FIXME this is fast, but a bit wrong.
-        #assert q == len(set(self.cmty))
+        q = len([1 for c in self.cmtys()])
         return q
     @property
     def q_c(self):
