@@ -1,7 +1,9 @@
 # Richard Darst, September 2011
 
+import gzip
 from math import log, exp, floor, ceil
 import numpy
+import cPickle as pickle
 import sys
 import threading
 import time
@@ -31,6 +33,20 @@ class GammaData(object):
         if not hasattr(self, name):
             self.data[name] = Averager()
         self.data[name].add(value)
+    def setstate(self, state):
+        self.state = state
+    def getstate(self):
+        return self.state
+    def Gmin(self, graph_list):
+        """Return the Gmin.
+
+        Given the original graph_list, return the Gmin.  graph_list
+        must be specified since we don't store full data about
+        everything, just the state and the index of which graph it
+        was.  The return value is a .copy() of the G."""
+        state = self.Gmin_state
+    def Gs(self, graph_list):
+        """Return the Gs of the minimum."""
 
 class MultiResolution(object):
     calcMethods = [ ]
@@ -69,11 +85,16 @@ class MultiResolution(object):
     def add(self, gamma, data, state, ):
         """Calculate properties of minimized replicas.
 
-        gamma: our gamma
+        This is the method which the MRRunner feeds successive (gamma,
+        <replicas at that gamma>) information to as it runs.
+
+        gamma: the gamma
 
         data: the minimized Gs
 
-        state:
+        state: contains .getcmtystate() from the minimized Gs.  This
+        is smaller that data, and can be saved to redo the analysis
+        later.
         """
         # Store number of nodes
         if not hasattr(self, 'N'):
@@ -118,9 +139,9 @@ class MultiResolution(object):
             else:
                 ret = func(self, data=data, settings=self)
             returns.extend(ret)
-        self._addValues(gamma, returns)
+        self._addValues(gamma, returns, state=state)
 
-    def _addValues(self, gamma, namevals):
+    def _addValues(self, gamma, namevals, state=None):
         """Add a list of (name,value) pairs to the corresponding gamma data"""
         with self._lock:
             for name, val in namevals:
@@ -129,6 +150,7 @@ class MultiResolution(object):
                 if gamma not in self._data:
                     self._data[gamma] = GammaData(gamma=gamma)
                 self._data[gamma].add(name, val)
+            self._data[gamma].setstate(state)
 
     #
     # Calculation methods
@@ -432,7 +454,51 @@ class MultiResolution(object):
         pyplot.ion()
         from fitz import interactnow
 
+    def save(self, fname):
+        """Save this state to a gzipped pickle."""
+        pickle.dump(self, gzip.GzipFile(fileobj=open('fname', 'w'), mode='w'))
+    @classmethod
+    def load(cls, fname):
+        """Load an object from a gzipped pickle."""
+        MR = pickle.load(gzip.GzipFile(fileobj=open('fname', 'r'), mode='r'))
+        return MR
+    def getData(self, state, Gs):
+        """Recreate data from state.
 
+        Given the original list of graphs Gs and the state dict
+        (containing the .getcmtystate() parameters from the MR
+        analysis, this is what is saved to disk since it is smaller),
+        return the data dict (containing graph objects Gs, minG, etc,
+        this is larger and thus is not saved)."""
+        data = { }
+        data['gamma'] = state['gamma']
+        Gs_copy = [ G.copy() for G in Gs ]
+        [ G_copy.setcmtystate(s) for G_copy, s in zip(Gs_copy, state['Gs']) ]
+        data['Gs'] = Gs_copy
+        data['Gmin'] = Gs_copy[state['Gmin_index']]
+        if 'ovGs' in state:
+            Gs_copy = [ G.copy() for G in Gs ]
+            [G_copy.setcmtystate(s) for G_copy,s in zip(Gs_copy,state['ovGs'])]
+            data['ovGs'] = Gs_copy
+            data['ovGmin'] = Gs_copy[state['ovGmin_index']]
+        if self.overlap and not 'ovGs' not in state:
+            raise Exception("Inconsistent state... self.overlap and we don't "
+                            "have that state.")
+        return data
+    def recalc(self, Gs):
+        """Clear data and reculculate analysis from saved states.
+
+        This clears the self._data dict, and re-calculates all of
+        those values from (gamma, data, state) pairs we have saved.
+        You must provide exactly the same Gs as before."""
+        gamma_data_state =  [ ]
+        for gamma, d in self._data.iteritems():
+            state = d.getstate()
+            data = self.getData(state, Gs)
+            gamma_data_state.append((gamma, data, state))
+        self.data = { }
+        for gamma, data, state in gamma_data_state:
+            self.add(gamma, data, state)
 
 
 
