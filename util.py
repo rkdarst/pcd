@@ -21,6 +21,22 @@ def distance(p1, p2, boxsize=None):
     numpy.sqrt(d, d)
     return d
 
+class AttrToDict(object):
+    def __init__(self, obj, values=None):
+        self.obj = obj
+        self.values = values
+    def __getitem__(self, attrname):        return getattr(self.obj, attrname)
+    def __setitem__(self, attrname, value): setattr(self.obj, attrname, value)
+    def __iter__(self):
+        if self.values is None:
+            raise ValueError("AttrToDict does not have list of value names.")
+        for v in self.values:
+            yield v
+class DictToAttr(object):
+    def __init__(self, obj):                self.obj = obj
+    def __getattr__(self, attrname):        return self.obj[attrname]
+    def __setattr__(self, attrname, value): self.obj[attrname] = value
+
 # This class is copied from fitz.mathutil
 class Averager(object):
     """Numerically Stable Averager
@@ -375,6 +391,25 @@ def check_sparse_symmetric(G):
 def leval(s):
     try:                              return ast.literal_eval(s)
     except (ValueError,SyntaxError):  return s
+
+def eval_gamma_str(gammas):
+    """Parse a gamma string of the form 'low,high[,density]'.
+
+    gammas is evaluated using ast.literal_eval, so you can use any
+    (and must) use python literal syntax such as .1,10 or (.1,10,20).
+    In this case, the return is a dict
+    dict(low=LOW,high=HIGH[,density=DENSITY]).
+
+    If a single integer or float is given, then only this value is
+    returned as an integer."""
+    gammas = leval(gammas)
+    if isinstance(gammas, (tuple,list)):
+        if len(gammas) == 2:
+            gammas = dict(low=gammas[0], high=gammas[1])
+        elif len(gammas) == 3:
+            gammas = dict(low=gammas[0], high=gammas[1], density=gammas[2])
+        gammas['start'] = .01
+    return gammas
 
 if __name__ == "__main__":
     # tests
