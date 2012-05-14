@@ -123,4 +123,4 @@ def calc_F1(self, data, settings):
             ('s_F1_ov_recl',   numpy.mean(s_recl_ovs)),
             ])
     return returns
-pcd.MultiResolution.calcMethods.append(calc_F1)
+#pcd.MultiResolution.calcMethods.append(calc_F1)

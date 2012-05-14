@@ -16,6 +16,9 @@ import util
 from util import LogInterval
 from fitz.mathutil import Averager
 
+import F1
+
+
 def recursive_dict_update(d, dnew):
     for k,v in dnew.iteritems():
         if k in d and isinstance(d[k],dict) and isinstance(v,dict):
@@ -23,6 +26,10 @@ def recursive_dict_update(d, dnew):
         else:
             d[k] = v
     return d
+
+def transform_returns(ret, prefix='', suffix=''):
+    return ((prefix+name+suffix, value)
+            for name, value in ret)
 
 
 class GammaData(object):
@@ -57,6 +64,7 @@ class MultiResolution(object):
                  minimizer='trials',
                  minimizerargs=dict(minimizer='greedy', trials=10),
                  output=None, savefigargs=None,plotargs=None,
+                 analyzers=[],
                  ):
         self.fieldnames = [ 'gamma', ]
         self._data = { }
@@ -68,8 +76,10 @@ class MultiResolution(object):
         self.savefigargs = savefigargs
         self.plotargs = plotargs
         self._lock = threading.Lock()
+        for analyzer in analyzers:
+            self.enable(analyzer)
     def __getstate__(self):
-        state = self.__dict__
+        state = self.__dict__.copy()
         del state['_lock']
         return state
     def __setstate__(self, state):
@@ -81,6 +91,17 @@ class MultiResolution(object):
     def run(self, *args, **kwargs):
         runner = self.runner()
         return runner.do(*args, **kwargs)
+
+    def enable(self, analyzer):
+        """Enable a particular analyzer mode."""
+        if isinstance(analyzer, (types.FunctionType, types.MethodType)):
+            self.calcMethods.append(analyzer)
+            return
+        if analyzer == 'F1':
+            self.calcMethods.append(F1.calc_F1)
+        if analyzer == 'mi_0': # mutual information with a known graph.
+            self.calcMethods.append(self.calc_mutualInformationKnown)
+
 
     def add(self, gamma, data, state, ):
         """Calculate properties of minimized replicas.
@@ -219,6 +240,43 @@ class MultiResolution(object):
 
         return returns
     calcMethods.append(calc_multualInformation)
+    def calc_mutualInformationKnown(self, data, settings):
+        Gs = data['Gs']
+        G0 = settings.G0
+        def _entropy(G):
+            if G.oneToOne: return G.entropy
+            else: return 1
+        Is = [ util.mutual_information(G0, G) for G in Gs ]
+
+        VI = numpy.mean([_entropy(G0) + _entropy(G) - 2*mi
+                         for (G, mi) in zip(Gs, Is)])
+        In = numpy.mean([2*mi / (_entropy(G0) + _entropy(G))
+                         for (G, mi) in zip(Gs, Is)
+                         if G0.q!=1 or G.q!=1])
+        returns = [('I_0',  numpy.mean(Is)),
+                   ('VI_0', VI),
+                   ('In_0', In),
+                   ]
+        # Avoid calculating N when n_mean is <= 5.  This is because it
+        # takes too long due to the hard recursive and pair-to-pair
+        # calculations it requires.
+        if Gs[0].n_mean() > 5 and not getattr(settings, 'no_N', False):
+            Nmi = numpy.mean(
+                [ util.mutual_information_overlap(G0, G) for G in Gs ])
+        else:
+            Nmi = float('nan')
+        returns.append(('N_0',  Nmi))
+
+        # do overlap stuff, if needed.
+        if 'ovGs' in data:
+            ovGs = data['ovGs']
+            Nmi = numpy.mean(
+                [ util.mutual_information_overlap(G0, G) for G in ovGs ])
+            returns.append(('ov_N_0', Nmi))
+
+        return returns
+
+
     def calc_overlap(self, data, settings):
         Gs = data['Gs']
         overlapGs = data.get('ovGs', None)
@@ -251,6 +309,12 @@ class MultiResolution(object):
 
         return returns
     calcMethods.append(calc_overlap)
+    def calc_susceptibility(self, data, settings):
+        Gs = data['Gs']
+        suscepGs = data['suscepGs']
+        susceps = getattr(self, susceptibilities, ())
+        returns = [ ]
+
 
     #
     # Analysis methods
@@ -277,6 +341,18 @@ class MultiResolution(object):
         #self.n_hist       = n_hist       = [mrc.n_hist       for mrc in MRCs]
         #self.n_hist_edges = n_hist_edges = [mrc.n_hist_edges for mrc in MRCs]
         return table
+    def column(self, item):
+        """Return a single data series of 'item'.
+
+        Return a numpy array of 'item' for all gammas.  This is
+        essentially one column from the .table() method."""
+        with self._lock:
+            column = [ ]
+            if item == 'gamma':
+                return numpy.asarray(sorted(self._data.keys()))
+            array = numpy.asarray([self._data[gamma].data[item].mean
+                                   for gamma in sorted(self._data.keys())])
+            return array
 
     def write(self, fname):
         """Save multi-resolution data to a file."""
@@ -350,7 +426,7 @@ class MultiResolution(object):
             c.print_figure(fname, bbox_inches='tight')
 
     def plot(self, fname=None, ax1items=['VI', 'In', 'ov_N'], ax2items=['q'],
-             xaxis='gamma',
+             xaxis='gamma', xlim=None, y1lim=None, y2lim=None,
              plotstyles={}):
         """Plot things from a multiresolution plot.
 
@@ -396,26 +472,36 @@ class MultiResolution(object):
             'entropy':dict(label='$H$',color='blue', linestyle='--'),
             'F1':     dict(label='$F_1$',color='red', linestyle='-'),
             'ov_F1':  dict(label='$F_{1,ov}$',color='green', linestyle='-'),
-            's_F1':   dict(label='$_sF_1$',color='cian', linestyle='-'),
+            's_F1':   dict(label='$_sF_1$',color='cyan', linestyle='-'),
             's_F1_ov':dict(label='$F1_{s,ov}$',color='magenta'),
             None:   dict(),  # defaults
             }
+        plotstyles = plotstyles.copy()
         plotstyles = recursive_dict_update(defaultplotstyles, plotstyles)
         # Fill axes
-        for item in ax1items:
+
+        def _processaxis(items, ax):
+            # One copy now, for modification of standard values.
+            plotstyle = plotstyles[item] = plotstyles.get(item, {}).copy()
+            x = table[xaxis]
+            y = table[item]
+            scale = plotstyle.get('scale', 1)
+            if 'scale1' in plotstyle or item == 'VI':
+                scale = int(numpy.ceil(numpy.max(y)))
+                plotstyle['scale'] = scale
+            if scale != 1:
+                label = plotstyle.get('label', item)
+                label = label+r'$/%s$'%scale
+                plotstyle['label'] = label
+            plotstyle['scale'] = scale
+            # Make another copy we'll use for kwargs to plot:
             plotstyle = plotstyles.get(item, {}).copy()
             scale = plotstyle.pop('scale', 1)
-            l = ax1.plot(table[xaxis], table[item]*scale,
+            l = axN.plot(x, y/scale,
                          **plotstyle)[0]
             legenditems.append((l, plotstyle.get('label', item)))
-        for item in ax2items:
-            plotstyle = plotstyles.get(item, {}).copy()
-            scale = plotstyle.pop('scale', 1)
-            #plotstyle2 = plotstyle.copy()
-            #plotstyle2.pop('scale', None)
-            l = ax2.plot(table[xaxis], table[item]*scale,
-                         **plotstyle)[0]
-            legenditems.append((l, plotstyle.get('label', item)))
+        _processaxis(ax1items, ax1)
+        _processaxis(ax2items, ax2)
 
         # Legends and labels
         ax2.legend(*zip(*legenditems), loc=0)
@@ -426,14 +512,17 @@ class MultiResolution(object):
             for item in axItems:
                 plotstyle = plotstyles.get(item, {})
                 label = plotstyle.get('label', item)
-                if 'scale' in plotstyle:
-                    label = (r'$%s\times$'%plotstyle['scale'])+label
+                #if 'scale' in plotstyle:
+                #    label = (r'$%s\times$'%plotstyle['scale'])+label
                 yield label
         ax1labels = ', '
         ax1.set_ylabel(', '.join(axLabels(ax1items)))
         ax2.set_ylabel(', '.join(axLabels(ax2items)))
         ax1.set_xlabel(defaultplotstyles.get(xaxis,
                                              dict(label=xaxis))['label'])
+        if xlim:  ax1.set_xlim(*xlim)
+        if y1lim: ax1.set_ylim(*y1lim)
+        if y2lim: ax2.set_ylim(*y2lim)
 
         if fname:
             c.print_figure(fname, bbox_inches='tight')
@@ -593,15 +682,15 @@ class MRRunner(object):
                 G.trials(gamma, trials=overlapTrials, initial='current',
                          minimizer=overlapMinimizer)
                 overlapGs.append(G)
-                data['ovGs'] = overlapGs
-                state['ovGs'] = [ G.getcmtystate() for G in overlapGs ]
+            data['ovGs'] = overlapGs
+            state['ovGs'] = [ G.getcmtystate() for G in overlapGs ]
 
-                # Get the total minimum system:
-                Gmin_index, Gmin = min(enumerate(overlapGs),
-                                       key=lambda x: x[1].energy(gamma))
-                data['ovGmin'] = Gmin
-                state['ovGmin'] = Gmin.getcmtystate()
-                state['ovGmin_index'] = Gmin_index
+            # Get the total minimum system:
+            Gmin_index, Gmin = min(enumerate(overlapGs),
+                                   key=lambda x: x[1].energy(gamma))
+            data['ovGmin'] = Gmin
+            state['ovGmin'] = Gmin.getcmtystate()
+            state['ovGmin_index'] = Gmin_index
 
         logger.info("Thread %s MR-minimizing g=%f: done"%(
                                                       self.thread_id(), gamma))
