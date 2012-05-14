@@ -1,4 +1,6 @@
+# Richard Darst, May 2012
 
+import numpy
 import os
 from os.path import join
 import shutil
@@ -45,7 +47,7 @@ def makeargs(dict):
 
 
 def benchmark(N, k, maxk, gamma, beta, mu,
-              minc="", maxc=""):
+              minc="", maxc="", pause=False):
     """Unweighted, Undirected, Non-overlapping benchmark graph.
 
     This is the graph supporting Lancichenetti, Fortunato, Radicci,
@@ -97,13 +99,19 @@ def benchmark(N, k, maxk, gamma, beta, mu,
     for n1, n2 in read_file(join(tmpdir, 'network.dat')):
         g.add_edge(n1-1, n2-1)
     g.graph['statistics'] = open(join(tmpdir, 'statistics.dat')).read()
+    g.graph['stats'] = stats(g)
 
 
+    if pause:
+        import fitz.interact ; fitz.interact.interact()
+    # Warning: if python is exited in this interactive process, we
+    # don't clean up the directory.  Add a context manager to fix
+    # this...
     shutil.rmtree(tmpdir)
     return g
 
 
-def binary_graph(**kwargs):
+def binary_graph(pause=False, **kwargs):
     """
     -N              [number of nodes]
     -k              [average degree]
@@ -122,7 +130,7 @@ def binary_graph(**kwargs):
     degree sequence extremes.
     If you set a parameter twice, the latter one will be taken.
     """
-    prog = join(progdir, '/binary_networks/benchmark')
+    prog = join(progdir, 'binary_networks/benchmark')
     args = [ prog ] + makeargs(kwargs)
     print "Arguments are: ", " ".join(args)
 
@@ -130,14 +138,31 @@ def binary_graph(**kwargs):
     assert retcode == 0
 
     g = networkx.Graph()
-    for n, c in read_file('community.dat'):
-        g.add_node(n-1, cmty=c-1)
+    #for n, c in read_file('community.dat'):
+    #    g.add_node(n-1, cmty=c-1)
+    for x in read_file('community.dat'):
+        n, cmtys = x[0], x[1:]
+        cmtys = [c-1 for c in cmtys]
+        g.add_node(n-1, cmtys=cmtys)
     for n1, n2 in read_file('network.dat'):
         g.add_edge(n1-1, n2-1)
+    g.graph['stats'] = stats(g)
+    if pause:
+        import fitz.interact ; fitz.interact.interact()
     return g
 
-def weighted_graph(**kwargs):
+def weighted_graph(pause=False, **kwargs):
     """
+,
+    This program is an implementation of the algorithm described in
+    the paper\"Directed, weighted and overlapping benchmark graphs for
+    community detection algorithms\", written by Andrea Lancichinetti
+    and Santo Fortunato. In particular, this program is to produce
+    undirected weighted networks with overlapping nodes.  Each
+    feedback is very welcome. If you have found a bug or have
+    problems, or want to give advises, please contact us:
+
+
     -N              [number of nodes]
     -k              [average degree]
     -maxk           [maximum degree]
@@ -183,10 +208,13 @@ def weighted_graph(**kwargs):
     for n1, n2, weight in read_file('network.dat'):
         g.add_edge(n1-1, n2-1, weight=weight)
     g.graph['statistics'] = open('statistics.dat').read()
+    g.graph['stats'] = stats(g)
+    if pause:
+        import fitz.interact ; fitz.interact.interact()
     return g
 
 
-def hierarchical_graph(**kwargs):
+def hierarchical_graph(pause=False, **kwargs):
     """
     -N              [number of nodes]
     -k              [average degree]
@@ -220,20 +248,47 @@ def hierarchical_graph(**kwargs):
         g.add_node(n-1, macroC=c-1)
     for n1, n2 in read_file('network.dat'):
         g.add_edge(n1-1, n2-1)
+    g.graph['stats'] = stats(g)
+    if pause:
+        import fitz.interact ; fitz.interact.interact()
     return g
 
 
+def _iterCmtys(d):
+    """node data dict -> iterator over its communities"""
+    if 'cmty' in d:
+        yield d['cmty']
+    else:
+        for c in data['cmtys']:
+            yield c
 def setCmtyAssignmentsOverlap(G, g):
     for node, data in g.node.iteritems():
         for c in data['cmtys']:
             G.cmtyListAdd(c, G._nodeIndex[node])
     return G
 
-def setCmtyAssignments(G, g, keyname='cmty'):
+def setCmtyAssignments(G, g):
     for node, data in g.node.iteritems():
-        c = data[keyname]
-        G.cmtyListAdd(c, G._nodeIndex[node])
+        for c in _iterCmtys(data):
+            G.cmtyListAdd(c, G._nodeIndex[node])
     return G
+
+def stats(g):
+    cmtys = { }
+    for node, data in g.node.iteritems():
+        for c in _iterCmtys(data):
+            cmtys.setdefault(c, set())
+            cmtys[c].add(node)
+    import collections
+    cmtysizes = collections.defaultdict(int)
+    for c, members in cmtys.iteritems():
+        cmtysizes[len(members)] += 1
+    return {
+        "q":len(cmtys),
+        "n_mean":numpy.mean([len(ns) for ns in cmtys.itervalues()]),
+        "n_std":numpy.std([len(ns) for ns in cmtys.itervalues()]),
+        "cmtysizes":tuple(sorted(cmtysizes.iteritems())),
+        }
 
 
 if __name__ == "__main__":
