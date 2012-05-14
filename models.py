@@ -252,7 +252,8 @@ class Graph(anneal._GraphAnneal, cmodels._cobj, object):
     @classmethod
     def fromNetworkX(cls, graph, defaultweight=1,
                      coords=None, randomize=True,
-                     diagonalweight=None):
+                     diagonalweight=None,
+                     defaultconnectedweight=-1):
         """Create a Graph glass from a NetworkX graph object.
 
         The NetworkX graph object is expected to have all edges have a
@@ -296,7 +297,8 @@ class Graph(anneal._GraphAnneal, cmodels._cobj, object):
             for n1 in graph.neighbors(n0):
                 i0 = graph.node[n0]['index']
                 i1 = graph.node[n1]['index']
-                G.imatrix[i0,i1] = graph[n0][n1]['weight']
+                G.imatrix[i0,i1] = graph[n0][n1].get('weight',
+                                                     defaultconnectedweight)
         # Check that the matrix is symmetric (FIXME someday: directed graphs)
         if not numpy.all(G.imatrix == G.imatrix.T):
             print "Note: interactions matrix is not symmetric"
@@ -461,13 +463,28 @@ class Graph(anneal._GraphAnneal, cmodels._cobj, object):
         self._allocArrayPointers(self.simatrixIdl, self.simatrixId)
 
     def make_sparse(self, default, cutoff=None,
-                    imatrixDefault=0, imatrixCutoff=None,
-                    cutoff_op=operator.lt):
+                    imatrixDefault=0, cutoff_op=numpy.less):
+        """
+
+        default: default value for rmatrix (multiplied by gamma in the
+        Hamiltonian).
+
+        imatrixDefault: default value for non-specified imatrix
+        values.  default: zero.
+
+        cutoff: Anything lessthan this will be saved, but see below
+        for operator.
+
+        cutoff_op: selects for values which are NOT cut off and set to
+        default value.  operator(V, cutoff) == True ==> this value
+        will be USED instead of turned into 'default'.  Default: lessthan
+        """
         if self.hasSparse:
             return
         assert self.hasFull # have full to create sparse from it.
-        assert not isinstance(self.rmatrix, numpy.ndarray), \
-                                       "sparse does not support rmatrix yet"
+        if isinstance(self.rmatrix, numpy.ndarray):
+            raise ValueError("sparse does not support pre-existing rmatrices"
+                             " yet")
         if default == 'auto':
             default = self.imatrix.max()
         if cutoff is None:
@@ -532,7 +549,7 @@ class Graph(anneal._GraphAnneal, cmodels._cobj, object):
 
         """
 
-        assert self.hasSparse, "enableVT assumes hasSparse so far"
+        #assert self.hasSparse, "enableVT assumes hasSparse so far"
 
         # Allocate the rmatrices if needed...
         if self.hasFull:
@@ -541,14 +558,28 @@ class Graph(anneal._GraphAnneal, cmodels._cobj, object):
             self._allocArray('srmatrix', shape=(self.N, self.simatrixLen))
 
         if mode == "standard":
+            # ALL pairs of nodes, even though not interacting, get
+            # repelValue as the rvalue.  Probably only what you want
+            # for fully-connected graphs.
             if self.hasFull:
                 self.rmatrix[:] = repelValue
-            self.srmatrix[numpy.isnan(self.srmatrix) == 0] = repelValue
-            self.srmatrixDefault = repelValue
+            if self.hasSparse:
+                self.srmatrix[numpy.isnan(self.srmatrix) == 0] = repelValue
+                self.srmatrixDefault = repelValue
+        elif mode == "onlyAttractive":
+            # ONLY nodes which are have a nonzero attractive weight
+            # get repelValue as the rvalue.
+            if self.hasFull:
+                self.rmatrix[numpy.where(self.imatrix < 0)] = repelValue
+            if self.hasSparse:
+                raise Exception("This code path may not work yet!")
+                self.srmatrix[numpy.isnan(self.srmatrix) == 0] = repelValue
+                self.srmatrixDefault = 0
         elif mode == "onlyDefined":
             if self.hasFull:
                 raise ValueError("VT mode onlyDefined only makes sense if "
-                                 "not hsFull")
+                                 "not hasFull")
+            assert self.hasSparse
             self.srmatrix[numpy.isnan(self.srmatrix) == 0] = 0
             self.srmatrixDefault = 0
             self.srmatrixDefaultOnlyDefined = repelValue
@@ -1339,7 +1370,8 @@ class Graph(anneal._GraphAnneal, cmodels._cobj, object):
             normmap = mcolors.Normalize(vmin=0, vmax=self.Ncmty)
             return list(colormap(normmap(c)) for c in range(self.Ncmty))
 
-    def viz(self, show=True, fname=None):
+    def viz(self, show=True, fname=None, coords=None,
+            labeltemplate="%(name)s (%(cmtys)s)"):
         """Visualize the detected communities.
 
         This uses matplotlib to visualize the graphs.  You must have a
@@ -1351,6 +1383,7 @@ class Graph(anneal._GraphAnneal, cmodels._cobj, object):
         """
         import matplotlib.pyplot as plt
         #from fitz import interactnow
+        plt.clf()
 
         colorMap = list(range(self.Ncmty))
         r = random.Random()
@@ -1362,7 +1395,7 @@ class Graph(anneal._GraphAnneal, cmodels._cobj, object):
             weight = d['weight']
             width = 1
             #print a,b,weight
-            if self.cmty[g.node[a]['index']] == self.cmty[g.node[b]['index']]:
+            if self.cmty[self._nodeIndex[a] == self._nodeIndex[b]]:
                 newweight = 15
                 width = 5
             elif weight < 0:
@@ -1372,17 +1405,36 @@ class Graph(anneal._GraphAnneal, cmodels._cobj, object):
                 newweight = 3
             g.edge[a][b]['weight'] = newweight
             g.edge[a][b]['width'] = width
+            if self.cmty[self._nodeIndex[a]] != self.cmty[self._nodeIndex[b]]:
+                g.edge[a][b]['color'] = 'red'
             #del g.edge[a][b]['weight']
 
+        coords = self.coords
+
         cmtys = [ self.cmty[d['index']] for (n,d) in g.nodes(data=True) ]
+
+        nodeCmtys = self.nodeCmtyDict()
+        labeldicts = [{
+            'n':str(n),
+            'name':self._nodeLabel[n],
+            'cmty':self.cmty[n],
+            'cmtys':",".join(sorted(str(c) for c in nodeCmtys[n])),
+            }
+                      for n in range(self.N)]
+        labels = dict((self._nodeLabel[n], labeltemplate%ld)
+                      for n, ld in enumerate(labeldicts))
+        #labels = dict((n, "%s (%s)"%(n, c))
+        #                    for (n, c) in zip(g.nodes(), cmtys))
+
         networkx.draw(g,
                 node_color=[colorMap[c] for c in cmtys],
                 edge_color=[d.get('color', 'green') for a,b,d in g.edges(data=True)],
                 width=[d.get('width', 1) for a,b,d in g.edges(data=True)],
                 node_size=900,
-                labels = dict((n, "%s (%s)"%(n, c))
-                              for (n, c) in zip(g.nodes(), cmtys)),
-                #pos=self.coords
+                #labels=dict((n, "%s (%s)"%(n, c))
+                #            for (n, c) in zip(g.nodes(), cmtys)),
+                labels=labels,
+                pos=coords
                       )
         #plt.margins(tight=True)
         if show:
