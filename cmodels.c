@@ -584,6 +584,25 @@ double F1_one(Graph_t G0, int c0, Graph_t G,
   return (F1_optimal);
 }
 
+double F1(Graph_t G0, Graph_t G,
+	   double *F1, double *precision_best, double *recall_best,
+	   int length) {
+  // For community in G0:
+  int i = -1;
+  int c0;
+  for (c0=0 ; c0< G0->N ; c0++) {
+    if (G0->cmtyN[c0] == 0)
+      continue;
+    i++;
+    double precision, recall;
+    double F1_ = F1_one(G0, c0, G, &precision, &recall);
+    F1[i]             = F1_;
+    precision_best[i] = precision;
+    recall_best[i]    = recall;
+  }
+  assert(i == length-1);
+  return(i);
+}
 
 
 

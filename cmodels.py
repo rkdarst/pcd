@@ -190,6 +190,9 @@ cfuncs = (
     ("HX_Ynorm",         c_double, (cGraph_p, cGraph_p)),
     ("F1_one",           c_double, (cGraph_p, c_int, cGraph_p,
                                     c_double_p, c_double_p)),
+    ("F1",               c_double, (cGraph_p, cGraph_p,
+                                    c_void_p, c_void_p, c_void_p,
+                                    c_int)),
 
     #("energy_naive",  c_double, (cGraph_p, c_double)),
     ("energy",        c_double, (cGraph_p, c_double)),

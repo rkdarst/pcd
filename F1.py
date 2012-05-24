@@ -43,7 +43,7 @@ def F1_one(G0, c0, G):
         F1 = 2 * precision * recall / (precision + recall)
         P = max(P, F1)
     return P
-def F1c(G0, c0, G):
+def F1c2(G0, c0, G):
     #return numpy.mean([F1_one(G0, c, G) for c in G0.cmtys()])
     precision = cmodels.c_double(0)
     recall = cmodels.c_double(0)
@@ -51,12 +51,25 @@ def F1c(G0, c0, G):
                         ctypes.pointer(precision), ctypes.pointer(recall))
     return F1, precision.value, recall.value
 
-def F1(G0, G):
-    ret = [ F1c(G0, c0, G) for c0 in G0.cmtys() ]
+def F1python(G0, G):
+    ret = [ F1c2(G0, c0, G) for c0 in G0.cmtys() ]
     vals = zip(*ret)
     return (numpy.mean(vals[0]),  # F1
             numpy.mean(vals[1]),  # precision
             numpy.mean(vals[2]),) # recall
+def F1c(G0, G):
+    F1        = numpy.zeros(dtype=ctypes.c_double, shape=G0.q)
+    precision = numpy.zeros(dtype=ctypes.c_double, shape=G0.q)
+    recall    = numpy.zeros(dtype=ctypes.c_double, shape=G0.q)
+    cmodels.F1(G0._struct_p, G._struct_p,
+               F1.ctypes.data,
+               precision.ctypes.data,
+               recall.ctypes.data,
+               G0.q
+               )
+    #assert abs(F1.mean() - F1python(G0, G)[0]) < 1e-5
+    return F1.mean(), precision.mean(), recall.mean()
+F1 = F1c
 
 def calc_P0(self, data, settings):
     Gs = data['Gs']
