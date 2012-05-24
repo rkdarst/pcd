@@ -64,6 +64,7 @@ class MultiResolution(object):
                  minimizer='trials',
                  minimizerargs=dict(minimizer='greedy', trials=10),
                  output=None, savefigargs=None,plotargs=None,
+                 savestate=True,
                  analyzers=[],
                  ):
         self.fieldnames = [ 'gamma', ]
@@ -75,6 +76,7 @@ class MultiResolution(object):
         self.output = output
         self.savefigargs = savefigargs
         self.plotargs = plotargs
+        self.savestate = savestate
         self._lock = threading.Lock()
         for analyzer in analyzers:
             self.enable(analyzer)
@@ -160,6 +162,8 @@ class MultiResolution(object):
             else:
                 ret = func(self, data=data, settings=self)
             returns.extend(ret)
+        if not self.savestate:
+            state = None
         self._addValues(gamma, returns, state=state)
 
     def _addValues(self, gamma, namevals, state=None):
