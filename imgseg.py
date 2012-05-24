@@ -26,6 +26,10 @@ def imread(fname):
     if len(a.shape) == 2:
         return a/255.  # for grayscale images, return only main channel
     # If RGBA, return only RGB.
+    if a.shape[2] == 4:
+        R, G, B, A = a[...,0], a[...,1], a[...,2], a[...,3]
+        R, G, B, A = R/255., G/255., B/255., A/255.
+        return R, G, B, A
     R, G, B = a[...,0], a[...,1], a[...,2]
     R, G, B = R/255., G/255., B/255.
     return R, G, B
@@ -77,11 +81,17 @@ class Image(object):
     def __init__(self, channels, mode=None):
         self.channels = channels
 
-        if mode not in (None, 'RGB', 'HSV', 'L'):
+        if mode not in (None, 'RGB', 'HSV', 'L', 'RGBA'):
             raise ValueError("Unknown mode")
         if mode == 'HSV':
             channels = vhsv_to_rgb(*channels)
-        if isinstance(channels, tuple):
+        if mode == 'RGBA' or \
+               isinstance(channels, tuple) and len(channels) == 4:
+            self.mode = 'RGBA'
+            self.R, self.G, self.B, self.A = channels
+            self.shape = self.R.shape
+            return
+        elif isinstance(channels, tuple):
             R,G,B = channels
             self.R = R
             self.G = G
@@ -141,16 +151,27 @@ class Image(object):
             chan = scipy.misc.imresize(chan*255, scale, )/255. #interp='cubic'
             setattr(self, channel, chan)
             self.shape = chan.shape
+    def compose(self, other):
+        """Compost other on top of self.  Other's alpha channel is used.
+
+        Other must have an alpha channel."""
+        self.R = self.R*(1-other.A) + other.R*other.A
+        self.G = self.G*(1-other.A) + other.G*other.A
+        self.B = self.B*(1-other.A) + other.B*other.A
     def save(self, fname):
         if isinstance(fname, str):
             fname = open(fname, 'wb')
         if self.mode == 'RGB':
             imsave(fname, (self.R, self.G, self.B))
+        elif self.mode == 'RGBA':
+            imsave(fname, (self.R, self.G, self.B, self.A))
         elif self.mode == 'L':
             imsave(fname, self.L)
         else:
             raise TypeError('unknown mode: %s'%self.mode)
-
+    @classmethod
+    def read(cls, fname):
+        return cls(imread(fname))
     def get(self):
         if self.mode == 'RGB':
             return self.HSV[2]
@@ -201,8 +222,11 @@ class Image(object):
             V = numpy.clip(V, a_min=.3, a_max=.7) # remove pure white and black
             return Image(vhsv_to_rgb(cmtys, S, V))
 
-    def plotCmtys(self, fname, G, I):
-        self.getCmtyMap(G, I).save(fname)
+    def plotCmtys(self, fname, G, I, overlay=None):
+        cmtyimg = self.getCmtyMap(G, I)
+        if overlay:
+            cmtyimg.compose(overlay)
+        cmtyimg.save(fname)
     def getPixbuf(self):
         return img_to_pixbuf(self)
 
@@ -223,7 +247,8 @@ class ImgSeg(object):
                  exp_beta=1,
                  blur=0,
                  shift=None,
-                 overlap=False):
+                 overlap=False,
+                 overlay=None):
         self.Ly, self.Lx = img.shape
         self.img = img
 
@@ -244,6 +269,7 @@ class ImgSeg(object):
         self.blur = blur
         self.shift = shift
         self.overlap = overlap
+        self.overlay = overlay
 
         self.mode = mode
         self.distmode = dist
@@ -762,7 +788,7 @@ class ImgSeg(object):
         G = self.G()
         G.trials(gamma, 5, maxrounds=25, minimizer='greedy2')
         print "Plotting cmtys."
-        fullimg.plotCmtys(fname, G, self)
+        fullimg.plotCmtys(fname, G, self, self.overlay)
 
     def do(self, basename, gammas=None, replicas=3, trials=2,
            threads=6):
@@ -779,7 +805,7 @@ class ImgSeg(object):
             #fullimg.plotCmtys(basename+'-mr_gamma%011.7f.png'%gamma, G, self)
             left, right = 5, 5
             fname = basename+'-mr_gamma%%0%d.%df.png'%(left+right+1,right)
-            fullimg.plotCmtys(fname%gamma, G, self)
+            fullimg.plotCmtys(fname%gamma, G, self, self.overlay)
         if isinstance(self.overlap, (int, float)):
             overlap = self.overlap
         elif self.overlap:
@@ -1335,6 +1361,7 @@ if __name__ == "__main__":
     parser.add_option("--wait", action='store_true', help="Wait before main loop.")
     parser.add_option("--gtk", action='store_true', help="GTK interface.")
     parser.add_option("--out-suffix", default="", help="Output suffix four automatic output files.")
+    parser.add_option("--overlay", default=None, help="Overlay this image on top of the output image.  Should have an alpha channel.")
     parser.add_option("--dry-run", action='store_true', help="Abort after initial set-up (useful for testing parameters).")
     parser.add_option("--threads", default=6, type=int)
 
@@ -1372,6 +1399,12 @@ if __name__ == "__main__":
         fullimg.resize(pcd.util.leval(options.resize))
         print "new shape", fullimg.shape
 
+    overlay=None
+    if options.overlay:
+        overlay = Image.read(options.overlay)
+        color = numpy.divide((232, 118, 0), 255.) # safety orange
+        overlay.R[:], overlay.G[:], overlay.B[:] = color
+
     img = fullimg.get()
 
     print "Making IS object"
@@ -1386,7 +1419,8 @@ if __name__ == "__main__":
                exp_beta=options.exp_beta,
                blur=options.blur,
                shift=options.shift,
-               overlap=options.overlap
+               overlap=options.overlap,
+               overlay=overlay,
                )
     #I.dist_func = I.dist_expdecay
     if options.exp_beta:
