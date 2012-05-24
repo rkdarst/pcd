@@ -516,26 +516,27 @@ class MultiResolution(object):
         plotstyles = recursive_dict_update(defaultplotstyles, plotstyles)
         # Fill axes
 
-        def _processaxis(items, ax):
+        def _processaxis(items, axN):
             # One copy now, for modification of standard values.
-            plotstyle = plotstyles[item] = plotstyles.get(item, {}).copy()
-            x = table[xaxis]
-            y = table[item]
-            scale = plotstyle.get('scale', 1)
-            if 'scale1' in plotstyle or item == 'VI':
-                scale = int(numpy.ceil(numpy.max(y)))
+            for item in items:
+                plotstyle = plotstyles[item] = plotstyles.get(item, {}).copy()
+                x = table[xaxis]
+                y = table[item]
+                scale = plotstyle.get('scale', 1)
+                if 'scale1' in plotstyle or item == 'VI':
+                    scale = int(numpy.ceil(numpy.max(y)))
+                    plotstyle['scale'] = scale
+                if scale != 1:
+                    label = plotstyle.get('label', item)
+                    label = label+r'$/%s$'%scale
+                    plotstyle['label'] = label
                 plotstyle['scale'] = scale
-            if scale != 1:
-                label = plotstyle.get('label', item)
-                label = label+r'$/%s$'%scale
-                plotstyle['label'] = label
-            plotstyle['scale'] = scale
-            # Make another copy we'll use for kwargs to plot:
-            plotstyle = plotstyles.get(item, {}).copy()
-            scale = plotstyle.pop('scale', 1)
-            l = axN.plot(x, y/scale,
-                         **plotstyle)[0]
-            legenditems.append((l, plotstyle.get('label', item)))
+                # Make another copy we'll use for kwargs to plot:
+                plotstyle = plotstyles.get(item, {}).copy()
+                scale = plotstyle.pop('scale', 1)
+                l = axN.plot(x, y/scale,
+                             **plotstyle)[0]
+                legenditems.append((l, plotstyle.get('label', item)))
         _processaxis(ax1items, ax1)
         _processaxis(ax2items, ax2)
 
