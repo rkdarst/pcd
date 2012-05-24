@@ -1389,21 +1389,23 @@ if __name__ == "__main__":
 
     fullimg = Image(imread(fname))
 
-    print "Image shape:", fullimg.shape
-    if options.crop:
-        print "Cropping",
-        fullimg.crop(options.crop)
-        print "new shape", fullimg.shape
-    if options.resize:
-        print "Resizing",
-        fullimg.resize(pcd.util.leval(options.resize))
-        print "new shape", fullimg.shape
-
     overlay=None
     if options.overlay:
         overlay = Image.read(options.overlay)
         color = numpy.divide((232, 118, 0), 255.) # safety orange
         overlay.R[:], overlay.G[:], overlay.B[:] = color
+
+    print "Image shape:", fullimg.shape
+    if options.crop:
+        print "Cropping",
+        fullimg.crop(options.crop)
+        if overlay: overlay.crop(options.crop)
+        print "new shape", fullimg.shape
+    if options.resize:
+        print "Resizing",
+        fullimg.resize(pcd.util.leval(options.resize))
+        if overlay: overlay.resize(pcd.util.leval(options.resize))
+        print "new shape", fullimg.shape
 
     img = fullimg.get()
 
