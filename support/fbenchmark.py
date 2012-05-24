@@ -259,7 +259,7 @@ def _iterCmtys(d):
     if 'cmty' in d:
         yield d['cmty']
     else:
-        for c in data['cmtys']:
+        for c in d['cmtys']:
             yield c
 def setCmtyAssignmentsOverlap(G, g):
     for node, data in g.node.iteritems():
