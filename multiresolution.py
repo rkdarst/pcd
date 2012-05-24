@@ -372,6 +372,38 @@ class MultiResolution(object):
                 if name == "gamma": continue
                 print >> f, table[name][i],
             print >> f
+    def extrema(self, halfwidth=2):
+        returns = { }
+
+        table = self.table()
+        mask = numpy.logical_and(table['n_mean'] > 5,
+                                 table['q'] > 5)
+        from fitz.mathutil import extrema
+        #maxima = extrema(table['s_F1'], halfwidth=halfwidth,
+        #                 excludeedges=True)[1] # maxima
+        #maxima = [x for x in maxima if mask[x]]
+
+        vals = [('F1',   's_F1'),
+                ('In_0', 'In'),
+                ('VI_0', 'VI', numpy.argmin),
+                ('N_0',  'N'),
+                ]
+        for row in vals:
+            name = row[0]
+            nameWhere = row[1]
+            if len(row) > 2:  extremaFunc = row[2]
+            else:             extremaFunc = numpy.argmax
+
+            if sum(mask) == 0:
+                returns[name] = float('nan'), float('nan')
+                continue
+
+            maxarg = extremaFunc(table[nameWhere][mask])
+            maxgamma = table['gamma'][mask][maxarg]
+            maximum = table[name][mask][maxarg]
+            returns[name] = (maxgamma, maximum)
+
+        return returns
 
     def plot_nhists(self, fname):
         from matplotlib.backends.backend_agg import Figure, FigureCanvasAgg
@@ -978,6 +1010,7 @@ def write_table(fname, MRs, values, Vname='V', headerlines=[]):
         print >> f, "#", headerline
     print >> f, "#", " ".join("%d:%s"%(i+1,x)
                      for i,x in enumerate((Vname,)+tuple(MRs[0].fieldnames)))
+    print >> f, "#", time.ctime()
 
     for v, MR in zip(values, MRs):
         table = MR.table()
@@ -991,3 +1024,75 @@ def write_table(fname, MRs, values, Vname='V', headerlines=[]):
 
         print >> f
 
+def write_table2(fname, tables, fieldnames,
+                indeps, indepName,
+                 headerlines=[]):
+    """Generic version of write_table.
+
+    Takes a sequence of tables and fieldnames, instead of MR instances."""
+    f = open(fname, 'w')
+    for headerline in headerlines:
+        print >> f, "#", headerline
+    print >> f, "#", time.ctime()
+    print >> f, "#", " ".join("%d:%s"%(i+1,x)
+                     for i,x in enumerate((indepName,)+tuple(fieldnames)))
+
+    for v, table in zip(indeps, tables):
+
+        for i in range(max(len(table[x]) for x in fieldnames)):
+            print >> f, v,
+            for name in fieldnames:
+                print >> f, table[name][i],
+            print >> f
+
+        print >> f
+
+
+def write_series_extrema(fname, MRs, values, Vname='indep', headerlines=[]):
+    import collections
+    newtable = collections.defaultdict(list)
+
+    f = open(fname, 'w')
+    for headerline in headerlines:
+        print >> f, "#", headerline
+    print >> f, "#", time.ctime()
+
+    indeps = sorted(MRs[0].extrema().keys())
+    fieldnames = [ ]
+    for name in indeps: fieldnames.extend((name+':gamma', name+':max'))
+    MRfieldnames = tuple(MRs[0].fieldnames)
+    fieldnames = (Vname,)+tuple(fieldnames)+MRfieldnames
+
+    print >> f, "#", " ".join("%d:%s"%(i+1,x)
+                              for i,x in enumerate(fieldnames))
+
+    for v, MR in zip(values, MRs):
+        extrema = MR.extrema()
+        table = MR.table()
+
+        print >> f, v,
+        newtable[Vname].append(v)
+        for name in indeps:
+            print >> f, extrema[name][0], extrema[name][1],
+            newtable[name+':gamma'].append(extrema[name][0])
+            newtable[name+':max'].append(extrema[name][1])
+
+        maxgamma = extrema['In_0'][0]
+
+        # print the MR array values at that maximum:
+        if not numpy.isnan(maxgamma):
+            index = int(numpy.where(table['gamma'] == maxgamma)[0])
+        else:
+            index = None
+        for name in MRfieldnames:
+            if index is not None:
+                print >> f, table[name][index],
+                newtable[name].append(table[name][index])
+            else:
+                print >> f, float('nan'),
+                newtable[name].append(float('nan'))
+
+        print >> f
+
+    newtable = dict((k, numpy.asarray(v)) for k,v in newtable.iteritems())
+    return fieldnames, newtable
