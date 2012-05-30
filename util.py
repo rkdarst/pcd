@@ -392,6 +392,14 @@ def leval(s):
     try:                              return ast.literal_eval(s)
     except (ValueError,SyntaxError):  return s
 
+def args_to_dict(l):
+    kwargs = { }
+    for arg in l:
+        assert '=' in arg
+        k, v = arg.split('=', 1)
+        kwargs[k] = leval(v)
+    return kwargs
+
 def eval_gamma_str(gammas):
     """Parse a gamma string of the form 'low,high[,density]'.
 
