@@ -313,6 +313,19 @@ class MultiResolution(object):
 
         return returns
     calcMethods.append(calc_overlap)
+    def calc_custom(self, data, settings):
+        """Add custom fixed values to the data.
+
+        Pass 'custom' list of [(k0, v0), (k1, v1), ...] in the
+        extradata attribute and these will be passed through
+        unchanged.
+        """
+        returns = [ ]
+        if 'custom' in data:
+            for (k, v) in data['custom']:
+                returns.append((k, v))
+        return returns
+    calcMethods.append(calc_custom)
     def calc_susceptibility(self, data, settings):
         Gs = data['Gs']
         suscepGs = data['suscepGs']
@@ -690,6 +703,7 @@ class MRRunner(object):
 
         data = { }
         state = { }
+        data.update(self.extradata)
         data['gamma'] = gamma
         state['gamma'] = gamma
         # Minimize the main systems
@@ -952,7 +966,8 @@ class MRRunner(object):
             return trylow()
 
     def do(self, Gs, gammas=None,
-           threads=1, callback=None):
+           threads=1, callback=None,
+           extradata={}):
         """Do multi-resolution analysis on replicas Gs with `trials` each."""
         # If multiple threads requested, do that version instead:
         #if gammas is None and logGammaArgs is not None:
@@ -960,6 +975,7 @@ class MRRunner(object):
         #if gammas is None:
         #    raise ValueError("Either gammas or logGammaArgs must be given.")
         self._gammas = gammas
+        self.extradata = extradata
         if threads > 1:
             return self.do_mt(Gs, gammas, threads=threads,
                               callback=callback)
@@ -977,6 +993,7 @@ class MRRunner(object):
                 self.write(self._output)
         del self._Gs
         del self._callback # unmasks the class object's _callback=None
+        del self.extradata
 
     def do_mt(self, Gs, gammas, threads=2, callback=None):
         """Do multi-resolution analysis on replicas Gs with `trials` each.

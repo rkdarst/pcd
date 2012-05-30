@@ -14,6 +14,7 @@ class Auto(object):
     sparse = True
     overlap = None
     G0callback = None
+    MRkwargs = { }
 
     plot = True
     plotFinal = True
@@ -29,7 +30,7 @@ class Auto(object):
                 raise ValueError("%s doesn't have attr %s"%(
                     self.__class__.__name__, attrname))
             setattr(self, attrname, value)
-    def run_g(self, g, options={}):
+    def run_g(self, g, extrafields=(), options={}):
         self.setOptions(options)
         opts = { }
 
@@ -60,7 +61,7 @@ class Auto(object):
             G0 = self.G0callback(G0, g)
         #else:
         #    G0=None
-        self.run_G(G, G0=G0)
+        self.run_G(G, G0=G0, extrafields=extrafields)
 
     def MR(self):
         if hasattr(self, '_MR'):
@@ -82,11 +83,12 @@ class Auto(object):
                                                      minimizer='greedy2'),
                                   output=basename+'-mrvalues.txt',
                 #savefigargs=dict(fname=basename+'-MR-gamma%(gamma)10.5f.png')
+                                   **self.MRkwargs
                                   )
         return self._MR
 
 
-    def run_G(self, G, G0=None, options={}):
+    def run_G(self, G, G0=None, options={}, extrafields=()):
         basename = self.basename
         self.setOptions(options)
 
@@ -120,7 +122,8 @@ class Auto(object):
         MR.run(Gs=[G]*self.replicas,
                gammas=self.gammas,
                threads=self.threads,
-               callback=callback
+               callback=callback,
+               extradata={'custom':extrafields},
                )
         self.write()
 
