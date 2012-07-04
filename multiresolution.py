@@ -638,7 +638,7 @@ class MultiResolution(object):
             state = d.getstate()
             data = self.getData(state, Gs)
             gamma_data_state.append((gamma, data, state))
-        self.data = { }
+        self._data = { }
         for gamma, data, state in gamma_data_state:
             self.add(gamma, data, state)
 
@@ -715,14 +715,16 @@ class MRRunner(object):
             getattr(G, self.MR.minimizer)(gamma, **self.MR.minimizerargs)
             minGs.append(G)
         data['Gs'] = minGs
-        state['Gs'] = [ G.getcmtystate() for G in minGs ]
+        if self.MR.savestate:
+            state['Gs'] = [ G.getcmtystate() for G in minGs ]
 
         # Get the total minimum system:
         Gmin_index, Gmin = min(enumerate(minGs),
                                key=lambda x: x[1].energy(gamma))
         data['Gmin'] = Gmin
-        state['Gmin'] = Gmin.getcmtystate()
-        state['Gmin_index'] = Gmin_index
+        if self.MR.savestate:
+            state['Gmin'] = Gmin.getcmtystate()
+            state['Gmin_index'] = Gmin_index
 
         if self.MR.overlap:
             overlapTrials = self.MR.overlap
@@ -734,14 +736,16 @@ class MRRunner(object):
                          minimizer=overlapMinimizer)
                 overlapGs.append(G)
             data['ovGs'] = overlapGs
-            state['ovGs'] = [ G.getcmtystate() for G in overlapGs ]
+            if self.MR.savestate:
+                state['ovGs'] = [ G.getcmtystate() for G in overlapGs ]
 
             # Get the total minimum system:
             Gmin_index, Gmin = min(enumerate(overlapGs),
                                    key=lambda x: x[1].energy(gamma))
             data['ovGmin'] = Gmin
-            state['ovGmin'] = Gmin.getcmtystate()
-            state['ovGmin_index'] = Gmin_index
+            if self.MR.savestate:
+                state['ovGmin'] = Gmin.getcmtystate()
+                state['ovGmin_index'] = Gmin_index
 
         logger.info("Thread %s MR-minimizing g=%f: done"%(
                                                       self.thread_id(), gamma))
