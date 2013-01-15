@@ -15,15 +15,25 @@ class Auto(object):
     overlap = None
     G0callback = None
     MRkwargs = { }
+    initial = 'random'  # initial state for minimizations.  If you want
+                        # to refine some other communities, add them here.
+                        # Format is pcd.Graph.getcmtystate()
 
     plot = True
     plotFinal = True
     basename = None
 
     def __init__(self, options={}):
+        g = None
+        if 'g' in options:
+            g = options['g']
+            del options['g']
         self.setOptions(options)
         if self.basename is None:
             raise ValueError("required option 'basename' is missing.")
+        if g:
+            self.run_g(g)
+
     def setOptions(self, options):
         for attrname, value in options.items():
             if not hasattr(self, attrname):
@@ -33,7 +43,6 @@ class Auto(object):
     def run_g(self, g, extrafields=(), options={}):
         self.setOptions(options)
         opts = { }
-
 
         for a,b,d in g.edges(data=True):
             if getattr(self, 'weight_attr', None):
@@ -50,6 +59,8 @@ class Auto(object):
         if self.VT is not None:
             defaultweight = 0
         G = Graph.fromNetworkX(g, defaultweight=defaultweight)
+        self.G = G.copy()
+        del G._graph
         if self.VT is not None:
             G.make_sparse(default=0.0, cutoff_op=numpy.not_equal)
             G.enableVT(mode='standard')
@@ -59,6 +70,8 @@ class Auto(object):
             G0 = G.copy()
             G0.cmtyListClear()
             G0 = self.G0callback(G0, g)
+        else:
+            G0 = None
         #else:
         #    G0=None
         self.run_G(G, G0=G0, extrafields=extrafields)
@@ -80,7 +93,8 @@ class Auto(object):
         self._MR = MultiResolution(overlap=overlap,
                                   minimizerargs=dict(trials=self.trials,
                                                      maxrounds=25,
-                                                     minimizer='greedy2'),
+                                                     minimizer='greedy2',
+                                                     initial=self.initial),
                                   output=basename+'-mrvalues.txt',
                 #savefigargs=dict(fname=basename+'-MR-gamma%(gamma)10.5f.png')
                                    **self.MRkwargs
@@ -126,6 +140,15 @@ class Auto(object):
                extradata={'custom':extrafields},
                )
         self.write()
+    def best_results(self):
+        """Return the best results from this detection.
+
+        Uses MR.extrema() (extrema of the similarity measures) to make
+        a guess at the best communities.  Return list of
+        pcd.cmty.Communities object of the results."""
+        MR = self._MR
+        cmtys = MR.best_communities([self.G]*self.replicas)
+        return cmtys
 
     def write(self):
         if not self.plotFinal:

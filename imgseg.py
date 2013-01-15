@@ -406,6 +406,39 @@ class ImgSeg(object):
         else:
             a[:] = 1./a.size
         a = numpy.fft.fftn(a)
+
+
+        #a_norm = a - a.mean()
+        #if numpy.sum(numpy.abs(a_norm)) > 1e-5:
+        #    a = a_norm
+        #else:
+        #    a = a.copy()
+        #a = numpy.fft.fftn(a)
+        #if False:
+        #    #mask = numpy.zeros(a.shape)
+        #    #mask[:int(mask.shape[0]*.5),   :int(mask.shape[0]*.5)] = 1
+        #    mask = numpy.zeros(a.shape)
+        #    mask[int(mask.shape[0]*0):int(mask.shape[0]*.5),
+        #         int(mask.shape[1]*0):int(mask.shape[1]*.5)
+        #         ] = 1
+        #    #print "applying mask",int(mask.shape[0]*.25),int(mask.shape[0]*.75)
+        #
+        #    #mask = numpy.ones(a.shape)
+        #    #mask[int(mask.shape[0]*.25):int(mask.shape[0]*.75),
+        #    #     int(mask.shape[1]*.25):int(mask.shape[1]*.75)
+        #    #     ] = 0
+        #
+        #
+        #    a *= mask
+        #
+        #if numpy.sum(numpy.abs(a)) > 1e-5:
+        #    a /= math.sqrt(numpy.square(numpy.abs(a)).sum())
+        #else:
+        #    pass
+        #    #a[:] = 1./a.size
+
+
+
         return a
     #_inner_dtype = numpy.complex64
     @staticmethod
@@ -817,6 +850,7 @@ class ImgSeg(object):
                                                 maxrounds=25,
                                                 minimizer='greedy2'),
                              output=basename+'-mrvalues.txt',
+                             savestate=False,
                              )
         MR.no_N = True
         MR.run(Gs=[G]*replicas,

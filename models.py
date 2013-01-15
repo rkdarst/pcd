@@ -19,6 +19,7 @@ import networkx
 
 import anneal
 import cmodels
+import stats
 import util
 
 log2 = lambda x: math.log(x, 2)
@@ -253,7 +254,9 @@ class Graph(anneal._GraphAnneal, cmodels._cobj, object):
     def fromNetworkX(cls, graph, defaultweight=1,
                      coords=None, randomize=True,
                      diagonalweight=None,
-                     defaultconnectedweight=-1):
+                     defaultconnectedweight=-1,
+                     sparse=False,
+                     weightmultiplier=1):
         """Create a Graph glass from a NetworkX graph object.
 
         The NetworkX graph object is expected to have all edges have a
@@ -272,6 +275,11 @@ class Graph(anneal._GraphAnneal, cmodels._cobj, object):
         `randomize` is passed to the constructor, randomizes node
         initial assignments.
         """
+        if sparse:
+            return cls.fromNetworkXSparse(graph, defaultweight=defaultweight,
+                                          coords=coords, randomize=randomize,
+                                          diagonalweight=diagonalweight,
+                                defaultconnectedweight=defaultconnectedweight)
         G = cls(N=len(graph), randomize=randomize)
         G._graph = graph
         G.coords = coords
@@ -298,11 +306,65 @@ class Graph(anneal._GraphAnneal, cmodels._cobj, object):
                 i0 = graph.node[n0]['index']
                 i1 = graph.node[n1]['index']
                 G.imatrix[i0,i1] = graph[n0][n1].get('weight',
-                                                     defaultconnectedweight)
+                                   defaultconnectedweight/weightmultiplier)\
+                                *weightmultiplier
         # Check that the matrix is symmetric (FIXME someday: directed graphs)
         if not numpy.all(G.imatrix == G.imatrix.T):
             print "Note: interactions matrix is not symmetric"
         return G
+    @classmethod
+    def fromNetworkXSparse(cls, graph, defaultweight=1,
+                           coords=None, randomize=True,
+                           diagonalweight=None,
+                           defaultconnectedweight=-1):
+        """Creates sparse-only Graph from NetworkX."""
+        G = cls(N=len(graph), randomize=randomize, sparse=True)
+        G._graph = graph
+        G.coords = coords
+
+        G._nodeIndex = nodeIndex= { }
+        G._nodeLabel = nodeLabel = { }
+
+        # Set up node indexes (since NetworkX graph object nodes are
+        # not always going to be integeras in range(0, self.N)).
+        for i, name in enumerate(sorted(graph.nodes())):
+            G._nodeIndex[name] = i
+            G._nodeLabel[i] = name
+            graph.node[name]['index'] = i
+
+        maxconn = max(len(graph[n]) for n in graph.node)
+        G._alloc_sparse(simatrixLen=maxconn, rmatrix=False)
+
+        # Default weighting
+        G.srmatrixDefault = defaultweight
+        # Default diagonal weighting
+        if diagonalweight is not None:
+            raise ValueError("diagonalweight not implemented yet.")
+            for i in range(G.N):
+                G.imatrix[i, i] = diagonalweight
+        # All explicit weighting from the graph
+        simatrix = G.simatrix
+        simatrixId = G.simatrixId
+        simatryiN = G.simatriN
+        for n0 in xrange(len(G._nodeLabel)):
+            n0label = nodeLabel[n0]
+            for idx, n1 in enumerate(G[n0label]):
+                n1label = nodeLabel[n1]
+                if n0 == n1:
+                    raise ValueError("Nodes must not interact with themselves "
+                                     "(under current assumptions.)")
+                assert i < maxconn
+                simatrix[n0,idx] = graph[n0label][n1label].get('weight',
+                                                     defaultconnectedweight)
+                simatrixId[n0,idx] = n1
+                simatrixN[n0] += 1
+
+            assert simatrixN[n0]-1 == idx
+        # Check that the matrix is symmetric (FIXME someday: directed graphs)
+        #if not numpy.all(G.imatrix == G.imatrix.T):
+        #    print "Note: interactions matrix is not symmetric"
+        return G
+
 
     @classmethod
     def from_imatrix(cls, imatrix, coords=None, rmatrix=None):
@@ -449,6 +511,16 @@ class Graph(anneal._GraphAnneal, cmodels._cobj, object):
             if rmatrix:
                 srmatrix[i, idx] = rweight
         return G
+    def _makeNodeMap(self, nodes):
+        self._nodeIndex = nodeIndex= { }
+        self._nodeLabel = nodeLabel = { }
+
+        # Set up node indexes (since NetworkX graph object nodes are
+        # not always going to be integeras in range(0, self.N)).
+        for i, name in enumerate(sorted(nodes)):
+            nodeIndex[name] = i
+            nodeLabel[i] = name
+            #graph.node[name]['index'] = i
 
 
     def _alloc_sparse(self, simatrixLen, rmatrix=False):
@@ -586,11 +658,15 @@ class Graph(anneal._GraphAnneal, cmodels._cobj, object):
         elif mode == "preDefined":
             if self.hasFull:
                 pass
+            if not self.hasSparse:
+                raise ValueError("Needs sparse for preDefined")
             #self.srmatrix -> already defined
             self.srmatrixDefault = repelValue
         elif mode == "preDefinedOnly":
             if self.hasFull:
                 pass
+            if not self.hasSparse:
+                raise ValueError("Needs sparse for preDefined")
             #self.srmatrix -> already defined
             self.srmatrixDefault = 0
         else:
@@ -669,6 +745,9 @@ class Graph(anneal._GraphAnneal, cmodels._cobj, object):
     #
     # Utility methods
     #
+    def info(self):
+        """Print some graph statistics"""
+        stats.G_info(self)
     def check(self):
         """Do an internal consistency check."""
         print "cmtyListCheck"

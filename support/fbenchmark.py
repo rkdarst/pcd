@@ -14,8 +14,8 @@ import networkx
 import scipy.stats
 
 import pcd.util
-
-
+import pcd.nxutil
+from pcd.nxutil import setCmtyAssignments
 
 
 #scipy.stats.powerlaw
@@ -254,29 +254,10 @@ def hierarchical_graph(pause=False, **kwargs):
     return g
 
 
-def _iterCmtys(d):
-    """node data dict -> iterator over its communities"""
-    if 'cmty' in d:
-        yield d['cmty']
-    else:
-        for c in d['cmtys']:
-            yield c
-def setCmtyAssignmentsOverlap(G, g):
-    for node, data in g.node.iteritems():
-        for c in data['cmtys']:
-            G.cmtyListAdd(c, G._nodeIndex[node])
-    return G
-
-def setCmtyAssignments(G, g):
-    for node, data in g.node.iteritems():
-        for c in _iterCmtys(data):
-            G.cmtyListAdd(c, G._nodeIndex[node])
-    return G
-
 def stats(g):
     cmtys = { }
     for node, data in g.node.iteritems():
-        for c in _iterCmtys(data):
+        for c in pcd.nxutil._iterCmtys(data):
             cmtys.setdefault(c, set())
             cmtys[c].add(node)
     import collections

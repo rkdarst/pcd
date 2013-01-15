@@ -24,6 +24,7 @@ import models
 from models import Graph
 import util
 
+
 def random_graph(graph=None, size=10, cluster=True, layout=None):
     """Return a random graph (models.py Graph class).
 
@@ -264,6 +265,91 @@ def bss2d_n5760_T040():
     import support.gromacs
     return support.gromacs.load_pysim(fname="2dss_n5760_T0.40.txt:AsaphDat",
                                      openargs=dict(L=89.30, N=5760, Na=1824, ))
+
+
+
+def graph_sbm(cmtysizes, pin, pout, power=None):
+    """Stochastic block model graph (networkx)
+
+    Cmtysizes is a list of community sizes.  len(cmtysizes) is the
+    number of communitis.  There is pin and pout for self and other
+    connections.
+    """
+
+    graphs = [ ]
+    q = len(cmtysizes)
+    #if not self.power:
+    #    n = self.graph_cmtyn
+
+    # Make the internal edges (via a series of graphs)
+    cmty_sizes = [ ]
+    for c in xrange(q):
+        if power:
+            import pcd.support.powerlaw
+            n = int(round(pcd.support.powerlaw.PowerLaw(**power)).rv())
+        else:
+            n = cmtysizes[c]
+        cmty_sizes.append(n)
+
+        n_in = int(round(pin * .5 * n * (n-1)))
+        g = networkx.gnm_random_graph(n=n, m=n_in)
+        g.name = 'graph(c=%d, n=%d, e=%d)'%(c, n, n_in)
+        for a,d in g.nodes_iter(data=True): d['cmty'] = c
+        graphs.append(g)
+
+    g = reduce(networkx.disjoint_union, graphs)
+    print g
+    # Make the external edges
+    #n_out = int(round(pout * .5 * N * n * (N-1) * n))
+    n_out = int(round(pout * .5 *
+                   (sum(cmty_sizes)**2 - sum(x**2 for x in cmty_sizes)) ))
+    import scipy.stats
+    n_out = scipy.stats.binom(
+        .5 * (sum(cmty_sizes)**2 - sum(x**2 for x in cmty_sizes)),
+        pout).rvs()
+    #if not power:
+    #    assert n_out == int(round(pout * .5 * N * n * (N-1) * n))
+
+
+    #if pout < .5:
+    #    nodes = list(g.nodes())
+    #    while n_out > 0:
+    #        n1 = random.choice(nodes)
+    #        n2 = random.choice(nodes)
+    #        if g.node[n1]['cmty'] == g.node[n2]['cmty']: continue
+    #        if g.has_edge(n1, n2): continue
+    #        g.add_edge(n1, n2)
+    #        n_out -= 1
+    #else: # pout >= .5
+    if True:
+        cmtys = dict((c, set()) for c in xrange(q))
+        for n1,d in g.nodes_iter(data=True):
+            cmtys[d['cmty']].add(n1)
+        linksOut = [ ]
+        for c1 in cmtys.keys():
+            for c2 in cmtys.keys():
+                if c1 == c2: continue
+                #for n1 in cmtys[c1]:
+                #    for n2 in cmtys[c2]:
+                linksOut.extend((n1,n2) for n1 in cmtys[c1]
+                                        for n2 in cmtys[c2]
+                                        if n1 < n2)
+        random.shuffle(linksOut)
+        [ g.add_edge(n1, n2) for n1,n2 in linksOut[:n_out] ]
+    #c0nodes = set(n1 for n1,d in g.nodes_iter(1) if d['cmty']==0)
+    #c1nodes = set(n1 for n1,d in g.nodes_iter(1) if d['cmty']==1)
+    #print .5*n*(n-1), len(tuple((a,b) for a,b in g.edges_iter()
+    #                      if a in c0nodes and b in c0nodes))
+    #print .5*n*(n-1), len(tuple((a,b) for a,b in g.edges_iter()
+    #                      if a in c1nodes and b in c1nodes))
+    #print .5*N*n*(n-1), len(tuple((a,b) for a,b in g.edges_iter()
+    #                      if g.node[a]['cmty'] == g.node[b]['cmty']))
+    #print n*n, len(tuple((a,b) for a,b in g.edges_iter()
+    #                     if a in c0nodes and b in c1nodes))
+    #print .5*N*n*(N-1)*n, len(tuple((a,b) for a,b in g.edges_iter()
+    #                      if g.node[a]['cmty'] != g.node[b]['cmty']))
+    #from fitz import interactnow
+    return g
 
 
 

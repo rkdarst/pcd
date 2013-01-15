@@ -83,7 +83,10 @@ int isInCmty(Graph_t G, int c, int n) {
 inline void cmtyListAddOverlap(Graph_t G, int c, int n) {
   /* Add particle n to community c
    *
-   * Adapted for systems that have overlaps.
+   * Adapted for systems that have overlaps.  You must ensure
+   * G->oneToOne=0 after usage of this method.  When using
+   * cmtyListAdd, this is not a requirement (since the direct mapping
+   * G->cmty[n] is set to the proper community.)
    */
   if (DEBUG) assert(!isInCmty(G, c, n));
   G->cmtyN[c]++;
@@ -863,7 +866,7 @@ double energy_cmty_cmty_xor_sparse(Graph_t G, double gamma, int c1, int c2) {
   int n_intersect = cmtyIntersect(G, c1, G, c2);
   int n1only = (cmtyN(G, c1) - n_intersect);
   int n2only = (cmtyN(G, c2) - n_intersect);
-  int nUnDefinedI = n1only * n2only;
+  int nDefinedI = 0;
 
   GHashTableIter hashIter1;
   void *n1_p;
@@ -886,7 +889,7 @@ double energy_cmty_cmty_xor_sparse(Graph_t G, double gamma, int c1, int c2) {
 
       // energy between n1 and n2
 
-      nUnDefinedI -= 1;
+      nDefinedI += 1;
       if (G->srmatrix == NULL) {
         imatrix_t interaction = G->simatrix[n1*G->simatrixLen + i];
         if (interaction > 0)
@@ -899,11 +902,32 @@ double energy_cmty_cmty_xor_sparse(Graph_t G, double gamma, int c1, int c2) {
         repulsions += G->srmatrix[n1*G->simatrixLen + i];
       }
 
-      assert(0); // Needs to be upgraded to handle srmatrix.
+      //assert(0); // Needs to be upgraded to handle srmatrix.
     }
   }
-  attractions += nUnDefinedI * G->simatrixDefault;
-  repulsions  += nUnDefinedI * G->srmatrixDefault;
+  int nShouldBeDefined = n1only * n2only;
+  int nUnDefinedI = nShouldBeDefined - nDefinedI;
+  int nUnDefinedR = nUnDefinedI;
+
+  if (G->srmatrix == NULL) {
+    attractions += nUnDefinedI * G->simatrixDefault;
+    repulsions  += nUnDefinedR * G->srmatrixDefault;
+
+    /* imatrix_t interaction = G->srmatrixDefault; */
+    /* if (interaction > 0) */
+    /*   repulsions  += nUnDefinedI * G->srmatrixDefault; */
+    /* else */
+    /*   attractions += nUnDefinedI * G->simatrixDefault; */
+  }
+  else if (G->srmatrixDefaultOnlyDefined != 0) {
+    attractions += nUnDefinedI * G->simatrixDefault;
+    repulsions  += nUnDefinedR * G->srmatrixDefault;
+    repulsions  += nDefinedI * G->srmatrixDefaultOnlyDefined;
+  }
+  else {
+    attractions += nUnDefinedI * G->simatrixDefault;
+    repulsions  += nUnDefinedR * G->srmatrixDefault;
+  }
 
   double E = .5 * (attractions + gamma*repulsions);
   return(E);

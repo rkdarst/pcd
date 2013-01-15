@@ -21,6 +21,14 @@ def distance(p1, p2, boxsize=None):
     numpy.sqrt(d, d)
     return d
 
+def cmtyIntersect(G1, c1, G2, c2):
+    """Number of nodes in intersect of c1 and c2."""
+    return cmodels.cmtyIntersect(G1._struct_p, c1, G2._struct_p, c2)
+def cmtyUnion(G1, c1, G2, c2):
+    """Number of nodes in union of c1 and c2."""
+    return cmodels.cmtyUnion(G1._struct_p, c1, G2._struct_p, c2)
+
+
 class AttrToDict(object):
     def __init__(self, obj, values=None):
         self.obj = obj
@@ -177,7 +185,9 @@ class LogInterval(object):
 log2 = lambda x: log(x, 2)
 
 def mutual_information_python(G0, G1):
-    """Calculate mutual information between two graphs."""
+    """Calculate mutual information between two graphs.
+
+    This is I, direct mutual information."""
     assert G0.N == G1.N
     N = G0.N
 
@@ -207,8 +217,21 @@ def mutual_information_python(G0, G1):
 def mutual_information_c(G0, G1):
     return cmodels.mutual_information(G0._struct_p, G1._struct_p)
 mutual_information = mutual_information_c
+I = mutual_information
 
-
+def _entropy(G):
+    if G.oneToOne: return G.entropy
+    return 1
+def VI(G0, G1):
+    """Variation of Information"""
+    I = mutual_information(G0, G1)
+    VI = G0.entropy_python + G1.entropy_python - 2*I
+    return VI
+def In(G0, G1):
+    """Normalized Mutual Information"""
+    I = mutual_information(G0, G1)
+    In = 2.*I / (G0.entropy_python + G1.entropy_python)
+    return In
 
 
 #
@@ -265,9 +288,10 @@ def HX_Ynorm_c(GX, GY):
 HX_Ynorm = HX_Ynorm_c
 
 def mutual_information_overlap(G0, G1):
+    """LF overlap-including normalized mutual information."""
     N = 1 - .5 * (HX_Ynorm(G0, G1) + HX_Ynorm(G1, G0) )
     return N
-
+N = mutual_information_overlap
 
 def matrix_swap_basis(array, a, b):
     """Swap rows a,b and columns a,b in a array."""
@@ -418,6 +442,77 @@ def eval_gamma_str(gammas):
             gammas = dict(low=gammas[0], high=gammas[1], density=gammas[2])
         gammas['start'] = .01
     return gammas
+
+def extremawhere(a, mask, func=numpy.max):
+    """Returns location of extrema.
+
+    The mask is *not* applied when returning the location of the mask.
+    So, to find the maximum value, you must do a[where], not
+    a[mask][where].
+    """
+    extrema = func(a[mask])
+
+    extrema_where = numpy.where(a == extrema)[0]
+    plateaus = [ [ ] ]
+    for i in extrema_where:
+        if not mask[i]:
+            continue
+        if len(plateaus[-1]) != 0 and i != plateaus[-1][-1] + 1:
+            plateaus.append( [] )
+        plateaus[-1].append(i)
+
+    longest_plateau = max(plateaus, key=lambda x: len(x))
+    w = longest_plateau[len(longest_plateau)//2]
+    return w
+
+def extrema(a, mask, func=numpy.max):
+    """Return extrema of an array, subject to mask.
+
+    This function is only considers where 'mask' is true.  It returns
+    the middle of the longest continuous run of whatever the extrema
+    is.
+
+    mask - only consider these values as being used for the maximum.
+
+    """
+    return a[extremawhere(a, mask, func)]
+
+
+def fraction_defined(G0, G1, ill=False):
+    n_nodes = 0
+    n_detected = 0
+    n_welldef = 0
+    n_welldef_detected = 0
+    mapping = { }
+    for c0 in G0.cmtys():
+        maxOverlap = 0
+        bestCmty = None
+        for c1 in G1.cmtys():
+            overlap = cmtyIntersect(G0,c0, G1,c1)
+            if overlap > maxOverlap:
+                bestCmty = c1
+                maxOverlap = overlap
+        mapping[c0] = bestCmty
+        c1 = bestCmty
+        # Considering all nodes: fraction detected
+        n_detected += cmtyIntersect(G0,c0, G1,c1)
+        # Considering only well-defined nodes:
+        if ill:
+            #print 'ill defined: ', len([ n for n in G0._graph.nodes() if G0._graph.node[n]['ill'] ])
+            #print 'well defined: ', len([ n for n in G0._graph.nodes() if not G0._graph.node[n]['ill'] ])
+            plantedNodes = set(G0.cmtyContents(c0))
+            wellDefinedPlantedNodes = set(n for n in plantedNodes
+                              if not G0._graph.node[G0._nodeLabel[n]]['ill'])
+            n_welldef += len(wellDefinedPlantedNodes)
+            n_welldef_detected += len(wellDefinedPlantedNodes
+                                      & set(G1.cmtyContents(c1)))
+    if ill:
+        return (
+            float(n_detected) / G0.N,
+            float(n_welldef_detected) / n_welldef if n_welldef else float('nan'),
+            )
+    else:
+        raise NotImplementedError
 
 if __name__ == "__main__":
     # tests

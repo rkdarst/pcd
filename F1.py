@@ -68,6 +68,11 @@ def F1c(G0, G):
                G0.q
                )
     #assert abs(F1.mean() - F1python(G0, G)[0]) < 1e-5
+    #print "F1:"
+    #print " ", F1
+    #print " ", precision
+    #print " ", recall
+    #from fitz.interact import interact ; interact()
     return F1.mean(), precision.mean(), recall.mean()
 F1 = F1c
 
@@ -87,31 +92,13 @@ def calc_P0(self, data, settings):
             ('PO_ov_std', PO_ov_std),
             ]
 #pcd.MultiResolutionCorrelation.calcMethods.append(calc_P0)
+
 def calc_F1(self, data, settings):
+    """Symmetric F1 calculation"""
     G0 = getattr(self, 'G0', None)
     Gs = data['Gs']
     overlapGs = data.get('ovGs', None)
     returns = [ ]
-
-
-    if G0:
-        F1_ret = [ F1(G0, G_) for G_ in Gs ]
-        F1s, precs, recls = zip(*F1_ret)
-        returns.extend([
-            ('F1',        numpy.mean(F1s)),
-            ('F1_std',    numpy.std (F1s)),
-            ('F1_prec',   numpy.mean(precs)),
-            ('F1_recl',   numpy.mean(recls)),
-            ])
-        if overlapGs:
-            F1_ov_ret = [ F1(G0, G_) for G_ in overlapGs ]
-            F1_ovs, prec_ovs, recl_ovs = zip(*F1_ov_ret)
-            returns.extend([
-                ('F1_ov',        numpy.mean(F1_ovs)),
-                ('F1_ov_std',    numpy.std (F1_ovs)),
-                ('F1_ov_prec',   numpy.mean(prec_ovs)),
-                ('F1_ov_recl',   numpy.mean(recl_ovs)),
-                ])
 
     s_F1_ret =      [F1(Gs[x], Gs[y])      for x,y in data['pairIndexes'] ]
     s_F1_ret.extend([F1(Gs[y], Gs[x])      for x,y in data['pairIndexes'] ])
@@ -137,3 +124,33 @@ def calc_F1(self, data, settings):
             ])
     return returns
 #pcd.MultiResolution.calcMethods.append(calc_F1)
+
+def calc_F1_known(self, data, settings, G0=None):
+    """F1 calculation with respect to a expected configuration"""
+    if G0 is None:
+        G0 = getattr(self, 'G0', None)
+    if G0 is None:
+        return [ ]
+    Gs = data['Gs']
+    overlapGs = data.get('ovGs', None)
+    returns = [ ]
+
+    F1_ret = [ F1(G0, G_) for G_ in Gs ]
+    F1s, precs, recls = zip(*F1_ret)
+    returns.extend([
+        ('F1',        numpy.mean(F1s)),
+        ('F1_std',    numpy.std (F1s)),
+        ('F1_prec',   numpy.mean(precs)),
+        ('F1_recl',   numpy.mean(recls)),
+        ])
+    if overlapGs:
+        F1_ov_ret = [ F1(G0, G_) for G_ in overlapGs ]
+        F1_ovs, prec_ovs, recl_ovs = zip(*F1_ov_ret)
+        returns.extend([
+            ('F1_ov',        numpy.mean(F1_ovs)),
+            ('F1_ov_std',    numpy.std (F1_ovs)),
+            ('F1_ov_prec',   numpy.mean(prec_ovs)),
+            ('F1_ov_recl',   numpy.mean(recl_ovs)),
+            ])
+    return returns
+#pcd.MultiResolution.calcMethods.append(calc_F1_known)
