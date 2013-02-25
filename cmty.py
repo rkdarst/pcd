@@ -96,13 +96,18 @@ class Communities(object):
                     continue
                 G.cmtyListAddOverlap(c, G._nodeIndex[n])
                 if non_overlapping:
-                    G.cmty[n] = c
+                    G.cmty[G._nodeIndex[n]] = c
         return G
 
     # Status information
     @property
-    def n(self):
+    def N(self):
+        """Number of nodes"""
         return len(self.nodes)
+    @property
+    def q(self):
+        """Number of communities"""
+        return len(self._cmtynodes)
 
     def is_cover(self, nodes=None, strict=True):
         """Is every node in at least one community?
@@ -151,7 +156,7 @@ class Communities(object):
         cmtynodes = dict((k,v) for (k,v) in cmtynodes.iteritems() if v)
 
         stats = [ ]
-        stats.append("number of nodes: %d"%self.n)
+        stats.append("number of nodes: %d"%self.N)
         if hasattr(self, 'g'):
             stats.append("number of edges: %d"%self.g.number_of_edges())
         stats.append("number of communities: %d"%len(cmtynodes))
@@ -165,7 +170,7 @@ class Communities(object):
         stats.append("community sizes: %s"%' '.join(
             str(len(cmtynodes[c])) for c in cmtys_by_rev_size))
         stats.append("fraction of nodes in largest community: %f"%(
-            max(len(c) for c in cmtynodes.values())/float(self.n)))
+            max(len(c) for c in cmtynodes.values())/float(self.N)))
         return stats
     def list_communities(self, width=120):
         stats = [ ]
@@ -219,6 +224,8 @@ class Communities(object):
 
     # Transformations
 
+    def cmtynames(self):
+        return set(self._cmtynodes.keys())
     def cmtynodes(self, copy=False):
         """Return mapping cmty -> node set.
 
@@ -253,7 +260,7 @@ class Communities(object):
 
         If there are overlaps, raise an exception."""
         nodecmtys = { }
-        for c, nodes in self._cmtynodes:
+        for c, nodes in self._cmtynodes.iteritems():
             for n in nodes:
                 if n in nodecmtys:
                     raise ValueError("Overlapping: node %s in cmtys %s and %s"%
@@ -333,11 +340,12 @@ class Communities(object):
                 plant_to_detect[c_detected].add(c_planted)
             for c_detect, c_planteds in plant_to_detect.iteritems():
                 if len(c_planteds) == 1:
-                    print "mapping: c %s to c %s"%(c_planteds, c_detect)
+                    #print "mapping: c %s to c %s"%(c_planteds, c_detect)
                     cmty0_to_cmty1[c_planteds.pop()] = c_detect
                 else:
-                    print "mapping: NOT done: %s all map to %s"%(
-                        sorted(c_planteds), c_detect)
+                    #print "mapping: NOT done: %s all map to %s"%(
+                    #    sorted(c_planteds), c_detect)
+                    pass
             #from fitz import interactnow
         return cmty0_to_cmty1
 
@@ -359,10 +367,13 @@ class Communities(object):
         for cPlanted, cDetected in cmtyMapping.iteritems():
             # How many nodes are planted?
             plantedNodes = cmtysPlanted[cPlanted]
+            detectedNodes = cmtysDetected[cDetected]
+
             if limit_nodes is not None:
                 plantedNodes = plantedNodes & limit_nodes  # explicit copy
             # how many nodes were correctly detected?  Add to correct number.
-            detected = cmtysPlanted[cPlanted] & cmtysDetected[cDetected]
+            #detected = cmtysPlanted[cPlanted] & cmtysDetected[cDetected]
+            detected = plantedNodes & detectedNodes
             if limit_nodes is not None:
                 detected &= limit_nodes
             # If we use the line below, we miscalculate the total
@@ -370,6 +381,9 @@ class Communities(object):
             n_total += len(plantedNodes)
             n_detected += len(detected)
             allDetected |= detected
+            #print sorted(plantedNodes-detectedNodes)
+            #print sorted(detectedNodes-plantedNodes)
+            #print cPlanted, cDetected, len(plantedNodes), len(detected)
 
         n_total = n_nodes
         if n_total == 0:
@@ -395,7 +409,7 @@ class Communities(object):
         illnodes = set()
         for n0, n0data in g.nodes_iter(data=True):
             #c0 = g.node[n0]['cmty']
-            print "zzz", n0, n0data
+            #print "zzz", n0, n0data
             #for c0 in _iterCmtys(n0data):
             if insist_cover and len(nodecmtys[n0]) < 1:
                 raise ValueError("Node $r is in no communities"%n0)
@@ -439,16 +453,16 @@ class Communities(object):
                     max_ext_density = max(density_ext_by_cmty.itervalues())
 
 
-                print 'y', int_density, max_ext_density
+                #print 'y', int_density, max_ext_density
 
             # At what level of indention should this be?
             if mode == "internaledgedensity":
                 #if int_density > max_ext_density:
                 if int_density >= max_ext_density:
-                    g.node[n0]['ill'] = False
+                    #g.node[n0]['ill'] = False
                     n_well_defined += 1
                 else:
-                    g.node[n0]['ill'] = True
+                    #g.node[n0]['ill'] = True
                     n_ill_defined +=1
                     illnodes.add(n0)
             else:
@@ -472,19 +486,32 @@ class Communities(object):
         G1 = self.to_pcd()
         G2 = other.to_pcd()
         return pcd.util.VI(G1, G2)
-    def N(self, other):
+    def ovIn(self, other):
         import pcd.util
         G1 = self.to_pcd()
         G2 = other.to_pcd()
         return pcd.util.N(G1, G2)
+    def ovInw(self, other):
+        import pcd.util
+        G1 = self.to_pcd()
+        G2 = other.to_pcd()
+        return pcd.util.N(G1, G2, weighted=True)
     def In(self, other):
         import pcd.util
         G1 = self.to_pcd()
         G2 = other.to_pcd()
         return pcd.util.In(G1, G2)
-    def F1(self, other):
+    def F1(self, other, weighted=False):
         import pcd.F1
         G1 = self.to_pcd()
         G2 = other.to_pcd()
-        return .5 * (pcd.F1.F1(G1, G2)[0] + pcd.F1.F1(G2, G1)[0])
+        return .5 * (  pcd.F1.F1(G1, G2)[0]
+                     + pcd.F1.F1(G2, G1)[0])
+    def F1w(self, other, weighted=False):
+        """Like F1, but weighted by community size"""
+        import pcd.F1
+        G1 = self.to_pcd()
+        G2 = other.to_pcd()
+        return .5 * (  pcd.F1.F1(G1, G2, weighted=True)[0]
+                     + pcd.F1.F1(G2, G1, weighted=True)[0])
 
