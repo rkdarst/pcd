@@ -514,6 +514,49 @@ def fraction_defined(G0, G1, ill=False):
     else:
         raise NotImplementedError
 
+def hasrealattr(obj, name):
+    print obj.name
+    return hasattr(obj, name) and not hasattr(getattr(obj,name), '__get__')
+def listAttributes(obj):
+    """Return dict of trivial attributes.
+
+    Given an object, return a dict attr:value of all int,long,float,string attributes.  If depth>0, allow tuples"""
+    attrs = { }
+    #excludeNames = set(('__init__',))
+    for name in dir(obj):
+        value = getattr(obj, name)
+        #if name in excludeNames: continue
+        if name.startswith('__'): continue
+        if _isTrivialType(value, depth=1):
+            attrs[name] = value
+    return attrs
+def _isTrivialType(t, depth=0):
+    if isinstance(t, (int,long,float,str)):
+        return True
+    if isinstance(t, (tuple,list)) and depth > 0:
+        return all(_isTrivialType(x, depth=depth-1) for x in t)
+    if isinstance(t, dict) and depth > 0:
+        return all(_isTrivialType(x, depth=depth-1) for x in t.iterkeys()) \
+               and \
+               all(_isTrivialType(x, depth=depth-1) for x in t.itervalues())
+    else:
+        return False
+
+def mainfunc(ns):
+    import sys
+    mode = sys.argv[1]
+    method = 'run'
+    kwargs = { }
+    if len(sys.argv) > 2:
+        if '=' in sys.argv[2]:
+            kwargs = pcd.util.args_to_dict(sys.argv[2:])
+        else:
+            method = sys.argv[2]
+            if len(sys.argv) > 3:
+                kwargs = pcd.util.args_to_dict(sys.argv[3:])
+    getattr(ns[mode], method)(**kwargs)
+
+
 if __name__ == "__main__":
     # tests
     print logTime(-10)
