@@ -1011,6 +1011,20 @@ class Graph(anneal._GraphAnneal, cmodels._cobj, object):
     def energy_n(self, gamma, n):
         """Energy of particle n in its own community."""
         return cmodels.energy_n(self._struct_p, gamma, n)
+    def edgecount_cmty_n(self, c, n):
+        """Number of edges between node n and cmty c.
+
+        This function is asymetric, in directed graphs this will only
+        tabulate the number of edges from node n to community c.  Does
+        not count self-edges."""
+        return cmodels.edgecount_cmty_n(self._struct_p, c, n)
+    def edgecount_cmty_cmty(self, c1, c2):
+        """Number of edges between community c1 and c2.
+
+        This function is asymetric, in directed graphs this will only
+        tabulate the number of edges from c1 to c2.  Does not count
+        self-edges."""
+        return cmodels.edgecount_cmty_cmty(self._struct_p, c1, c2)
     @property
     def q_python(self):
         """Number of communities in the graph.
@@ -1136,6 +1150,9 @@ class Graph(anneal._GraphAnneal, cmodels._cobj, object):
             print "Trials done: %d %s runs (gamma=%f, minE=%f)"%(
                                      trials, minimizer.func_name, gamma, minE),\
                                      self.nChanges
+
+        if getattr(self, 'leaf', False):
+            self.combine_singletons(int(self.leaf))
         return self.nChanges
     # Keep backwards compatibility for now.
     minimize_trials = trials
@@ -1310,6 +1327,27 @@ class Graph(anneal._GraphAnneal, cmodels._cobj, object):
         def A(): return cmodels.overlapAdd(self._struct_p, gamma)
         def B(): return cmodels.overlapRemove(self._struct_p, gamma)
         return self.alternate(funcs=(A, B))
+
+    def shift_degree(self, gamma):
+        """argument 'gamma' needed for compatibility but not used."""
+        def A(): self._gen_random_order() ; return 0
+        def B(): return cmodels.shift_degree(self._struct_p)
+        return self.alternate(funcs=(A, B, ))
+    def shift_density(self, gamma):
+        """argument 'gamma' needed for compatibility but not used."""
+        def A(): self._gen_random_order() ; return 0
+        def B(): return cmodels.shift_density(self._struct_p)
+        return self.alternate(funcs=(A, B, ), mode='once', maxrounds=1,
+                              remap=False)
+    def combine_singletons(self, minsize=5):
+        """Combine 1-communities into their best other ones.
+
+        minsize: default 1, any communities smaller than this will be
+        merged into other communities which contain the most edge
+        density to the (individual) nodes."""
+        cs = cmodels.combine_singletons(self._struct_p, minsize)
+        if cs > 0: print "c_s:", cs
+        return cs
 
     def combine(self, gamma):
         """Attempt to combine communities if energy decreases."""

@@ -945,6 +945,54 @@ double energy_cmty_cmty_xor_sparse(Graph_t G, double gamma, int c1, int c2) {
 }
 
 
+int edgecount_cmty_n(Graph_t G, int c, int n) {
+  /* Calculate the number of edges between one community "c" and a
+   * node "n".  Node n does not have to actually be in that community.
+   *
+   * This function is asymmetric (node n -> cmty c).  Does not count
+   * self-edges.
+   */
+  assert(G->hasFull);
+  assert(G->rmatrix == NULL);
+  int count=0;
+
+  GHashTableIter hashIterInner;
+
+  // for community c
+  void *m_p;
+  g_hash_table_iter_init(&hashIterInner, G->cmtyListHash[c]);
+  while (g_hash_table_iter_next(&hashIterInner, &m_p, NULL)) {
+    int m = GPOINTER_TO_INT(m_p);
+    if (m == n) {
+      continue;
+    }
+    imatrix_t interaction = G->imatrix[n*G->N + m];
+    if (interaction < 0.0) {
+      count += 1;
+    }
+  }
+  return(count);
+}
+int edgecount_cmty_cmty(Graph_t G, int c1, int c2) {
+  /* Total number of edges between two communities.
+   *
+   * This function is asymmetric, c1 -> c2
+   */
+  assert(G->hasFull);
+  int edgecount=0;
+  GHashTableIter hashIterOuter;
+  void *n_p;
+
+  g_hash_table_iter_init(&hashIterOuter, G->cmtyListHash[c1]);
+  while (g_hash_table_iter_next(&hashIterOuter, &n_p, NULL)) {
+    int n = GPOINTER_TO_INT(n_p);
+    edgecount += edgecount_cmty_n(G, c2, n);
+  }
+  return (edgecount);
+}
+
+
+
 
 int greedy_naive(Graph_t G, double gamma) {
   /* OBSELETE minimization routine.
@@ -1157,6 +1205,169 @@ int greedy_sparse(Graph_t G, double gamma) {
   return (changes);
 }
 
+
+int shift_degree(Graph_t G) {
+  /* Like greedy, but only do shifting: no adding to new communities.
+   */
+  //if (G->hasSparse) return(shift_degree_sparse(G, gamma));
+  assert(G->hasFull);
+  assert(G->hasPrimaryCmty);
+  int changes=0;
+  int nindex, n;
+  // Loop over particles
+  for (nindex=0 ; nindex<G->N ; nindex++) {
+    n = G->randomOrder[nindex];
+    // Keep a record of the running best community to move to.
+    // Default to current community (no moving).
+    int oldcmty  = G->cmty[n];
+    int degreeOldCmty = edgecount_cmty_n(G, oldcmty, n);
+
+    int degreeBest = degreeOldCmty;
+    int bestcmty = oldcmty;
+
+    // Try particle in each new cmty.  Accept the new community
+    // that has the lowest new energy.
+    // There are various ways of doing this inner loop:
+
+    // Method 1 (all other communities) //
+    /* int newcmty; */
+    /* for (newcmty=0 ; newcmty<G->Ncmty ; newcmty++) { */
+
+    // Method 2 (only interacting cmtys, fixed order) //
+    int m;
+    for (m=0 ; m<G->N ; m++) {
+      /* if (G->imatrix[G->N*n+m] != 500) */
+      /* 	printf("  %d %d %f\n", n, m, G->imatrix[G->N*n+m]); */
+
+      if (G->imatrix[n*G->N + m] > 0)
+    	continue;
+      int newcmty = G->cmty[m];
+
+    // Method 3 (only interacting cmtys, random order) //
+    /* int mindex, m; */
+    /* for (mindex=0 ; mindex<G->N ; mindex++) { */
+    /*   m = G->randomOrder2[mindex]; */
+    /*   if (G->imatrix[n*G->N + m] > 0) */
+    /* 	continue; */
+    /*   int newcmty = G->cmty[m]; */
+
+      if (newcmty == oldcmty)
+	continue;
+      if (G->cmtyN[newcmty] == 0) {
+	continue;
+      }
+
+      int degreeNewCmty = edgecount_cmty_n(G, newcmty, n);
+
+      // Our conditional on if we want to move to this new place.  If
+      // we do, update our bestcmty and deltaEbest to say so.
+      if (degreeNewCmty > degreeBest) {
+	bestcmty = newcmty;
+	degreeBest = degreeNewCmty;
+      }
+    }
+    if (oldcmty != bestcmty) {
+      cmtyMove(G, n, oldcmty, bestcmty);
+      changes += 1;
+    }
+  }
+  return (changes);
+}
+int shift_density(Graph_t G) {
+  /* Like greedy, but only do shifting: no adding to new communities.
+   * Use edge densities.
+   */
+  //if (G->hasSparse) return(shift_degree_sparse(G, gamma));
+  assert(G->hasFull);
+  assert(G->hasPrimaryCmty);
+  int changes=0;
+  int nindex, n;
+
+  /* int *moveto=G->tmp; */
+  /* int *needsmove = calloc(sizeof(int), G->N); */
+  //int _i; for ( _i=0 ; _i++ ; _i<G->N ) { needsmove[_i] = -1 } ;
+
+  // Loop over particles
+  for (nindex=0 ; nindex<G->N ; nindex++) {
+    n = G->randomOrder[nindex];
+    // Keep a record of the running best community to move to.
+    // Default to current community (no moving).
+    int oldcmty  = G->cmty[n];
+    double densityOldCmty = \
+      ((float)edgecount_cmty_n(G,oldcmty,n))/(G->cmtyN[oldcmty]-1);
+
+    double densityBest = densityOldCmty;
+    int bestcmty = oldcmty;
+
+    // Try particle in each new cmty.  Accept the new community
+    // that has the lowest new energy.
+    // There are various ways of doing this inner loop:
+
+    // Method 1 (all other communities) //
+    /* int newcmty; */
+    /* for (newcmty=0 ; newcmty<G->Ncmty ; newcmty++) { */
+
+    // Method 2 (only interacting cmtys, fixed order) //
+    /* int m; */
+    /* for (m=0 ; m<G->N ; m++) { */
+    /*   /\* if (G->imatrix[G->N*n+m] != 500) *\/ */
+    /*   /\* 	printf("  %d %d %f\n", n, m, G->imatrix[G->N*n+m]); *\/ */
+
+    /*   if (G->imatrix[n*G->N + m] > 0) */
+    /* 	continue; */
+    /*   int newcmty = G->cmty[m]; */
+
+    // Method 3 (only interacting cmtys, random order) //
+    int mindex, m;
+    for (mindex=0 ; mindex<G->N ; mindex++) {
+      m = G->randomOrder2[mindex];
+      //printf("x %d %d\n", mindex, m);
+      if (G->imatrix[n*G->N + m] > 0)
+    	continue;
+      int newcmty = G->cmty[m];
+
+      if (newcmty == oldcmty)
+	continue;
+      if (G->cmtyN[newcmty] == 0) {
+	continue;
+      }
+      //printf("y\n");
+
+      double densityNewCmty = \
+	((float)edgecount_cmty_n(G,newcmty,n))/G->cmtyN[newcmty];
+
+      // Our conditional on if we want to move to this new place.  If
+      // we do, update our bestcmty and deltaEbest to say so.
+      if (densityNewCmty > densityBest) {
+	bestcmty = newcmty;
+	densityBest = densityNewCmty;
+      }
+      //printf("n,oldcmty,bestcmty,density(O,N,B): %d %d %d %f %f %f\n",
+      //     n, oldcmty, bestcmty, densityOldCmty, densityNewCmty, densityBest);
+    }
+      /* printf("Moving %d from %d to %d, %f %f\n", n, oldcmty, bestcmty, */
+      /* 	     densityOldCmty, densityBest); */
+    if (oldcmty != bestcmty) {
+      cmtyMove(G, n, oldcmty, bestcmty);
+      changes += 1;
+
+      /* needsmove[changes-1]=n; */
+      /* moveto[changes-1]=bestcmty; */
+    }
+  }
+
+  /* int _i; */
+  /* for (_i=0 ; _i<changes ; _i++ ) { */
+  /*   int n = needsmove[_i]; */
+  /*   int oldcmty = G->cmty[n]; */
+  /*   int bestcmty = moveto[_i]; */
+  /*   assert(oldcmty != bestcmty); */
+  /*   cmtyMove(G, n, oldcmty, bestcmty); */
+  /* } */
+
+  /* free(needsmove); */
+  return (changes);
+}
 
 int overlapAdd(Graph_t G, double gamma) {
   /* Do a minimization attempt, but adding particles to new
@@ -1643,3 +1854,63 @@ int remap(Graph_t G) {
 }
 
 
+int combine_singletons(Graph_t G, int minsize) {
+  /* Combine any singletons (or communities below a certain size) into
+   * the other community which has the.
+   */
+  assert(G->hasFull);
+  assert(G->hasPrimaryCmty);
+  assert(G->oneToOne);
+  int changes=0;
+  int oldcmty;
+  //printf("combine_singletons\n");
+  for (oldcmty=0 ; oldcmty<G->Ncmty ; oldcmty++) {
+    //printf("%d %d\n", oldcmty, G->cmtyN[oldcmty]);
+    if (G->cmtyN[oldcmty] == 0)
+      continue;
+    // If community is small enough
+    if (G->cmtyN[oldcmty] > minsize)
+      continue;
+    //assert(0);
+    //printf("Singleton: %d\n", oldcmty);
+    GHashTableIter hashIter;
+    void *n_p;
+    g_hash_table_iter_init(&hashIter, G->cmtyListHash[oldcmty]);
+    while (g_hash_table_iter_next(&hashIter, &n_p, NULL)) {
+      // Iterate through all nodes in the community...
+      int n = GPOINTER_TO_INT(n_p);
+      int bestCmty = oldcmty;
+      double bestDensity=0.0;
+      //printf("n: %d\n", n);
+
+      // Find the other community that has greatest edge density to it
+      int newcmty;
+      for (newcmty=0; newcmty<G->N; newcmty++) {
+	if (G->cmtyN[newcmty] == 0)
+	  continue;
+	if (newcmty == oldcmty)
+	  continue;
+
+	double density = \
+              ((double)edgecount_cmty_n(G,newcmty,n))/(G->cmtyN[newcmty]);
+	if (density > bestDensity) {
+	  bestCmty = newcmty;
+	  bestDensity = density;
+	}
+      }
+      // Move it to the best community
+      if (bestCmty != oldcmty) {
+	//printf("moving: %d %d %d\n", n, oldcmty, bestCmty);
+	//cmtyMove(G, n, oldcmty, bestcmty);
+	g_hash_table_iter_remove(&hashIter);
+	_cmtyListRemoveOverlap(G, oldcmty, n);
+	//G->cmtyN[oldcmty]--;
+	//G->cmty[n] = bestCmty;
+	cmtyListAdd(G, bestCmty, n);
+
+	changes += 1;
+      }
+    }
+  }
+  return(changes);
+}

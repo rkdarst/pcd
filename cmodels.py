@@ -206,6 +206,10 @@ cfuncs = (
                       c_double, (cGraph_p, c_double, c_int, c_int)),
     ("energy_n",      c_double, (cGraph_p, c_double, c_int)),
 
+    ("edgecount_cmty_n", c_int, (cGraph_p, c_int, c_int)),
+    ("edgecount_cmty_cmty", c_int,(cGraph_p, c_int, c_int)),
+
+
     ("greedy_naive",  c_int,    (cGraph_p, c_double)),
     ("greedy",        c_int,    (cGraph_p, c_double)),
     ("overlapAdd",    c_int,    (cGraph_p, c_double)),
@@ -216,6 +220,10 @@ cfuncs = (
     ("combine",       c_int,    (cGraph_p, c_double)),
     ("combine_sparse_overlap",c_int,    (cGraph_p, c_double)),
     ("remap",         c_int,    (cGraph_p, )),
+
+    ("shift_degree",  c_int,    (cGraph_p, )),
+    ("shift_density", c_int,    (cGraph_p, )),
+    ("combine_singletons",c_int,(cGraph_p, c_int)),
 
     )
 
