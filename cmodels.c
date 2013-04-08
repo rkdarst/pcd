@@ -1055,6 +1055,7 @@ int greedy(Graph_t G, double gamma) {
    */
   if (G->hasSparse) return(greedy_sparse(G, gamma));
   assert(G->hasFull);
+  assert(G->hasPrimaryCmty);
   int changes=0;
   int nindex, n;
   // Loop over particles
@@ -1135,6 +1136,7 @@ int greedy_sparse(Graph_t G, double gamma) {
    * energy.
    */
   assert(G->hasSparse);
+  assert(G->hasPrimaryCmty);
   int changes=0;
   int nindex, n;
 
@@ -1486,6 +1488,7 @@ int overlapRemove(Graph_t G, double gamma) {
    */
   int changes = 0;
   G->oneToOne = 0;
+  assert(G->hasPrimaryCmty);
 
   int c;
   // Loop over communities

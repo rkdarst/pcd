@@ -571,9 +571,10 @@ class Graph(anneal._GraphAnneal, cmodels._cobj, object):
         #    x = numpy.sum(row < minval)
         #    simatrixLen = max(x, simatrixLen)
         simatrixLen = cutoff_op(imatrix, cutoff).sum(axis=1).max()
-        print "Making graph sparse: %d nodes, %d reduced nodes"%(
-            self.N, simatrixLen)
-        print "  imatrix max/min:", numpy.min(imatrix), numpy.max(imatrix)
+        if self.verbosity >= 0:
+            print "Making graph sparse: %d nodes, %d reduced nodes"%(
+                self.N, simatrixLen)
+            print "  imatrix max/min:", numpy.min(imatrix), numpy.max(imatrix)
         self._alloc_sparse(simatrixLen=simatrixLen)
 
         for i,j in zip(*numpy.where(cutoff_op(imatrix, cutoff))):

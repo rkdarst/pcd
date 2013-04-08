@@ -49,7 +49,7 @@ def cmtyClear(g):
         d.pop('cmtys', 0)
 def cmtyAddFromList(g, cmtyID, nodes):
     """For a networkx graph, add all 'nodes' to 'cmtyID'."""
-    print cmtyID, nodes
+    #print cmtyID, nodes
     #for n in g.nbunch_iter(nodes):
     for n in nodes:
         g.node[n]['cmtys'].add(cmtyID)
