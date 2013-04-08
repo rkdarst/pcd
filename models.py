@@ -1159,15 +1159,23 @@ class Graph(anneal._GraphAnneal, cmodels._cobj, object):
     minimize_trials = trials
 
     def alternate(self, funcs, mode="restart", maxrounds=250, maxfunc=10,
-                  minchanges=0):
+                  minchanges=0, remap=True):
         """Alternately call funcA and funcB.
 
         minchanges: when all functions have fewer than this many
         changes, break.
+
+        modes:
+        - restart
+        - once
+        - loop
         """
         if self.verbosity >= 0:
             print "beginning alternating", " ".join(f.func_name for f in funcs)
+        if mode not in ('restart', 'once', 'loop'):
+            raise ValueError("Unknown mode: %s"%mode)
         lastChanges = [ None ] * len(funcs)
+        totalChanges = [ 0 ] * len(funcs)
         rounds = [ 0 ] * len(funcs)
 
         for round_ in itertools.count():
@@ -1177,32 +1185,37 @@ class Graph(anneal._GraphAnneal, cmodels._cobj, object):
                 if isinstance(func, (tuple,list)):
                     func, command = func
                 changes = func()
-                self.remap(check=False)
+                if remap: self.remap(check=False)
                 if changes is not None:
                     if changes > 0:
                         rounds[i] += 1
                     lastChanges[i] = changes
+                    totalChanges[i] += changes
                 else:
                     lastChanges[i] = 0
                     rounds[i] += 1
+                    totalChanges[i] += changes
                 if self.verbosity >= 2:
-                    print "  (r%2s) %s: cmtys, changes: %4d %4d"%(
+                    print "  (r%2s) %s: cmtys, changes: %4d %4s"%(
                         round_, func.func_name, self.q,
-                        changes if changes is not None else 0)
+                        '%4d'%changes if changes is not None else None)
                 # At the first function that makes any changes, start over
                 #if changes is None:
                 #    continue
                 if mode == "restart" and changes > 0:
                     break
+            if mode == "once":
+                break
             if None not in lastChanges and sum(lastChanges) == 0:
                 break
             if None not in lastChanges and max(lastChanges) < minchanges:
                 break
 
-            if round_ > maxrounds:
-                print "  Exceeding maximum number of rounds."
+            if round_+1 >= maxrounds:
+                if self.verbosity >= 0:
+                    print "  Exceeding maximum number of rounds."
                 break
-        return tuple(rounds) + (sum(lastChanges), )
+        return tuple(rounds) + (sum(totalChanges), )
 
 
     def greedy(self, gamma, maxrounds=250):
@@ -1304,12 +1317,12 @@ class Graph(anneal._GraphAnneal, cmodels._cobj, object):
     def _overlapRemove(self, gamma):
         return cmodels.overlapRemove(self._struct_p, gamma)
     def greedy2(self, gamma, **kwargs):
-        def A(): self._gen_random_order()
+        def A(): self._gen_random_order() ; return 0
         def B(): return self._greedy(gamma=gamma)
-        def C(): self.remap(check=False)
+        def C(): self.remap(check=False) ; return 0
         def D(): return self.combine(gamma=gamma)
-        def E(): self.remap(check=False)
-        return self.alternate(funcs=(A, B, C, D, E), mode='loop',
+        def E(): self.remap(check=False) ; return 0
+        x = self.alternate(funcs=(A, B, C, D, E), mode='restart',
                               maxrounds=15)
 
     def ovgreedy(self, gamma):
