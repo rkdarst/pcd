@@ -192,7 +192,7 @@ cfuncs = (
                                     c_double_p, c_double_p)),
     ("F1",               c_double, (cGraph_p, cGraph_p,
                                     c_void_p, c_void_p, c_void_p,
-                                    c_int)),
+                                    c_int, c_void_p)),
 
     #("energy_naive",  c_double, (cGraph_p, c_double)),
     ("energy",        c_double, (cGraph_p, c_double)),

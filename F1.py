@@ -57,15 +57,17 @@ def F1python(G0, G):
     return (numpy.mean(vals[0]),  # F1
             numpy.mean(vals[1]),  # precision
             numpy.mean(vals[2]),) # recall
-def F1c(G0, G):
+def F1c(G0, G, weighted=False):
     F1        = numpy.zeros(dtype=ctypes.c_double, shape=G0.q)
     precision = numpy.zeros(dtype=ctypes.c_double, shape=G0.q)
     recall    = numpy.zeros(dtype=ctypes.c_double, shape=G0.q)
+    cmtysizes = numpy.zeros(dtype=ctypes.c_double, shape=G0.q)
     cmodels.F1(G0._struct_p, G._struct_p,
                F1.ctypes.data,
                precision.ctypes.data,
                recall.ctypes.data,
-               G0.q
+               G0.q,
+               cmtysizes.ctypes.data,
                )
     #assert abs(F1.mean() - F1python(G0, G)[0]) < 1e-5
     #print "F1:"
@@ -73,6 +75,10 @@ def F1c(G0, G):
     #print " ", precision
     #print " ", recall
     #from fitz.interact import interact ; interact()
+    if weighted:
+        return (sum(F1       *cmtysizes)/float(sum(cmtysizes)),
+                sum(precision*cmtysizes)/float(sum(cmtysizes)),
+                sum(recall   *cmtysizes)/float(sum(cmtysizes)))
     return F1.mean(), precision.mean(), recall.mean()
 F1 = F1c
 

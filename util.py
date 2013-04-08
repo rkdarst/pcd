@@ -283,13 +283,13 @@ def HX_Ynorm_python(GX, GY):
         else:
             HX_Y += HX_Yhere / _
     return HX_Y.mean
-def HX_Ynorm_c(GX, GY):
-    return cmodels.HX_Ynorm(GX._struct_p, GY._struct_p)
+def HX_Ynorm_c(GX, GY, weighted=False):
+    return cmodels.HX_Ynorm(GX._struct_p, GY._struct_p, weighted)
 HX_Ynorm = HX_Ynorm_c
 
-def mutual_information_overlap(G0, G1):
+def mutual_information_overlap(G0, G1, weighted=False):
     """LF overlap-including normalized mutual information."""
-    N = 1 - .5 * (HX_Ynorm(G0, G1) + HX_Ynorm(G1, G0) )
+    N = 1 - .5 * (HX_Ynorm(G0, G1, weighted) + HX_Ynorm(G1, G0, weighted) )
     return N
 N = mutual_information_overlap
 

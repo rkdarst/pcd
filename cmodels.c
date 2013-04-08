@@ -512,10 +512,11 @@ double H2(Graph_t GX, Graph_t GY, int cX, int cY) {
   double hPY0 = h( (N-cY_n) / N);
   return(hP11+hP00+hP01+hP10 - hPY1 - hPY0);
 }
-double HX_Ynorm(Graph_t GX, Graph_t GY) {
+double HX_Ynorm(Graph_t GX, Graph_t GY, int weighted) {
   double HX_Y_total=0;  // These two are to find the average
   int HX_Y_n=0;
   int cX;
+  int community_size_sum = 0;
   for (cX=0 ; cX < GX->Ncmty; cX++) {
     if (GX->cmtyN[cX] == 0)
       continue;
@@ -536,10 +537,17 @@ double HX_Ynorm(Graph_t GX, Graph_t GY) {
       HX_Y_n += 1;
     }
     else {
+      if (weighted) {
+	HX_Yhere *= GX->cmtyN[cX];
+	  community_size_sum += GX->cmtyN[cX];
+      }
       HX_Y_total += HX_Yhere / _;
       HX_Y_n += 1;
     }
 
+  }
+  if (weighted) {
+    HX_Y_total /= community_size_sum;
   }
   return(HX_Y_total / HX_Y_n);
 }
@@ -589,7 +597,7 @@ double F1_one(Graph_t G0, int c0, Graph_t G,
 
 double F1(Graph_t G0, Graph_t G,
 	   double *F1, double *precision_best, double *recall_best,
-	   int length) {
+	  int length, double *cmtysizes) {
   // For community in G0:
   int i = -1;
   int c0;
@@ -602,6 +610,7 @@ double F1(Graph_t G0, Graph_t G,
     F1[i]             = F1_;
     precision_best[i] = precision;
     recall_best[i]    = recall;
+    cmtysizes[i]      = G0->cmtyN[c0];
   }
   assert(i == length-1);
   return(i);
@@ -719,6 +728,7 @@ double energy_cmty_n(Graph_t G, double gamma, int c, int n) {
   }
   return(.5 * (attractions + gamma*repulsions));
 }
+
 
 double energy_cmty_n_sparse(Graph_t G, double gamma, int c, int n) {
   /* Calculate the energy of only one community `c`, if it had node n
