@@ -642,7 +642,7 @@ double energy(Graph_t G, double gamma) {
       E += energy_cmty_n(G, gamma, c, n);
     }
   }
-  return(E);
+  return(.5 * E);
 }
 
 
@@ -669,7 +669,7 @@ double energy_sparse(Graph_t G, double gamma) {
       E += energy_cmty_n_sparse(G, gamma, c, n);
     }
   }
-  return(E);
+  return(.5 * E);
 }
 
 
@@ -692,7 +692,7 @@ double energy_cmty(Graph_t G, double gamma, int c) {
     int n = GPOINTER_TO_INT(n_p);
     E += energy_cmty_n(G, gamma, c, n);
   }
-  return(E);
+  return(.5 * E);
 }
 
 double energy_cmty_n(Graph_t G, double gamma, int c, int n) {
@@ -726,7 +726,7 @@ double energy_cmty_n(Graph_t G, double gamma, int c, int n) {
       repulsions += G->rmatrix[n*G->N + m];
     }
   }
-  return(.5 * (attractions + gamma*repulsions));
+  return((attractions + gamma*repulsions));
 }
 
 
@@ -794,7 +794,7 @@ double energy_cmty_n_sparse(Graph_t G, double gamma, int c, int n) {
     repulsions  += nUnDefinedR * G->srmatrixDefault;
   }
 
-  double E = .5 * (attractions + gamma*repulsions);
+  double E = (attractions + gamma*repulsions);
   /* printf(" e_c_n_s %d %d(%d,%d)\n", c, n, G->cmtyN[c], nUnDefined); */
   //if (DEBUG && E != energy_cmty_n(G, gamma, c, n)) {
   if (DEBUG && G->hasFull) {
@@ -939,7 +939,7 @@ double energy_cmty_cmty_xor_sparse(Graph_t G, double gamma, int c1, int c2) {
     repulsions  += nUnDefinedR * G->srmatrixDefault;
   }
 
-  double E = .5 * (attractions + gamma*repulsions);
+  double E = (attractions + gamma*repulsions);
   return(E);
 
 }
