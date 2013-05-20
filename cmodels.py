@@ -110,6 +110,7 @@ cGraph._fields_ = [
     ("Ncmty",        c_int),
     ("oneToOne",     c_int),
     ("hasPrimaryCmty",c_int),
+    ("const_q",      c_int),
 
     ("cmty",         c_int_p),
     ("imatrix",      imatrix_t_p),

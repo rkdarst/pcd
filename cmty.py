@@ -2,6 +2,7 @@
 
 import collections
 import numpy
+import textwrap
 
 import pcd.nxutil
 
@@ -185,7 +186,6 @@ class Communities(object):
             if cmtysize == 1:
                 singleton_cmtys.append(c)
                 continue
-            import textwrap
             stats.append(textwrap.fill(
                 (("%3s: "%c)+' '.join(str(n) for n in sorted(cmtynodes[c]))),
                 width=width,
@@ -198,6 +198,21 @@ class Communities(object):
             initial_indent="", subsequent_indent="     ",
             ))
         return stats
+    def list_overlapping_nodes(self, width=120):
+        stats = [ ]
+        stats.append("How many communities does each node belong to?:")
+        cmty_counts = collections.defaultdict(set)
+        nodecmtys = self.nodecmtys()
+        for node, cmtys in nodecmtys.iteritems():
+            cmty_counts[len(cmtys)].add(node)
+        for num_cmtys, nodes in cmty_counts.iteritems():
+            stats.append(textwrap.fill(
+                (("%4s: "%num_cmtys)+' '.join(str(n) for n in sorted(nodes))),
+                width=width,
+                initial_indent="", subsequent_indent="      ",
+                ))
+        return stats
+
     def nodeInfo(self, n, g):
         """Print detailed information about a node, including what
         communities it is connected to.
@@ -357,6 +372,8 @@ class Communities(object):
         self: planted
         detected: detected communities, another Communities object.
         """
+        if isinstance(cmtyMapping, tuple):
+            cmtyMapping = self.cmty_mapping(cmtyMapping[0], **cmtyMapping[1])
         n_detected = 0
         n_total = 0
         cmtysPlanted = self.cmtynodes()
@@ -385,6 +402,8 @@ class Communities(object):
             #print sorted(detectedNodes-plantedNodes)
             #print cPlanted, cDetected, len(plantedNodes), len(detected)
 
+        # This is done because plantedNodes only includes planted
+        # cmtys where there was any match.  We need to know the size of the entire universe.
         n_total = n_nodes
         if n_total == 0:
             #print limit_nodes
@@ -443,9 +462,9 @@ class Communities(object):
                 int_density = float(degree_int)/(cmtysizes[c0]-1)
 
                 density_ext_by_cmty = dict(
-                      (_c, float(_d)/cmtysizes[_c])
-                      for _c,_d in degree_ext_by_cmty.iteritems()
-                      if _d != 0
+                      (_c, float(_deg)/cmtysizes[_c])
+                      for _c,_deg in degree_ext_by_cmty.iteritems()
+                      if _deg != 0
                     )
                 if len(density_ext_by_cmty) == 0:
                     max_ext_density = 0
@@ -456,7 +475,13 @@ class Communities(object):
                 #print 'y', int_density, max_ext_density
 
             # At what level of indention should this be?
-            if mode == "internaledgedensity":
+            if mode == "degree":
+                if degree_int > max(degree_ext_by_cmty.itervalues()):
+                    n_well_defined += 1
+                else:
+                    n_ill_defined +=1
+                    illnodes.add(n0)
+            elif mode == "internaledgedensity":
                 #if int_density > max_ext_density:
                 if int_density >= max_ext_density:
                     #g.node[n0]['ill'] = False

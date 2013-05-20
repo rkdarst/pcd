@@ -19,6 +19,7 @@ typedef struct Graph {
   int Ncmty;
   int oneToOne;
   int hasPrimaryCmty;
+  int const_q;
 
   int *cmty;
   imatrix_t *imatrix;

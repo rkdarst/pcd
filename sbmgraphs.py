@@ -57,7 +57,7 @@ def makeCommunities(U, q, n):
     for i in range(q):
         nodes = Ulist[int(round(n_initial*i)):int(round(n_initial*(i+1)))]
         communities.append(set(nodes))
-    print "initial:", [ len(nodes) for nodes in communities ]
+    #print "initial:", [ len(nodes) for nodes in communities ]
     assert 0 == len(U - set.union(*communities)) # every node is at least once
     assert len(U) == sum(len(n) for n in communities) # no nodes are duplicated
     assert sum(len(_) for _ in communities) == len(U)
@@ -66,7 +66,7 @@ def makeCommunities(U, q, n):
     # community t, 'n' nodes.
     for nodes in communities:
         nodes |= set(random.sample(U-nodes, n-len(nodes)))
-    print "final community sizes:", [ len(nodes) for nodes in communities ]
+    #print "final community sizes:", [ len(nodes) for nodes in communities ]
 
     return communities
 
@@ -81,12 +81,12 @@ def random_sample_q(nodes, q, n):
     nodes = list(nodes)
     return [ set(random.sample(nodes, n)) for _ in range(q) ]
 
-def add_edges(g, nodes, p, weight=None):
+def add_edges(g, nodes, p, weighted=None):
     """Add edges between """
     nodes = list(nodes)
     for i, x in enumerate(nodes):
         for j, y in enumerate(nodes[i+1:]):
-            if weight:
+            if weighted:
                 #g.add_edge(x, y, weight=weight)
                 g.add_edge(a, b, weight=None)
                 g.edge[a][b].setdefault('weights', []).append(p)
@@ -125,7 +125,7 @@ def add_edges_cm(g, nodes, p, weighted=None):
             continue
         g.add_edge(a, b)
         tries = 0
-    print p, len(nodes), len(g.edges())
+    #print p, len(nodes), len(g.edges())
     #raw_input()
 def add_edges_exact(g, nodes, p, weighted=None,
                     links=None):
@@ -147,7 +147,7 @@ def add_edges_exact(g, nodes, p, weighted=None,
             assert g.edge[b][a]['weights'] == g.edge[a][b]['weights']
             #print g.edge[a][b]['weight']
             e += 1
-        print p, len(nodes), len(g.edges()), e
+        #print p, len(nodes), len(g.edges()), e
         #raw_input()
         return
     links = list(links)
@@ -156,10 +156,33 @@ def add_edges_exact(g, nodes, p, weighted=None,
     nEdges = binom(len(links), p).rvs()
     edges = random.sample(links, nEdges)
     e = 0
+    #for a,b in edges:
+    #    g.add_edge(a, b)
+    #    e += 1
+    g.add_edges_from(edges)
+    e += len(edges)
+    #print p, len(nodes), len(g.edges()), e
+def add_edges_fixed(g, nodes, p, weighted=None, links=None):
+    """Add exactly nLinks*p edges, not a binom distribution around this."""
+    if not links:
+        links = set(frozenset((a, b))
+                    for a in nodes for b in nodes
+                    if a != b)
+        assert len(links) == len(nodes) * (len(nodes)-1) / 2
+    else:
+        assert not nodes
+    assert not weighted
+    links = list(links)
+    #nNodes = len(nodes)
+    #nEdges = int(round(len(links) * p))
+    nEdges = int(round(len(links) * p))
+    edges = random.sample(links, nEdges)
+    e = 0
     for a,b in edges:
         g.add_edge(a, b)
         e += 1
     #print p, len(nodes), len(g.edges()), e
+
 
 def sbm_incomplete(U, q, n, p, weighted=None,
                    edges_constructor=None):
@@ -176,8 +199,8 @@ def sbm_incomplete(U, q, n, p, weighted=None,
     else:
         communities = [ random.sample(U, int(round(_))) for _ in n ]
     U = set().union(*communities)
-    print sum(len(x) for x in communities), [ len(x) for x in communities ]
-    print len(U)
+    #print sum(len(x) for x in communities), [ len(x) for x in communities ]
+    #print len(U)
 
     # Add all nodes from the (new) universe, then add all of their edges.
     g.add_nodes_from(U)
@@ -243,8 +266,8 @@ def compose_graphs(gs, weighted=None):
             g[a][b]['weight'] = newweight
     #sys.exit()
     #print gs
-    for _g in gs:
-        nxutil.graphproperties(_g )
+    #for _g in gs:
+    #    nxutil.graphproperties(_g )
     #raw_input('>')
     return g
 
@@ -280,6 +303,7 @@ def multiLayerSBM(N_U, config, weighted=None, incomplete0=False,
         else:
             _g = sbm(U, q=q, n=n, p=p, weighted=weighted,
                      edges_constructor=edges_constructor)
+
         subgraphs.append(_g)
     g = compose_graphs(subgraphs, weighted=weighted)
     if pOut:

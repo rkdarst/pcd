@@ -40,6 +40,11 @@ class GammaData(object):
         if not hasattr(self, name):
             self.data[name] = Averager()
         self.data[name].add(value)
+    def addmulti(self, returns, MR=None):
+        for name, val in namevals:
+            self.add(name, val)
+            if MR is not None and name not in MR.fieldnames:
+                self.fieldnames.append(name)
     def setstate(self, state):
         self.state = state
     def getstate(self):
@@ -91,6 +96,7 @@ class MultiResolution(object):
         self.plotargs = plotargs
         self.savestate = savestate
         self._lock = threading.Lock()
+        self.calcMethods = self.__class__.calcMethods
         for analyzer in analyzers:
             self.enable(analyzer)
     def __getstate__(self):
@@ -156,8 +162,8 @@ class MultiResolution(object):
             raise ValueError("pairStyle %s not known"%pairStyle)
         data['pairIndexes'] = pairIndexes
         # Give us access to the entire gamma dict in 'data'.
-        self._addValues(gamma, [], state=None)
-        data['_gammaDict'] = self._data[gamma]
+        #self._addValues(gamma, [], state=None)
+        gammaData = data['_gammaDict'] = GammaData(gamma=gamma)
 
         ## Not moved to a method yet, this is special.
         #N = Gs[0].N
@@ -183,25 +189,29 @@ class MultiResolution(object):
             else:
                 ret = func(self, data=data, settings=self)
 
-            self._addValues(gamma, ret, state=state)
+            self._addValues(gamma, ret, gammaData=gammaData)
             returns.extend(ret)
-        if not self.savestate:
-            state = None
-        self._addValues(gamma, [], state=state)
         # Instead of the line below, we add things as-it-is-made
         # above, and then once, at the end, save the state.
         #self._addValues(gamma, returns, state=state)
+        self._data[gamma] = gammaData
+        #if not self.savestate:
+        #    state = None
+        if self.savestate:
+            gammaData.setstate(state)
+        #self._addValues(gamma, [], state=state)
 
-    def _addValues(self, gamma, namevals, state=None):
+    def _addValues(self, gamma, namevals, gammaData, state=None, ):
         """Add a list of (name,value) pairs to the corresponding gamma data"""
         with self._lock:
-            if gamma not in self._data:
-                self._data[gamma] = GammaData(gamma=gamma)
+            #if gamma not in self._data:
+            #    self._data[gamma] = GammaData(gamma=gamma)
             for name, val in namevals:
+                #self._data[gamma].add(name, val)
+                gammaData.add(name, val)
                 if name not in self.fieldnames:
                     self.fieldnames.append(name)
-                self._data[gamma].add(name, val)
-            self._data[gamma].setstate(state)
+            #self._data[gamma].setstate(state)
 
     #
     # Calculation methods
@@ -374,7 +384,7 @@ class MultiResolution(object):
     #
     # Analysis methods
     #
-    def table(self):
+    def table(self, gamma=None):
         """Compiles data from all MRCs onto self.
 
         This takes the data from the MRCs on self, and puts it in
@@ -389,12 +399,17 @@ class MultiResolution(object):
                 # gamma is special cased
                 if fieldname == 'gamma':
                     continue
-                array = numpy.asarray([self._data[gamma].data[fieldname].mean
-                                       for gamma in gammas])
+                array = numpy.asarray([self._data[_gamma].data[fieldname].mean
+                                       for _gamma in gammas])
                 table[fieldname] = array
 
         #self.n_hist       = n_hist       = [mrc.n_hist       for mrc in MRCs]
         #self.n_hist_edges = n_hist_edges = [mrc.n_hist_edges for mrc in MRCs]
+        if gamma is not None:
+            index = numpy.where(table['gamma']==gamma)
+            index = index[0][0]
+            table = dict((name, table[name][index])
+                          for name in table.keys())
         return table
     def column(self, item):
         """Return a single data series of 'item'.
@@ -469,7 +484,7 @@ class MultiResolution(object):
             returns[name] = (maxgamma, maximum)
 
         return returns
-    def extrema2(self):
+    def extrema2(self, minq=1.5, minn=5):
         """Return predicted gammas based on extrema of similarity.
 
         Unlike the function above, this uses only the symmetric
@@ -478,8 +493,8 @@ class MultiResolution(object):
         returns = { }
 
         table = self.table()
-        mask = numpy.logical_and(table['n_mean'] > 5,
-                                 table['q'] > 1.5)
+        mask = numpy.logical_and(table['n_mean'] > minn,
+                                 table['q'] > minq)
         #from fitz.mathutil import extrema
         #maxima = extrema(table['s_F1'], halfwidth=halfwidth,
         #                 excludeedges=True)[1] # maxima
@@ -489,10 +504,18 @@ class MultiResolution(object):
                 ('In', numpy.max),
                 ('VI', numpy.min),
                 ('N', numpy.max),
+
+                ('VI_0', numpy.min),
+                ('In_0', numpy.max),
+                ('N_0', numpy.max),
+                ('F1', numpy.max),
                 ]
         for row in vals:
             nameWhere = row[0]
             extremaFunc = row[1]
+            if nameWhere not in table:
+                # Silently ignore things we don't have
+                continue
 
             if sum(mask) == 0 or numpy.isnan(table[nameWhere][mask]).all():
                 returns[nameWhere] = float('nan'), float('nan')
@@ -511,21 +534,36 @@ class MultiResolution(object):
             returns[nameWhere] = (maxgamma, maximum)
 
         return returns
-    def best_communities(self, Gs):
+    def best_communities(self, Gs, overlap=False, leaf=None, **kwargs):
         """Return the best-guess communities based on similarity.
 
         Gs: Must specify Gs to return the pcd Graph object"""
         import pcd.cmty
         results = [ ]
         #extremums = self.extrema()  # return extrema of similarity to planted
-        extremums = self.extrema2()  # extrema of symmetric
+        extremums = self.extrema2(**kwargs)  # extrema of symmetric
         for varname, (maxgamma, maximum) in extremums.iteritems():
             if numpy.isnan(maxgamma): continue
             name = "Extremum of %s (=%s, at %.3f)"%(varname, maximum, maxgamma)
-            G = self.getGammaGmin(maxgamma, Gs=Gs)
+            G = self.getGammaGmin(maxgamma, Gs=Gs, overlap=overlap)
+            if leaf:
+                G.combine_singletons(leaf) # inplace.
             cmtys = pcd.cmty.Communities.from_pcd(G)
+            cmtys.varname = varname
             cmtys.name = name
+            cmtys.shortname = varname
+            cmtys.gamma = maxgamma
+            cmtys.maxval = maximum
+            cmtys.table = self.table(gamma=maxgamma)
+            cmtys.G = G
+            cmtys.quality = G.energy(maxgamma)
             results.append(cmtys)
+        #from fitz import interactnow
+        return results
+    def best_communities_mapping(self, Gs, **kwargs):
+        """Return the best communities based on similarity."""
+        results = self.best_communities(Gs, **kwargs)
+        results = dict((cmtys.varname, cmtys) for cmtys in results)
         return results
 
     def plot_nhists(self, fname):
@@ -732,15 +770,21 @@ class MultiResolution(object):
             [G_copy.setcmtystate(s) for G_copy,s in zip(Gs_copy,state['ovGs'])]
             data['ovGs'] = Gs_copy
             data['ovGmin'] = Gs_copy[state['ovGmin_index']]
-        if self.overlap and not 'ovGs' not in state:
+        if self.overlap and 'ovGs' not in state:
             raise Exception("Inconsistent state... self.overlap and we don't "
                             "have that state.")
         return data
     def getDataGamma(self, gamma, Gs):
         """Get the data dictionary of a certain gamma."""
         return self.getData(state=self._data[gamma].state, Gs=Gs)
-    def getGammaGmin(self, gamma, Gs):
+    def getGammaGmin(self, gamma, Gs, overlap=None):
+        """Return the minimium-energy G of this gamma.
+
+        If parameter overlap is true, then return the minimum energy G
+        of the overlap tests."""
         data = self.getDataGamma(gamma, Gs=Gs)
+        if overlap:
+            return data['ovGmin']
         return data['Gmin']
 
     def recalc(self, Gs):
@@ -1190,38 +1234,47 @@ def write_table2(fname, tables, fieldnames,
         print >> f
 
 
-def write_series_extrema(fname, MRs, values, Vname='indep', headerlines=[]):
+def write_series_extrema(fname, MRs, values, Vname='indep', headerlines=[],
+                         usemax='In_0'):
     import collections
     newtable = collections.defaultdict(list)
+    extrema_function = 'extrema2'
 
     f = open(fname, 'w')
     for headerline in headerlines:
         print >> f, "#", headerline
+    print >> f, "# optimal value of %s"%usemax
     print >> f, "#", time.ctime()
 
-    indeps = sorted(MRs[0].extrema().keys())
-    fieldnames = [ ]
+    # Create teh new 'fieldnames' list:
+    # (Vname, In:gamma In:max XX:gamma XX:max ... <regular MR fieldnames> ...
+    fieldnames = [ Vname ]
+    indeps = sorted(getattr(MRs[0], extrema_function)().keys())
     for name in indeps: fieldnames.extend((name+':gamma', name+':max'))
     MRfieldnames = tuple(MRs[0].fieldnames)
-    fieldnames = (Vname,)+tuple(fieldnames)+MRfieldnames
+    fieldnames.extend(MRfieldnames)
+    fieldnames = tuple(fieldnames)
 
-    print >> f, "#", " ".join("%d:%s"%(i+1,x)
+    # Write the fieldnames header
+    print >> f, "##"+" ".join("%d:%s"%(i+1,x)
                               for i,x in enumerate(fieldnames))
-
+    # For each MR write the relevant line.
     for v, MR in zip(values, MRs):
-        extrema = MR.extrema()
+        extrema = getattr(MR, extrema_function)()
         table = MR.table()
 
+        # Write the 'Vname' value...
         print >> f, v,
         newtable[Vname].append(v)
+        # And then write the extrema we are maximizing
         for name in indeps:
             print >> f, extrema[name][0], extrema[name][1],
             newtable[name+':gamma'].append(extrema[name][0])
             newtable[name+':max'].append(extrema[name][1])
 
-        maxgamma = extrema['In_0'][0]
-
-        # print the MR array values at that maximum:
+        # And then all the 'normal' MR array values at the extrema of
+        # what ever 'usefunc' we were passed:
+        maxgamma = extrema[usemax][0]
         if not numpy.isnan(maxgamma):
             index = int(numpy.where(table['gamma'] == maxgamma)[0])
         else:

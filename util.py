@@ -2,6 +2,7 @@
 
 import ast
 from taco.mathutil.stats import Averager
+import math
 from math import log, exp, floor, ceil
 import numpy
 import random
@@ -137,6 +138,55 @@ class Averager(object):
         """Sample Standard Deviation"""
         if self.n <= 1: return float('nan')
         return self.M2 / (self.n-1)
+    def proxy(self, expr):
+        class X:
+            def __init__(self, main, expr):
+                self.main = main
+                self.expr = expr
+            def add(self, x): pass
+            @property
+            def mean(self):
+                return eval(self.expr, dict(o=self.main))
+        return X(main=self, expr=expr)
+
+class AutoAverager(object):
+    def __init__(self, datatype=float, newAverager=Averager,
+                 depth=1):
+        """
+        if depth=1, then self[name] will be an Averager
+        if depth=2, then self[name] will be AutoAverager...
+                  ...and self[name2] will be an Averager
+        and so on.
+
+        newAverager is what the leaf averager object will be created
+        with.  This should be replaced with AutoAverager.
+        """
+        self.datatype = datatype
+        self.depth = depth
+        self.newAverager = newAverager
+        self.order = [ ]
+        self.data = { }
+        self.data_list = [ ]
+    def __getitem__(self, name, newAverager=None):
+        if name not in self.data:
+            if self.depth > 1:
+                new = self.__class__(datatype=self.datatype,
+                                     newAverager=self.newAverager,
+                                     depth=self.depth-1,
+                                     )
+            else:
+                if newAverager is not None:
+                    new = newAverager()
+                else:
+                    new = self.newAverager(datatype=self.datatype)
+            self.order.append(name)
+            self.data[name] = new
+            self.data_list.append(new)
+        return self.data[name]
+    get = __getitem__
+    def __iter__(self):
+        for key in self.order:
+            return (key, self.data[key])
 
 
 # This class is copied from fitz.loginterval
@@ -452,7 +502,17 @@ def extremawhere(a, mask, func=numpy.max):
     """
     extrema = func(a[mask])
 
-    extrema_where = numpy.where(a == extrema)[0]
+    def approxequal(a,b):
+        # True if a,b are within 1%
+        return a==b or (a-b)/float(max(abs(a),abs(b))) < 1e-2
+        return numpy.less_equal(
+            numpy.divide((a-b)/float((numpy.add(numpy.abs(a), numpy.abs(b))))),
+            1e-2)
+
+    #extrema_where = numpy.where(a == extrema)[0]
+    #extrema_where = numpy.where(approxequal(a, extrema))[0]
+    extrema_where = [i for (i,x) in enumerate(a)
+                     if approxequal(x, extrema)]
     plateaus = [ [ ] ]
     for i in extrema_where:
         if not mask[i]:

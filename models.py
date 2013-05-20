@@ -70,6 +70,7 @@ class Graph(anneal._GraphAnneal, cmodels._cobj, object):
         self._fillStruct(N, sparse=sparse)
         self.N = N
         self.oneToOne = 1
+        self.const_q = 0
         if sparse:
             self.hasFull = 0
         else:
@@ -672,6 +673,25 @@ class Graph(anneal._GraphAnneal, cmodels._cobj, object):
             self.srmatrixDefault = 0
         else:
             raise ValueError("Unknown mode for enableVT: %s", mode)
+    def enableModularity(self, mode):
+        """Enable a modularity-based mode."""
+        if self.hasSparse:
+            raise ValueError("Can't use modularity with sparse matrices.")
+        if self.rmatrix is not None:
+            self._allocRmatrix()
+        # Regular undirected modularity
+        nodeList = tuple(self._nodeLabel[i] for i in range(self.N))
+        in_degrees = [ self._graph.degree (n) for n in nodeList ]
+        out_degrees= [ self._graph.degree(n) for n in nodeList ]
+        E = self._graph.number_of_edges()
+
+        # With this modularity-based code, we have ...
+
+        #multiply.outer(A, B) = [[a0*b0, a0,b1, ...], [a1,b0, a1,b1,...], ...]
+        # row index: A, column index: B
+        expected_degree = numpy.multiply.outer(in_degrees, out_degrees) / (2*E)
+        self.rmatrix[:] = expected_degree
+        #expected_degree[from, to]
 
 
     #
@@ -818,7 +838,7 @@ class Graph(anneal._GraphAnneal, cmodels._cobj, object):
     #
     # Methods that deal with communities and community lists
     #
-    def cmtyCreate(self, cmtys=None, randomize=None):
+    def cmtyCreate(self, cmtys=None, randomize=True):
         """Create initial communities for a model.
 
         Used to make initial random community assignments.  By
@@ -833,9 +853,9 @@ class Graph(anneal._GraphAnneal, cmodels._cobj, object):
         """
         if cmtys is None:
             cmtys = numpy.arange(self.N)
-            randomize = True
-        else:
-            randomize = False
+        #    randomize = True
+        #else:
+        #    randomize = False
         if randomize:
             numpy.random.shuffle(cmtys)
         self.cmty[:] = cmtys
@@ -1071,6 +1091,27 @@ class Graph(anneal._GraphAnneal, cmodels._cobj, object):
     def n_mean(self):
         """Average num nodes per community"""
         return sum(self.cmtyN[c] for c in self.cmtys())/float(self.q)
+    def modularity(self):
+        nodeList = tuple(self._nodeLabel[i] for i in range(self.N))
+        cmtyList = tuple(self.cmty[i] for i in range(self.N))
+        in_degrees = [ self._graph.degree (n) for n in nodeList ]
+        out_degrees= [ self._graph.degree(n) for n in nodeList ]
+        E = self._graph.number_of_edges()
+
+        expected_degree = numpy.multiply.outer(in_degrees, out_degrees) / float(2*E)
+        #print expected_degree
+        adj_matrix = networkx.to_numpy_matrix(self._graph, nodelist=nodeList, dtype=float)
+        #print adj_matrix
+        same_cmty_mask = numpy.asarray(numpy.equal.outer(cmtyList, cmtyList), dtype=int)
+        #print same_cmty_mask
+
+        #print (adj_matrix - expected_degree) #* same_cmty_mask
+        #print numpy.multiply((adj_matrix - expected_degree), same_cmty_mask)
+        mod = numpy.sum(
+            numpy.multiply((adj_matrix - expected_degree), same_cmty_mask)) \
+            / float(2*E)
+
+        return mod
 
 
 
@@ -1271,6 +1312,7 @@ class Graph(anneal._GraphAnneal, cmodels._cobj, object):
         #print set(self.cmty),
         if self._use_overlap:
             self.greedyOverlap(gamma)
+        #self.combine_singletons(2)
         return roundsMoving, roundsCombining, changes
     minimize = greedy
     def _greedy(self, gamma):
@@ -1324,6 +1366,8 @@ class Graph(anneal._GraphAnneal, cmodels._cobj, object):
         def E(): self.remap(check=False) ; return 0
         x = self.alternate(funcs=(A, B, C, D, E), mode='restart',
                               maxrounds=15)
+        #self.combine_singletons(2) # FIXME remove this
+        return x
 
     def ovgreedy(self, gamma):
         def A(): return cmodels.overlapAdd(self._struct_p, gamma)
@@ -1342,16 +1386,17 @@ class Graph(anneal._GraphAnneal, cmodels._cobj, object):
         def B(): return cmodels.overlapRemove(self._struct_p, gamma)
         return self.alternate(funcs=(A, B))
 
-    def shift_degree(self, gamma):
+    def shift_degree(self, gamma, mode='once', maxrounds=1):
         """argument 'gamma' needed for compatibility but not used."""
         def A(): self._gen_random_order() ; return 0
         def B(): return cmodels.shift_degree(self._struct_p)
-        return self.alternate(funcs=(A, B, ))
-    def shift_density(self, gamma):
+        return self.alternate(funcs=(A, B, ), mode=mode, maxrounds=maxrounds,
+                              remap=False)
+    def shift_density(self, gamma, mode='once', maxrounds=1):
         """argument 'gamma' needed for compatibility but not used."""
         def A(): self._gen_random_order() ; return 0
         def B(): return cmodels.shift_density(self._struct_p)
-        return self.alternate(funcs=(A, B, ), mode='once', maxrounds=1,
+        return self.alternate(funcs=(A, B, ), mode=mode, maxrounds=maxrounds,
                               remap=False)
     def combine_singletons(self, minsize=5):
         """Combine 1-communities into their best other ones.

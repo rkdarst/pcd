@@ -18,16 +18,16 @@ class Auto(object):
     initial = 'random'  # initial state for minimizations.  If you want
                         # to refine some other communities, add them here.
                         # Format is pcd.Graph.getcmtystate()
+    quiet = False
 
     plot = True
-    plotFinal = True
+    plotIntermediate = False
     basename = None
+    leaf = False
+    #leaf_every = False
+    modularity = None
 
-    def __init__(self, options={}):
-        g = None
-        if 'g' in options:
-            g = options['g']
-            del options['g']
+    def __init__(self, g=None, options={}):
         self.setOptions(options)
         if self.basename is None:
             raise ValueError("required option 'basename' is missing.")
@@ -37,7 +37,7 @@ class Auto(object):
     def setOptions(self, options):
         for attrname, value in options.items():
             if not hasattr(self, attrname):
-                raise ValueError("%s doesn't have attr %s"%(
+                raise ValueError("%s doesn't have attribute '%s'"%(
                     self.__class__.__name__, attrname))
             setattr(self, attrname, value)
     def run_g(self, g, extrafields=(), options={}):
@@ -59,11 +59,15 @@ class Auto(object):
         if self.VT is not None:
             defaultweight = 0
         G = Graph.fromNetworkX(g, defaultweight=defaultweight)
+        if self.quiet:
+            G.verbosity = -1
         self.G = G.copy()
         del G._graph
         if self.VT is not None:
             G.make_sparse(default=0.0, cutoff_op=numpy.not_equal)
             G.enableVT(mode='standard')
+        elif self.modularity is not None:
+            G.enableModularity(mode=self.modularity)
         elif self.sparse:
             G.make_sparse(default='auto')
         if self.G0callback:
@@ -103,6 +107,7 @@ class Auto(object):
 
 
     def run_G(self, G, G0=None, options={}, extrafields=()):
+        self.G = G
         basename = self.basename
         self.setOptions(options)
 
@@ -126,7 +131,7 @@ class Auto(object):
             #if hasattr(self, 'coords'):
             #    G.coords = self.coords
             G.coords = None
-            if self.plot:
+            if self.plot or self.plotIntermediate:
                 lock.acquire()
                 G.viz(show=False,
                       fname=basename+'-MR-gamma%010.5f.png'%gamma,
@@ -140,18 +145,27 @@ class Auto(object):
                extradata={'custom':extrafields},
                )
         self.write()
-    def best_results(self):
+    def best_communities(self, mode=None, **kwargs):
         """Return the best results from this detection.
 
         Uses MR.extrema() (extrema of the similarity measures) to make
         a guess at the best communities.  Return list of
-        pcd.cmty.Communities object of the results."""
+        pcd.cmty.Communities object of the results.  These communities
+        objects have these extra attributes:
+
+        cmtys.varname: which variable was optimized
+        cmtys.maxval: extremum of the varname
+        cmtys.name: human-readable description of what was optimized
+        cmtys.gamma: the corresponding gamma
+        """
         MR = self._MR
-        cmtys = MR.best_communities([self.G]*self.replicas)
+        cmtys = MR.best_communities_mapping([self.G]*self.replicas, leaf=self.leaf, **kwargs)
+        if mode is not None:
+            return cmtys[mode]
         return cmtys
 
     def write(self):
-        if not self.plotFinal:
+        if not self.plot:
             return
         basename = self.basename
         MR = self.MR()
