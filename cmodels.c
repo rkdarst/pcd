@@ -1199,7 +1199,7 @@ int greedy_sparse(Graph_t G, double gamma) {
       // deltaEbest = deltaEoldCmty;  // Not needed (not used after this)
       assert(bestcmty != -1);
     }
-    if (oldcmty != bestcmty) {
+    if (oldcmty != bestcmty ) {
       cmtyMove(G, n, oldcmty, bestcmty);
       changes += 1;
     }
@@ -1268,7 +1268,11 @@ int shift_degree(Graph_t G) {
 	degreeBest = degreeNewCmty;
       }
     }
-    if (oldcmty != bestcmty) {
+    if (oldcmty != bestcmty
+	&& (   (G->cmtyN[0]==G->cmtyN[1])
+	    || (G->cmtyN[0]<G->cmtyN[1]+1  && oldcmty==1)
+	    || (G->cmtyN[0]>G->cmtyN[1]-1  && oldcmty==0) ) // hack for q=2 !!!
+	) {
       cmtyMove(G, n, oldcmty, bestcmty);
       changes += 1;
     }
