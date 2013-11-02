@@ -80,7 +80,11 @@ class Communities(object):
         return len(self._cmtynodes)
     # Other instance management
     def copy(self):
-        """Copy of self, with a new cmtynodes dictionary."""
+        """Copy of self, with a new cmtynodes dictionary.
+
+        The community structure of the copy can be modified without
+        the original's being affected, but all other mutable
+        attributes are shared."""
         #return self.__class__(dict(self._cmtynodes))
         import copy
         new = copy.copy(self)
@@ -880,7 +884,7 @@ class Communities(object):
             #detected = cmtysPlanted[cPlanted] & cmtysDetected[cDetected]
             detected = plantedNodes & detectedNodes
             if limit_nodes is not None:
-                detected.intersect(limit_nodes)
+                detected.intersection(limit_nodes)
             # If we use the line below, we miscalculate the total
             # number of nodes we are trying to detect.
             n_total += len(plantedNodes)
@@ -1172,6 +1176,7 @@ class CommunityListIterator(Communities):
     """
     # These are all cached properties.
     _cmtynames = None
+    _cmtynamesfile = None
     _label = None
     _nodes = None
     _N = None
@@ -1187,14 +1192,17 @@ class CommunityListIterator(Communities):
         self.fname = fname
         self.abspath_dir = os.getcwd()
         self.converter = converter
-        if not os.access(self.fname, os.F_OK):
+        if not os.path.exists(self.fname):
             raise ValueError("%s is not accessable"%self.fname)
         if cmtynames:
             if isinstance(cmtynames, str):
-                self._cmtynames = [x.strip() for x in open(cmtynames).read().split()
-                               if x.strip() and x[0]!='#' ]
+                if not os.path.exists(cmtynames):
+                    raise ValueError("%s is not accessable"%cmtynames)
+                self._cmtynamesfile = cmtynames
             else:
                 self._cmtynames = cmtynames
+        elif os.path.exists(self.fname+'.names'):
+            self._cmtynamesfile = self.fname+'.names'
     def __repr__(self):
         """Repr of self: include q if it is known, otherwise don't."""
         if self._q is None:
@@ -1222,7 +1230,13 @@ class CommunityListIterator(Communities):
         # use the internal _label.
         if self._label is not None:
             return self._label
+        # Search for label in the file
         data = open(self.fname).read(512)
+        m = re.search(r'^# label: ([^\n]+)$', data, re.M|re.I)
+        if m:
+            label = self._label = m.group(1).strip()
+            return label
+        data = open(self._cmtynamesfile).read(512)
         m = re.search(r'^# label: ([^\n]+)$', data, re.M|re.I)
         if m:
             label = self._label = m.group(1).strip()
@@ -1235,14 +1249,25 @@ class CommunityListIterator(Communities):
         """Names of all communities.
 
         This is a function, because the Communities object has
-        .cmtynames() as a function."""
+        .cmtynames() as a function.
+
+        Note: if no names can be found, return None, and user should
+        use integer indexes."""
+        # Cached copy, explicit list
         if self._cmtynames is not None:
             return self._cmtynames
-        if os.path.exists(self.fname+'.names'):
-            cmtynames = self._cmtynames \
-                    = [ line.strip() for line in open(self.fname+'.names')
-                        if line.strip() and line[0]!='#' ]
-            return cmtynames
+        # Open from self._cmtynamesfile.  This is FILENAME.names if
+        # not given explicitely and not explicitely given.
+        if self._cmtynamesfile is not None:
+            self._cmtynames = [
+                x.strip() for x in
+                   open(self._cmtynamesfile, 'U').read().split('\n')
+                if x.strip() and x[0]!='#' ]
+            return self._cmtynames
+        # No default, return None and user should just use integer
+        # indexes.
+        return None
+
     #def _set_cmtynames(self, cmtynames):
     #    print 'setting cmtynames'
     #    self.__dict__['_cmtynames'] = cmtynames
@@ -1251,7 +1276,7 @@ class CommunityListIterator(Communities):
 
 
     def cmtynodes(self):
-        """Create full dictionary of community structure."""
+        """Create the full dictionary of community structure."""
         return dict(self.iteritems())
     def to_dict(self, cls=Communities, nodes=None):
         """Convert to a full dict-based copy of this community structure.
@@ -1264,8 +1289,11 @@ class CommunityListIterator(Communities):
             cmtys.label = self.label
         return cmtys
     def copy(self):
-        """Copy of self.  Return self, iterator is immutable."""
-        return self
+        """Copy of self.
+
+        Returns shallow copy of self.  The actual community structure
+        is immutable, thus there is no need to make a copy of it."""
+        return copy.copy(self)
 
     def iterkeys(self):
         """Iterater over community names.
@@ -1349,7 +1377,7 @@ def _test_interface(cmtys):
     cmtys.nodeintmap()
     cmtys.cmtysizes()
     cmtys.cmtysizes_sum()
-    
+
 
 
 
