@@ -13,6 +13,18 @@ Networkx graphs have two ways of representing the community:
 import collections
 import numpy
 
+def edges_between(g, nbunch1, nbunch2):
+    """Edges betwen nbunches.
+
+    If nbunch1==nbunch2, return double the number of edges."""
+    nbunch2 = set(nbunch2)
+    edges = set()
+    for n1 in g.nbunch_iter(nbunch1):
+        for neighbor in g.neighbors_iter(n1):
+            if neighbor in nbunch2:
+                edges.add((n1, neighbor))
+    return edges
+
 def _iterCmtys(d):
     """Iterate over the communities in a node' data dict.
 

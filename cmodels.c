@@ -430,6 +430,66 @@ int find_empty_cmty(Graph_t G) {
   }
   return(-1);
 }
+int random_cmty(Graph_t G) {
+  while (1) {
+    int c = G->Ncmty * genrand_real2();
+    if (G->cmtyN[c] > 0)
+      return c;
+  }
+}
+int random_neighbor(Graph_t G, int n) {
+  int *tmp = G->tmp;
+  assert(G->hasFull);
+  int m;
+  int count=0;
+  for (m=0; m<G->N; m++) {
+    if (G->imatrix[n*G->N+m] > 0) {
+      tmp[count] = m;
+      count++;
+    }
+  }
+  int i = count*genrand_real2();
+  return tmp[i];
+}
+int split_community(Graph_t G, int c, double prob, int n) {
+  /* Take a community and split it into a new community.  Each node
+   * added to new community with probability `prob` (if n is zero).
+   *
+   * If n is given and nonzero, then 
+   */
+  assert(G->hasPrimaryCmty);
+  assert(G->oneToOne);
+  int cNew = find_empty_cmty(G);
+  int counter = 0;
+  int cNewCount = 0;
+  int *tmp = G->tmp;
+  GHashTableIter hashIter;
+  void *node_p;
+  int cOldCount = G->cmtyN[c];
+  g_hash_table_iter_init(&hashIter, G->cmtyListHash[c]);
+  while (g_hash_table_iter_next(&hashIter, &node_p, NULL)) {
+    // Iterate through all nodes in the community...
+    int node = GPOINTER_TO_INT(node_p);
+    if (n && n == cNewCount)
+      break;
+    if (n) {
+      // number needed / number left.
+      prob = (n - cNewCount)/((double)(cOldCount-counter));
+      /* printf("split: (%d %d/%d %d)\n", n, cNewCount, cOldCount, counter); */
+    }
+    if (genrand_real2() < prob) {
+      tmp[cNewCount] = node;
+      cNewCount += 1;
+    }
+    counter ++;
+  }
+  int i;
+  for (i=0; i<cNewCount; i++) {
+    cmtyMove(G, tmp[i], c, cNew);
+  }
+  /* printf("--> cNewCount%d\n", cNewCount); */
+  return cNew;
+}
 
 //int is_in_list()
 
@@ -704,6 +764,11 @@ double energy_cmty_n(Graph_t G, double gamma, int c, int n) {
   assert(G->hasFull);
   imatrix_t attractions=0;
   imatrix_t repulsions =0;
+  imatrix_t *imatrix_row = G->imatrix + n*G->N;
+  imatrix_t *rmatrix_row = NULL;
+  if (G->rmatrix != NULL) {
+    rmatrix_row = G->rmatrix + n*G->N;
+  }
 
   GHashTableIter hashIterInner;
 
@@ -714,16 +779,19 @@ double energy_cmty_n(Graph_t G, double gamma, int c, int n) {
     int m = GPOINTER_TO_INT(m_p);
     if (m == n)
       continue;
-    if (G->rmatrix == NULL) {
-      imatrix_t interaction = G->imatrix[n*G->N + m];
+    if (rmatrix_row == NULL) {
+      //imatrix_t interaction = G->imatrix[n*G->N + m];
+      imatrix_t interaction = imatrix_row[m];
       if (interaction > 0)
 	repulsions  += interaction;
       else
 	attractions += interaction;
     }
     else {
-      attractions += G->imatrix[n*G->N + m];
-      repulsions += G->rmatrix[n*G->N + m];
+      //attractions += G->imatrix[n*G->N + m];
+      //repulsions += G->rmatrix[n*G->N + m];
+      attractions += imatrix_row[m];
+      repulsions += rmatrix_row[m];
     }
   }
   return((attractions + gamma*repulsions));
@@ -831,7 +899,7 @@ double energy_cmty_cmty(Graph_t G, double gamma, int c1, int c2) {
   while (g_hash_table_iter_next(&hashIterOuter, &n_p, NULL)) {
     int n = GPOINTER_TO_INT(n_p);
     E += energy_cmty_n(G, gamma, c2, n);
-    /* printf("ecc %d %d %f\n", c2, n, E); */
+    /* printf("ecc %d %d %d %f\n", c1, c2, n, E); */
   }
   return (E);
 }
@@ -953,7 +1021,7 @@ int edgecount_cmty_n(Graph_t G, int c, int n) {
    * self-edges.
    */
   assert(G->hasFull);
-  assert(G->rmatrix == NULL);
+  //assert(G->rmatrix == NULL);
   int count=0;
 
   GHashTableIter hashIterInner;
@@ -999,6 +1067,7 @@ int greedy_naive(Graph_t G, double gamma) {
    */
   assert(0);
   assert(G->hasFull);
+  assert(!G->const_q);
   int changes=0;
   int i, n;
   // Loop over particles
@@ -1066,6 +1135,11 @@ int greedy(Graph_t G, double gamma) {
     double deltaEbest = 0.0;
     int bestcmty = G->cmty[n];
 
+    // In const_q mode, we exclude singleton communities from
+    // moving, since that would change number of communities.
+    if (G->const_q && G->cmtyN[bestcmty]<=1)
+      continue;
+
     // Store our old community and energy change when we remove a
     // particle from the old community.  We see if (energy from
     // removing from old community + energy from adding to new
@@ -1083,14 +1157,18 @@ int greedy(Graph_t G, double gamma) {
     /* for (newcmty=0 ; newcmty<G->Ncmty ; newcmty++) { */
 
     // Method 2 (only interacting cmtys, fixed order) //
-    int m;
-    for (m=0 ; m<G->N ; m++) {
-      /* if (G->imatrix[G->N*n+m] != 500) */
-      /* 	printf("  %d %d %f\n", n, m, G->imatrix[G->N*n+m]); */
+    /* /\* SetClear(G->seenList); *\/ */
+    /* int m; */
+    /* for (m=0 ; m<G->N ; m++) { */
+    /*   /\* if (G->imatrix[G->N*n+m] != 500) *\/ */
+    /*   /\* 	printf("  %d %d %f\n", n, m, G->imatrix[G->N*n+m]); *\/ */
 
-      if (G->imatrix[n*G->N + m] > 0)
-    	continue;
-      int newcmty = G->cmty[m];
+    /*   if (G->imatrix[n*G->N + m] > 0) */
+    /* 	continue; */
+    /*   int newcmty = G->cmty[m]; */
+    /*   /\* if (SetContains(G->seenList, newcmty)) *\/ */
+    /*   /\* 	continue; *\/ */
+    /*   /\* SetAdd(G->seenList, newcmty); *\/ */
 
     // Method 3 (only interacting cmtys, random order) //
     /* int mindex, m; */
@@ -1099,6 +1177,24 @@ int greedy(Graph_t G, double gamma) {
     /*   if (G->imatrix[n*G->N + m] > 0) */
     /* 	continue; */
     /*   int newcmty = G->cmty[m]; */
+
+    // Method 4 (Use linklist) //
+    int j;
+    int j_end = G->linklist_idx[n]+G->linklistN[n];
+    SetClear(G->seenList);
+    for(j=G->linklist_idx[n] ; j<j_end ; j++) {
+      int m = G->linklist[j];
+      int newcmty = G->cmty[m];
+      if (newcmty == oldcmty)
+    	continue;
+      if (G->cmtyN[newcmty] == 0) {
+    	continue;
+      }
+      if (SetContains(G->seenList, newcmty))
+      	continue;
+      SetAdd(G->seenList, newcmty);
+
+      /*** End methods, begin core ***/
 
       if (newcmty == oldcmty)
 	continue;
@@ -1116,7 +1212,7 @@ int greedy(Graph_t G, double gamma) {
       }
     }
     // Is it better to move a particle into an _empty_ community?
-    if (deltaEoldCmty < deltaEbest) {
+    if (deltaEoldCmty < deltaEbest && !G->const_q) {
       bestcmty = find_empty_cmty(G);
       // deltaEbest = deltaEoldCmty;  // Not needed (not used after this)
       assert(bestcmty != -1);
@@ -1154,6 +1250,11 @@ int greedy_sparse(Graph_t G, double gamma) {
     // Default to current community (no moving).
     double deltaEbest = 0.0;
     int bestcmty = G->cmty[n];
+
+    // In const_q mode, we exclude singleton communities from
+    // moving, since that would change number of communities.
+    if (G->const_q && G->cmtyN[bestcmty]<=1)
+      continue;
 
     // Store our old community and energy change when we remove a
     // particle from the old community.  We see if (energy from
@@ -1194,7 +1295,7 @@ int greedy_sparse(Graph_t G, double gamma) {
       }
     }
     // Is it better to move a particle into an _empty_ community?
-    if (deltaEoldCmty < deltaEbest) {
+    if (deltaEoldCmty < deltaEbest && !G->const_q) {
       bestcmty = find_empty_cmty(G);
       // deltaEbest = deltaEoldCmty;  // Not needed (not used after this)
       assert(bestcmty != -1);
@@ -1216,6 +1317,11 @@ int shift_degree(Graph_t G) {
   assert(G->hasPrimaryCmty);
   int changes=0;
   int nindex, n;
+
+  int *moveto=G->tmp;
+  int *needsmove = calloc(sizeof(int), G->N);
+  //int _i; for ( _i=0 ; _i++ ; _i<G->N ) { needsmove[_i] = -1 } ;
+
   // Loop over particles
   for (nindex=0 ; nindex<G->N ; nindex++) {
     n = G->randomOrder[nindex];
@@ -1236,22 +1342,22 @@ int shift_degree(Graph_t G) {
     /* for (newcmty=0 ; newcmty<G->Ncmty ; newcmty++) { */
 
     // Method 2 (only interacting cmtys, fixed order) //
-    int m;
-    for (m=0 ; m<G->N ; m++) {
-      /* if (G->imatrix[G->N*n+m] != 500) */
-      /* 	printf("  %d %d %f\n", n, m, G->imatrix[G->N*n+m]); */
+    /* int m; */
+    /* for (m=0 ; m<G->N ; m++) { */
+    /*   /\* if (G->imatrix[G->N*n+m] != 500) *\/ */
+    /*   /\* 	printf("  %d %d %f\n", n, m, G->imatrix[G->N*n+m]); *\/ */
 
-      if (G->imatrix[n*G->N + m] > 0)
-    	continue;
-      int newcmty = G->cmty[m];
-
-    // Method 3 (only interacting cmtys, random order) //
-    /* int mindex, m; */
-    /* for (mindex=0 ; mindex<G->N ; mindex++) { */
-    /*   m = G->randomOrder2[mindex]; */
     /*   if (G->imatrix[n*G->N + m] > 0) */
     /* 	continue; */
     /*   int newcmty = G->cmty[m]; */
+
+    // Method 3 (only interacting cmtys, random order) //
+    int mindex, m;
+    for (mindex=0 ; mindex<G->N ; mindex++) {
+      m = G->randomOrder2[mindex];
+      if (G->imatrix[n*G->N + m] > 0)
+    	continue;
+      int newcmty = G->cmty[m];
 
       if (newcmty == oldcmty)
 	continue;
@@ -1269,14 +1375,31 @@ int shift_degree(Graph_t G) {
       }
     }
     if (oldcmty != bestcmty
-	&& (   (G->cmtyN[0]==G->cmtyN[1])
-	    || (G->cmtyN[0]<G->cmtyN[1]+1  && oldcmty==1)
-	    || (G->cmtyN[0]>G->cmtyN[1]-1  && oldcmty==0) ) // hack for q=2 !!!
+	// This keeps the size of communities roughly constant
+	// ... hack for q=2 !!!! XXX
+	/* && (   (G->cmtyN[0]==G->cmtyN[1]) */
+	/*     || (G->cmtyN[0]<G->cmtyN[1]+1  && oldcmty==1) */
+	/*     || (G->cmtyN[0]>G->cmtyN[1]-1  && oldcmty==0) ) */
 	) {
-      cmtyMove(G, n, oldcmty, bestcmty);
+      /* cmtyMove(G, n, oldcmty, bestcmty); */
+
+      needsmove[changes]=n;
+      moveto[changes]=bestcmty;
+
       changes += 1;
     }
   }
+
+  int _i;
+  for (_i=0 ; _i<changes ; _i++ ) {
+    int n = needsmove[_i];
+    int oldcmty = G->cmty[n];
+    int bestcmty = moveto[_i];
+    assert(oldcmty != bestcmty);
+    cmtyMove(G, n, oldcmty, bestcmty);
+  }
+  free(needsmove);
+
   return (changes);
 }
 int shift_density(Graph_t G) {
@@ -1289,8 +1412,8 @@ int shift_density(Graph_t G) {
   int changes=0;
   int nindex, n;
 
-  /* int *moveto=G->tmp; */
-  /* int *needsmove = calloc(sizeof(int), G->N); */
+  int *moveto=G->tmp;
+  int *needsmove = calloc(sizeof(int), G->N);
   //int _i; for ( _i=0 ; _i++ ; _i<G->N ) { needsmove[_i] = -1 } ;
 
   // Loop over particles
@@ -1348,30 +1471,27 @@ int shift_density(Graph_t G) {
 	bestcmty = newcmty;
 	densityBest = densityNewCmty;
       }
-      //printf("n,oldcmty,bestcmty,density(O,N,B): %d %d %d %f %f %f\n",
-      //     n, oldcmty, bestcmty, densityOldCmty, densityNewCmty, densityBest);
     }
-      /* printf("Moving %d from %d to %d, %f %f\n", n, oldcmty, bestcmty, */
-      /* 	     densityOldCmty, densityBest); */
     if (oldcmty != bestcmty) {
-      cmtyMove(G, n, oldcmty, bestcmty);
-      changes += 1;
+      /* cmtyMove(G, n, oldcmty, bestcmty); */
 
-      /* needsmove[changes-1]=n; */
-      /* moveto[changes-1]=bestcmty; */
+      needsmove[changes]=n;
+      moveto[changes]=bestcmty;
+
+      changes += 1;
     }
   }
 
-  /* int _i; */
-  /* for (_i=0 ; _i<changes ; _i++ ) { */
-  /*   int n = needsmove[_i]; */
-  /*   int oldcmty = G->cmty[n]; */
-  /*   int bestcmty = moveto[_i]; */
-  /*   assert(oldcmty != bestcmty); */
-  /*   cmtyMove(G, n, oldcmty, bestcmty); */
-  /* } */
+  int _i;
+  for (_i=0 ; _i<changes ; _i++ ) {
+    int n = needsmove[_i];
+    int oldcmty = G->cmty[n];
+    int bestcmty = moveto[_i];
+    assert(oldcmty != bestcmty);
+    cmtyMove(G, n, oldcmty, bestcmty);
+  }
+  free(needsmove);
 
-  /* free(needsmove); */
   return (changes);
 }
 
@@ -1565,45 +1685,256 @@ int overlapRemove2(Graph_t G, double gamma) {
   return (changes);
 }
 
+inline int metropolis_criteria(double beta, double deltaE) {
+  double x = exp(- beta * deltaE);
+  double ran = genrand_real2();
+  if (ran < x)
+    return 1; // accept
+  else
+    return 0; // reject
+}
+inline double constq_deltaE(int q0, int q, int dq) {
+  // This is equivalent to  dq*(dq+2(q-q0))
+  return ((dq + 2*(q-q0))*dq);
+}
+inline double min_n_E(int n0, int n) {
+  // Pseudo-function for energy pentalty for having too few n.
+  return (n>n0) ? (0) : ((n0-n)*(n0-n));
+}
 int anneal(Graph_t G, double gamma, double beta,
-	   int steps, double deltabeta) {
+	   int steps, double deltabeta,
+	   double new_cmty_prob, /* single node moves to a new community (not cumulative) */
+	   double p_binary, /* split and merge moves */
+	   double p_collective, /* collective node motions */
+	   int constq_SA, double constqEcoupling,
+	   int min_n_SA, double minnEcoupling
+	   ) {
   int changes=0;
   int step;
 
+  int const_q=0, const_q_SA=0;
+  if (G->const_q && ! constq_SA) {
+    // const_q=q                   -->  don't allow any community moves at all
+    const_q    = G->const_q;
+    const_q_SA = 0;
+  } else if (G->const_q && constq_SA) {
+    // const_q=0 and const_q_SA=q  -->  allow changing move but bias towards G->const_q
+    const_q    = 0;
+    const_q_SA = G->const_q;
+  }
+  //double constqEcoupling = 1; //.5 * G->const_q / (float)G->N; //.5 / (G->N/(G->const_q));  // Factor for E=(q-q0)**2 contribution
+
+  //double cdf_shift = 1.0 - p_combine;
+  ////double cdf_combine = 1.0 - combine_prob + combine_prob*(.5);
+  //// New method
+  int q_ = q(G);
+  ////double p_combine = combine_prob;
+  //double norm_combine = q_ + q_*(q_-1);
+  //double p_merge = (q_*(q_-1)) / norm_combine;
+  //double p_split = q_ / norm_combine;
+  //double cdf_combine = cdf_shift + p_combine * p_split;
+  ////printf("cdfs: %f %f %f %f %d\n", beta, cdf_shift, cdf_combine, p_merge, q_);
+  //// End new method.
+
+  //
+  //double p_merge = .5*p_binary;
+  //double p_split = 0;
+  double norm_combine = q_ + q_*(q_-1);
+  double p_merge = p_binary * ( (q_*(q_-1)) / ((double)norm_combine) );
+  double p_split = p_binary * (       q_    / ((double)norm_combine) );
+  // make CDFs
+  double cdf_shift = 1-p_collective-p_split-p_merge;
+  double cdf_merge = 1-p_collective-p_merge;
+  double cdf_split = 1-p_collective;
+  //double cdf_collective = 1;
+
+
+
+  //int Gq = q(G);
   for (step=0 ; step<steps ; step++) {
     beta += deltabeta;
 
+    double rand = genrand_real2();
+    //assert (q(G) == Gq);
+    int Gq = q(G);
 
-    // Random node
-    int n = G->N * genrand_real2();
-    // Random community
-    int c = G->N * genrand_real2();
-    int c_old = G->cmty[n];
-    // Random chance of trying a new communty
-    if (genrand_real2() < .0001 ) {
-      c = find_empty_cmty(G);
-      if (c == -1)
+    /** Single ***************************************/
+    if (rand < cdf_shift) {
+      // Random node
+      int n = G->N * genrand_real2();
+      int c_old = G->cmty[n];
+      int dq = 0;
+      // If c_old is 1, we are eliminating a community
+      if (G->cmtyN[c_old]<=1) {
+	dq = -1;  // One fewer community
+	if (const_q)
+	  goto lab_no_shift;
+      }
+      // Random already-existing community
+      int c = G->Ncmty * genrand_real2();
+      if (G->cmtyN[c] <= 0) { // Exclude moving to empty communities (add back in chance of this below)
+	goto lab_no_shift;
+      }
+      // Random chance of trying a new communty
+      if (!const_q && genrand_real2() < new_cmty_prob) {
+	c = find_empty_cmty(G);
+	if (c == -1)
+	  continue;
+	dq = 1; // One more community
+      }
+
+      // If already in this community, skip it.
+      if (c == c_old)
 	continue;
+      float deltaE =   energy_cmty_n(G, gamma, c, n)
+                     - energy_cmty_n(G, gamma, c_old, n);
+      if (dq && const_q_SA)
+	deltaE += constqEcoupling * constq_deltaE(const_q_SA, Gq, dq);
+      if (min_n_SA)
+	deltaE += minnEcoupling * (  min_n_E(min_n_SA, cmtyN(G, c_old)-1)
+				   + min_n_E(min_n_SA, cmtyN(G, c)    +1)
+				   - min_n_E(min_n_SA, cmtyN(G,c_old)   )
+				   - min_n_E(min_n_SA, cmtyN(G,c)       )
+				     );
+      double x = exp(- beta * deltaE);
+      double ran = genrand_real2();
+      if (ran < x) {
+	// accept
+	cmtyMove(G, n, c_old, c);
+	changes += 1;
+	Gq += dq;
+      }
+      else {
+	// reject
+      }
+      //assert(q(G) == Gq);
+      lab_no_shift:
+      ;  // Can't have label at end of compound statement.
+    /** Merging ***************************************/
+    } else if (rand < cdf_merge && !const_q  && G->Ncmty<G->N && Gq > 1) {
+      // Try merging two communities
+      int c1 = random_cmty(G);
+      int c2;
+      while (1) {
+	c2 = random_cmty(G);
+	if (c1 != c2)
+	  break;
+      }
+      double deltaE = energy_cmty_cmty(G, gamma, c1, c2);
+      if (const_q_SA)
+	deltaE += constqEcoupling * constq_deltaE(const_q_SA, Gq, -1);
+      if (min_n_SA)
+	deltaE += minnEcoupling * (  min_n_E(min_n_SA, cmtyN(G, c1)+cmtyN(G, c2) )
+				   - min_n_E(min_n_SA, cmtyN(G, c1) )
+				   - min_n_E(min_n_SA, cmtyN(G, c2) )
+				   );
+      if (metropolis_criteria(beta, deltaE)) {
+	// accept
+	cmtyMoveAll(G, c2, c1);
+	Gq += -1;
+      }
+    /** Splitting ***************************************/
+    } else if (rand < cdf_split && !const_q) /* cdf_combine */ {
+      // Try splitting two communities
+      // Require at least one empty community.
+      if (G->Ncmty < G->N-2) {
+	int c1 = random_cmty(G);
+	// Require picked community to have at least three nodes
+	if (G->cmtyN[c1] >= 3) {
+	  // The actual splitting logic
+	  int oldSize = cmtyN(G, c1);
+	  int c2 = split_community(G, c1, .5, 0);
+	  double deltaE = - energy_cmty_cmty(G, gamma, c1, c2);
+	  if (const_q_SA)
+	    deltaE += constqEcoupling * constq_deltaE(const_q_SA, Gq, +1);
+	  if (min_n_SA)
+	    deltaE += minnEcoupling * (  min_n_E(min_n_SA, cmtyN(G, c1) )
+				       + min_n_E(min_n_SA, cmtyN(G, c2) )
+				       - min_n_E(min_n_SA, oldSize)
+					 );
+	  if (metropolis_criteria(beta, deltaE)) {
+	    // accept - null op
+	    Gq += +1;
+	  }
+	  else { // reject - move all nodes from c2 back to c1.
+	    cmtyMoveAll(G, c2, c1);
+	  }
+	}
+      }
+    /** Collective ***************************************/
+    } else if ( //rand < cdf_collective &&
+	       Gq>2
+	       && G->Ncmty < G->N-2
+	       ) {
+      // Move a part of X onto y.
+      // Algorithm: Pick random community.
+      int c1 = random_cmty(G);
+      int c1size = G->cmtyN[c1];
+      // Pick new random community to merge into.
+      int c2;
+      while (1) {
+	c2 = random_cmty(G);
+	if (c1 != c2)
+	  break;
+      }
+      int c2size = G->cmtyN[c1];
+      // Pick some amount to split the communty.
+      int sub1Size = 1+ trunc((0. + .5*genrand_real2())*(c1size-2));
+      if (sub1Size == c1size) continue;
+      int sub2Size = 1+ trunc((0. + .5*genrand_real2())*(c2size-2));
+      if (sub2Size == c2size) continue;
+      // Generate a sub-community of that size.
+      int c1Sub = split_community(G, c1, 0., sub1Size);
+      int c2Sub = split_community(G, c2, 0., sub2Size);
+      // deltaE of removing that subcommunity from prior community.
+      double deltaE=0;
+      deltaE -= energy_cmty_cmty(G, gamma, c1, c1Sub);
+      deltaE -= energy_cmty_cmty(G, gamma, c2, c2Sub);
+      /* printf("%f\n", energy_cmty_cmty(G, gamma, c1, cSub)); */
+      // deltaE of adding that subcommunity to a new random community.
+      deltaE += energy_cmty_cmty(G, gamma, c2, c1Sub);
+      deltaE += energy_cmty_cmty(G, gamma, c1, c2Sub);
+      if (min_n_SA)
+	deltaE += minnEcoupling * (  min_n_E(min_n_SA, c1size-sub1Size+sub2Size)
+				   + min_n_E(min_n_SA, c2size-sub2Size+sub1Size)
+				   - min_n_E(min_n_SA, c1size)
+				   - min_n_E(min_n_SA, c2size)
+				     );
+      /* printf("%f\n", energy_cmty_cmty(G, gamma, cNew, cSub)); */
+      // Accept or not?
+      /* printf("collective: %d(%d) %d(%d) %d(%d,%d) %0.20e\n", c1, c1size, cNew,G->cmtyN[cNew], */
+      /* 	     cSub, subSize, G->cmtyN[cSub], deltaE); */
+      if (metropolis_criteria(beta, deltaE)) {
+	cmtyMoveAll(G, c1Sub, c2);
+	cmtyMoveAll(G, c2Sub, c1);
+	/* printf("accept\n"); */
+	changes += 1;
+      }
+      else { // reject - move all nodes from c2 back to c1.
+	cmtyMoveAll(G, c1Sub, c1);
+	cmtyMoveAll(G, c2Sub, c2);
+	/* printf("reject\n"); */
+      }
+      //assert(q(G) == Gq);
     }
+    /** End if chain ***************************************/
 
-    // If already in this community, skip it.
-    if (c == c_old)
-      continue;
-    float deltaE =   energy_cmty_n(G, gamma, c, n)
-                   - energy_cmty_n(G, gamma, c_old, n);
-
-    double x = exp(- beta * deltaE);
-    double ran = genrand_real2();
-    if (ran < x) {
-      // accept
-      cmtyMove(G, n, c_old, c);
-      changes += 1;
-    }
-    else {
-      // reject
-    }
   }
   return (changes);
+}
+int anneal_split_community(Graph_t G, int c, double prob, double beta) {
+  assert(0);
+  int cNew = split_community(G, c, prob, 0);
+  double deltaE = -energy_cmty_cmty(G, 1, c, cNew);
+  double x = exp(- beta * deltaE);
+  double ran = genrand_real2();
+  if (ran < x) {
+    // accept
+  }
+  else {
+    cmtyMoveAll(G, cNew, c);
+  }
+  
 }
 
 
@@ -1615,6 +1946,7 @@ int combine(Graph_t G, double gamma) {
   if (G->hasSparse) return(combine_sparse(G, gamma));
   assert(G->oneToOne);
   assert(G->hasFull);
+  assert(!G->const_q);
   int changes = 0;
   // Move particles from c2 into c1
   int i1, i2, c1, c2;
@@ -1674,6 +2006,7 @@ int combine_sparse(Graph_t G, double gamma) {
   assert(G->oneToOne);
   assert(G->hasSparse);
   assert(G->hasPrimaryCmty);
+  assert(!G->const_q);
   int changes = 0;
   // Move particles from c2 into c1
   //int i1, i2, c1, c2;
@@ -1767,6 +2100,7 @@ int combine_sparse_overlap(Graph_t G, double gamma) {
    */
   G->oneToOne = 0;
   assert(G->hasSparse);
+  assert(!G->const_q);
   //assert(G->hasPrimaryCmty);
   int changes = 0;
   // Move particles from c2 into c1
@@ -1868,6 +2202,7 @@ int combine_singletons(Graph_t G, int minsize) {
   assert(G->hasFull);
   assert(G->hasPrimaryCmty);
   assert(G->oneToOne);
+  assert(!G->const_q);
   int changes=0;
   int oldcmty;
   //printf("combine_singletons\n");
@@ -1920,4 +2255,67 @@ int combine_singletons(Graph_t G, int minsize) {
     }
   }
   return(changes);
+}
+
+
+int fixq_merge(Graph_t G, double gamma) {
+  int c1_best = -1;
+  int c2_best = -1;
+  double deltaE_best = 1e9;
+  int c1, c2;
+  double deltaE;
+  for (c1=0 ; c1<G->Ncmty ; c1++) {
+    if (G->cmtyN[c1] == 0)
+      continue;
+    for (c2=c1+1 ; c2<G->Ncmty ; c2++) {
+      if (G->cmtyN[c2] == 0)
+	continue;
+      /* We have c1 and c2 */
+      deltaE = energy_cmty_cmty(G, gamma, c1, c2)
+	       + energy_cmty_cmty(G, gamma, c2, c1);
+      if (deltaE < deltaE_best) {
+	deltaE_best = deltaE;
+	c1_best = c1;
+	c2_best = c2;
+      }
+
+    }
+  }
+  // We always do the best combination - by definition, this function
+  // combines the best two communities, even if the energy increases.
+  assert(c1_best != -1);
+  cmtyMoveAll(G, c1_best, c2_best);
+  return(deltaE_best);
+}
+
+int fixq_merge_density(Graph_t G, double gamma) {
+  int c1_best = -1;
+  int c2_best = -1;
+  double density_best = 0.0;
+  int c1, c2;
+  gamma=gamma;
+  for (c1=0 ; c1<G->Ncmty ; c1++) {
+    if (G->cmtyN[c1] == 0)
+      continue;
+    for (c2=c1+1 ; c2<G->Ncmty ; c2++) {
+      if (G->cmtyN[c2] == 0)
+	continue;
+      /* We have c1 and c2 */
+      int links = G->cmtyN[c1] * G->cmtyN[c2];
+      int edges = edgecount_cmty_cmty(G, c1, c2);
+      double density = ((double) edges) / ((double) links);
+
+      if (density > density_best) {
+	density_best = density;
+	c1_best = c1;
+	c2_best = c2;
+      }
+
+    }
+  }
+  // We always do the best combination - by definition, this function
+  // combines the best two communities, even if the energy increases.
+  assert(c1_best != -1);
+  cmtyMoveAll(G, c1_best, c2_best);
+  return(density_best);
 }

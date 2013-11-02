@@ -76,9 +76,10 @@ def F1c(G0, G, weighted=False):
     #print " ", recall
     #from fitz.interact import interact ; interact()
     if weighted:
-        return (sum(F1       *cmtysizes)/float(sum(cmtysizes)),
-                sum(precision*cmtysizes)/float(sum(cmtysizes)),
-                sum(recall   *cmtysizes)/float(sum(cmtysizes)))
+        n_nodes = sum(cmtysizes)
+        return (sum(F1       *cmtysizes)/float(n_nodes),
+                sum(precision*cmtysizes)/float(n_nodes),
+                sum(recall   *cmtysizes)/float(n_nodes))
     return F1.mean(), precision.mean(), recall.mean()
 F1 = F1c
 

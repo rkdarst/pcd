@@ -115,6 +115,9 @@ cGraph._fields_ = [
     ("cmty",         c_int_p),
     ("imatrix",      imatrix_t_p),
     ("rmatrix",      imatrix_t_p),
+    ("linklist",     c_int_p),
+    ("linklist_idx", c_int_p),
+    ("linklistN",    c_int_p),
 
     # for sparse implementation
     ("hasSparse",    c_int),
@@ -217,7 +220,11 @@ cfuncs = (
     ("overlapRemove", c_int,    (cGraph_p, c_double)),
     ("overlapRemove2",c_int,    (cGraph_p, c_double)),
     ("anneal",        c_int,    (cGraph_p, c_double, c_double,
-                                 c_int, c_double)),
+                                 c_int, c_double,
+                                 c_double, c_double, c_double,
+                                 c_int, c_double,
+                                 c_int, c_double, # min_n_SA, minnEcoupling
+                                 )),
     ("combine",       c_int,    (cGraph_p, c_double)),
     ("combine_sparse_overlap",c_int,    (cGraph_p, c_double)),
     ("remap",         c_int,    (cGraph_p, )),
@@ -226,9 +233,16 @@ cfuncs = (
     ("shift_density", c_int,    (cGraph_p, )),
     ("combine_singletons",c_int,(cGraph_p, c_int)),
 
+    ("fixq_merge",    c_int,    (cGraph_p, c_double)),
+    ("fixq_merge_density", c_int,    (cGraph_p, c_double)),
+
     )
 
-filename = os.path.join(os.path.dirname(os.path.abspath(__file__)), '_cmodels.so')
+# Try host-dependent files first.
+_thisdir = os.path.dirname(os.path.abspath(__file__))
+filename = os.path.join(_thisdir, '_cmodels_%s.so'%os.uname()[1])
+if not os.access(filename, os.F_OK):
+    filename = os.path.join(_thisdir, '_cmodels.so')
 C = ctypes.cdll[os.path.join(os.path.dirname(__file__), filename)]
 
 for name, restype, argtypes in cfuncs:

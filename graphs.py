@@ -24,6 +24,12 @@ import models
 from models import Graph
 import util
 
+def dict_values_to_str(d):
+    """Transform all of a dictionary's keys into strings, in-place"""
+    for k, v in d.iteritems():
+        if isinstance(v, unicode):
+            print 'decoding', k, v
+            d[k] = v.encode('utf-8')
 
 def random_graph(graph=None, size=10, cluster=True, layout=None):
     """Return a random graph (models.py Graph class).
@@ -147,17 +153,98 @@ def dolphins(weightFriend=-1):
     """
     fname = os.path.join(os.path.dirname(__file__),
                          "data/dolphins.gml")
-    g = networkx.read_gml(fname)
+    g = networkx.read_gml(fname, relabel=True)
     g = networkx.Graph(g)
-    for a,b in g.edges_iter():
-        #d['weight'] = -1
-        g.edge[a][b]['weight'] = weightFriend
+    #for a,b in g.edges_iter():
+    #    #d['weight'] = -1
+    #    #g.edge[a][b]['weight'] = weightFriend
+    for n, data in g.nodes_iter(data=True):
+        dict_values_to_str(data)
+        #g.node[n]['label'] = str(data['label'])
     g.graph['Creator'] = g.graph['Creator'].split('"')[1]
     return g
 
+def football():
+    """NCAA Football network.
+
+    Network of American football games between Division IA colleges
+    during regular season Fall 2000. Please cite M. Girvan and
+    M. E. J. Newman, Proc. Natl. Acad. Sci. USA 99, 7821-7826 (2002).
+
+    http://www-personal.umich.edu/~mejn/netdata/football.zip"""
+    fname = os.path.join(os.path.dirname(__file__),
+                         "data/football.gml")
+    g = networkx.read_gml(fname, relabel=True)
+    g = networkx.Graph(g)
+    g.graph['Creator'] = g.graph['Creator'].split('"')[1]
+    for n, data in g.nodes_iter(data=True):
+        #dict_values_to_str(data)
+        data['cmty'] = str(data['value'])
+        #node_map[n] = str(data['label'])
+        del data['value'], data['id'], data['label']
+        #print data
+    return g
+def polbooks(relabel=True):
+    """Network of political books.
+
+    A network of books about US politics published around the time of
+    the 2004 presidential election and sold by the online bookseller
+    Amazon.com. Edges between books represent frequent copurchasing of
+    books by the same buyers. The network was compiled by V. Krebs and
+    is unpublished, but can found on Krebs' web site. Thanks to Valdis
+    Krebs for permission to post these data on this web site.
+
+    Communities stored in g.node[n]['cmty'], node names are the titles
+    of books.
+
+    http://www-personal.umich.edu/~mejn/netdata/polbooks.zip"""
+    fname = os.path.join(os.path.dirname(__file__),
+                         "data/polbooks.gml")
+    g = networkx.read_gml(fname, relabel=True)
+    g = networkx.Graph(g)
+    g.graph['Creator'] = g.graph['Creator'].split('"')[1]
+    #node_map = { }
+    for n, data in g.nodes_iter(data=True):
+        dict_values_to_str(data)
+        data['cmty'] = str(data['value'])
+        #node_map[n] = str(data['label'])
+        #del data['value'], data['id'], data['label']
+    #if relabel:
+    #    g = networkx.relabel_nodes(g, node_map)
+    return g
+def polblogs(relabel=True):
+    """Network of political blogs.
+
+    A directed network of hyperlinks between weblogs on US politics,
+    recorded in 2005 by Adamic and Glance. Please cite L. A. Adamic
+    and N. Glance, 'The political blogosphere and the 2004 US
+    Election', in Proceedings of the WWW-2005 Workshop on the
+    Weblogging Ecosystem (2005). Thanks to Lada Adamic for permission
+    to post these data on this web site.
+
+    http://www-personal.umich.edu/~mejn/netdata/polblogs.zip
+    """
+    fname = os.path.join(os.path.dirname(__file__),
+                         "data/polblogs.gml")
+    g = networkx.read_gml(fname, relabel=True)
+    g = networkx.Graph(g)
+    g.graph['Creator'] = g.graph['Creator'].split('"')[1]
+    #node_map = { }
+    for n, data in g.nodes_iter(data=True):
+        dict_values_to_str(data)
+        #data['label'] = str(data['label'])
+        data['cmty'] = str(data['value'])
+        #node_map[n] = data['label']
+        del data['value'], data['id'], data['label']
+        #print data
+    #if relabel:
+    #    g = networkx.relabel_nodes(g, node_map)
+    return g
+
+
 def dolphins_G():
-    graph = dolphins(weightFriend=-1)
-    G = models.Graph.fromNetworkX(graph, defaultweight=1)
+    #graph = dolphins(weightFriend=-1)
+    G = models.Graph.fromNetworkX(graph)
     return G
 
 def nussinov_256node(weight=-1):
@@ -231,13 +318,16 @@ def _test_hierarchical_graph():
     print "   nodes:", sorted(g.nodes())
 
 
-def karate_club():
+def karate_club(weighted=False):
     fname = os.path.join(os.path.dirname(__file__),
                          "data/karate_weighted_nooffset.gml")
     g = networkx.read_gml(fname)
     for a,b,d in g.edges(data=True):
         #print a, b, d
-        g.edge[a][b]['weight'] = -d['value']
+        if weighted:
+            g.edge[a][b]['weight'] = -d['value']
+        else:
+            del d['value']
     return g
 
 

@@ -49,3 +49,8 @@ SFMT.o: SFMT.c SFMT.h
 
 #test:
 #        python tests/unittests_run.py
+
+support/cavity.so: support/cavity.pyx
+	~/bin/cython support/cavity.pyx -a --embed=main
+	gcc -I/usr/include/python2.6/ -rdynamic -fPIC -pie -lpython2.6 -g -O3 support/cavity.c -o support/cavity.so
+

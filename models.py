@@ -234,6 +234,7 @@ class Graph(anneal._GraphAnneal, cmodels._cobj, object):
             self.oneToOne,
             self.hasPrimaryCmty,
             self.hasFull, self.hasSparse,
+            self.const_q,
             tuple(self.cmty.flat),
             tuple(self.cmtyN.flat),
             tuple(self.cmtys()), # possibly redundant
@@ -252,12 +253,13 @@ class Graph(anneal._GraphAnneal, cmodels._cobj, object):
     # Constructor methods
     #
     @classmethod
-    def fromNetworkX(cls, graph, defaultweight=1,
+    def fromNetworkX(cls, graph,
+                     edgeweight=1, noedgeweight=-1,
+                     #defaultconnectedweight=-1, defaultweight=1,
                      coords=None, randomize=True,
-                     diagonalweight=None,
-                     defaultconnectedweight=-1,
+                     selfweight=None,
                      sparse=False,
-                     weightmultiplier=1):
+                     weightmultiplier=-1):
         """Create a Graph glass from a NetworkX graph object.
 
         The NetworkX graph object is expected to have all edges have a
@@ -277,10 +279,12 @@ class Graph(anneal._GraphAnneal, cmodels._cobj, object):
         initial assignments.
         """
         if sparse:
-            return cls.fromNetworkXSparse(graph, defaultweight=defaultweight,
+            return cls.fromNetworkXSparse(graph, edgeweight=edgeweight,
+                                          noedgeweight=noedgeweight,
                                           coords=coords, randomize=randomize,
-                                          diagonalweight=diagonalweight,
-                                defaultconnectedweight=defaultconnectedweight)
+                                          selfweight=selfweight,
+                                          weightmultiplier=weightmultiplier,
+                                          )
         G = cls(N=len(graph), randomize=randomize)
         G._graph = graph
         G.coords = coords
@@ -293,31 +297,56 @@ class Graph(anneal._GraphAnneal, cmodels._cobj, object):
         for i, name in enumerate(sorted(graph.nodes())):
             G._nodeIndex[name] = i
             G._nodeLabel[i] = name
-            graph.node[name]['index'] = i
+            #graph.node[name]['index'] = i
 
         # Default weighting
-        G.imatrix[:] = defaultweight
+        G.imatrix[:] = noedgeweight*weightmultiplier #defaultweight
         # Default diagonal weighting
-        if diagonalweight is not None:
+        if selfweight is not None:
             for i in range(G.N):
-                G.imatrix[i, i] = diagonalweight
+                G.imatrix[i, i] = selfweight*weightmultiplier
         # All explicit weighting from the graph
         for n0 in graph.nodes():
             for n1 in graph.neighbors(n0):
-                i0 = graph.node[n0]['index']
-                i1 = graph.node[n1]['index']
-                G.imatrix[i0,i1] = graph[n0][n1].get('weight',
-                                   defaultconnectedweight/weightmultiplier)\
-                                *weightmultiplier
+                i0 = G._nodeIndex[n0]
+                i1 = G._nodeIndex[n1]
+                G.imatrix[i0,i1] = graph[n0][n1].get('weight', edgeweight)\
+                                                     *weightmultiplier
         # Check that the matrix is symmetric (FIXME someday: directed graphs)
         if not numpy.all(G.imatrix == G.imatrix.T):
             print "Note: interactions matrix is not symmetric"
+        # alloc linklist
+        G._alloc_linklist()
         return G
+    def _alloc_linklist(self):
+        N = self.N
+        links = [ ]
+        for n in range(N):
+            #neighbors = numpy.where(self.imatrix[0]<=0)[0]
+            # create linklist from networkx:
+            neighbors = [ self._nodeIndex[x]
+                          for x in self._graph.neighbors(self._nodeLabel[n]) ]
+            #
+            links.append(list(neighbors))
+        total_links = sum(len(l) for l in links)
+        self._allocArray('linklist', shape=total_links)
+        self._allocArray('linklist_idx', shape=total_links)
+        self._allocArray('linklistN', shape=total_links)
+        i = 0
+        for n, neighs in enumerate(links):
+            n_neigh = len(neighs)
+            self.linklist[i:i+n_neigh] = neighs
+            self.linklist_idx[n] = i
+            self.linklistN[n] = n_neigh
+            i += n_neigh
+        assert i == total_links
     @classmethod
-    def fromNetworkXSparse(cls, graph, defaultweight=1,
+    def fromNetworkXSparse(cls, graph,
+                           edgeweight=1, noedgeweight=-1,
+                           #defaultweight=1, defaultconnectedweight=-1
                            coords=None, randomize=True,
-                           diagonalweight=None,
-                           defaultconnectedweight=-1):
+                           selfweight=None,
+                           weightmultiplier=-1):
         """Creates sparse-only Graph from NetworkX."""
         G = cls(N=len(graph), randomize=randomize, sparse=True)
         G._graph = graph
@@ -337,12 +366,12 @@ class Graph(anneal._GraphAnneal, cmodels._cobj, object):
         G._alloc_sparse(simatrixLen=maxconn, rmatrix=False)
 
         # Default weighting
-        G.srmatrixDefault = defaultweight
+        G.srmatrixDefault = noedgeweight*weightmultiplier #defaultweight
         # Default diagonal weighting
-        if diagonalweight is not None:
-            raise ValueError("diagonalweight not implemented yet.")
+        if selfweight is not None:
+            raise ValueError("selfweight not implemented yet.")
             for i in range(G.N):
-                G.imatrix[i, i] = diagonalweight
+                G.imatrix[i, i] = selfweight*weightmultiplier
         # All explicit weighting from the graph
         simatrix = G.simatrix
         simatrixId = G.simatrixId
@@ -355,8 +384,8 @@ class Graph(anneal._GraphAnneal, cmodels._cobj, object):
                     raise ValueError("Nodes must not interact with themselves "
                                      "(under current assumptions.)")
                 assert i < maxconn
-                simatrix[n0,idx] = graph[n0label][n1label].get('weight',
-                                                     defaultconnectedweight)
+                simatrix[n0,idx] = graph[n0label][n1label].get('weight', edgeweight) \
+                                                             * weightmultiplier
                 simatrixId[n0,idx] = n1
                 simatrixN[n0] += 1
 
@@ -679,20 +708,23 @@ class Graph(anneal._GraphAnneal, cmodels._cobj, object):
             raise ValueError("Can't use modularity with sparse matrices.")
         if self.rmatrix is not None:
             self._allocRmatrix()
+        self.imatrix[self.imatrix != -1] = 0
         # Regular undirected modularity
         nodeList = tuple(self._nodeLabel[i] for i in range(self.N))
-        in_degrees = [ self._graph.degree (n) for n in nodeList ]
+        in_degrees = [ self._graph.degree(n) for n in nodeList ]
         out_degrees= [ self._graph.degree(n) for n in nodeList ]
         E = self._graph.number_of_edges()
+        #self.imatrix[]
 
         # With this modularity-based code, we have ...
 
         #multiply.outer(A, B) = [[a0*b0, a0,b1, ...], [a1,b0, a1,b1,...], ...]
         # row index: A, column index: B
-        expected_degree = numpy.multiply.outer(in_degrees, out_degrees) / (2*E)
+        expected_degree = numpy.multiply.outer(in_degrees, out_degrees) / float(2*E)
         self.rmatrix[:] = expected_degree
         #expected_degree[from, to]
-
+    def set_const_q(self, q):
+        self.const_q = q
 
     #
     # Conversion methods
@@ -851,7 +883,34 @@ class Graph(anneal._GraphAnneal, cmodels._cobj, object):
         `randomize`=<bool>: Randomize the initial community
         assignments.  Default: True for cmtys=None, False otherwise.
         """
-        if cmtys is None:
+        if cmtys is not None:
+            pass
+        elif self.const_q:
+            q = self.const_q
+            n = self.N//q
+            N = self.N
+            #assert q*n == self.N
+            cmtys = numpy.zeros(self.N)
+            assert q >= 1
+            if q*n == N:
+                # Equal sized communities (q*n = N)
+                for _q in range(q):
+                    cmtys[n*_q:n*(_q+1)] = _q
+            else:
+                # New method: increment size of first N-n*q
+                # communities by one, so that they all sizes sum up to N.
+                assert N >= q*n > N-q
+                cmtysizes = [ n ] * q
+                for i in range(q):
+                    if sum(cmtysizes) == N: break
+                    cmtysizes[i] += 1
+                assert sum(cmtysizes) == N
+                counter = 0
+                for c in range(q):
+                    for _ in range(cmtysizes[c]):
+                        cmtys[counter] = c
+                        counter += 1
+        else:
             cmtys = numpy.arange(self.N)
         #    randomize = True
         #else:
@@ -1289,7 +1348,7 @@ class Graph(anneal._GraphAnneal, cmodels._cobj, object):
 
             # If we got no changes, then try combining communities
             # before breaking out.
-            if changesMoving == 0:
+            if changesMoving == 0 and not self.const_q:
                 self.remap(check=False)
                 changesCombining = self.combine(gamma=gamma)
                 #changesCombining = self.combine_cmtys_supernodes(gamma=gamma)
@@ -1362,7 +1421,9 @@ class Graph(anneal._GraphAnneal, cmodels._cobj, object):
         def A(): self._gen_random_order() ; return 0
         def B(): return self._greedy(gamma=gamma)
         def C(): self.remap(check=False) ; return 0
-        def D(): return self.combine(gamma=gamma)
+        def D():
+            if not self.const_q: return self.combine(gamma=gamma)
+            else: return 0
         def E(): self.remap(check=False) ; return 0
         x = self.alternate(funcs=(A, B, C, D, E), mode='restart',
                               maxrounds=15)

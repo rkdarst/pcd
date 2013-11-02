@@ -1,11 +1,14 @@
 # Richard Darst, July 2011
 
 import ast
-from taco.mathutil.stats import Averager
+#from taco.mathutil.stats import Averager
+from fitz.mathutil import Averager
 import math
 from math import log, exp, floor, ceil
 import numpy
+import os
 import random
+import subprocess
 
 import networkx
 
@@ -120,38 +123,47 @@ class Averager(object):
         return self._M2
     @property
     def std(self):
-        """Population Variance"""
+        """Population standard deviation"""
         if self.n == 0: return float('nan')
         return math.sqrt(self.M2 / self.n)
     @property
     def stdsample(self):
-        """Sample Variance"""
+        """Sample standard deviation"""
         if self.n <= 1: return float('nan')
         return math.sqrt(self.M2 / (self.n-1))
     @property
+    def stdmean(self):
+        """(Sample) standard deviation of the mean.  std / sqrt(n)"""
+        if self.n <= 1: return float('nan')
+        return math.sqrt(self.M2 / ((self.n-1)*self.n))
+    @property
     def var(self):
-        """Population Standard Deviation"""
+        """Population variance"""
         if self.n == 0: return float('nan')
         return self.M2 / self.n
     @property
     def varsample(self):
-        """Sample Standard Deviation"""
+        """Sample variance"""
         if self.n <= 1: return float('nan')
         return self.M2 / (self.n-1)
     def proxy(self, expr):
-        class X:
-            def __init__(self, main, expr):
-                self.main = main
-                self.expr = expr
-            def add(self, x): pass
-            @property
-            def mean(self):
-                return eval(self.expr, dict(o=self.main))
-        return X(main=self, expr=expr)
+        """Proxy for computing other"""
+        return _AvgProxy(main=self, expr=expr)
+    def proxygen(self, expr):
+        return lambda: self.proxy(expr=expr)
+class _AvgProxy(object):
+    def __init__(self, main, expr):
+        self.main = main
+        self.expr = expr
+    def add(self, x):
+        raise "You can't add values to proxy objects"
+    @property
+    def mean(self):
+        return eval(self.expr, dict(o=self.main))
 
 class AutoAverager(object):
     def __init__(self, datatype=float, newAverager=Averager,
-                 depth=1):
+                 depth=1, auto_proxy=[]):
         """
         if depth=1, then self[name] will be an Averager
         if depth=2, then self[name] will be AutoAverager...
@@ -160,34 +172,79 @@ class AutoAverager(object):
 
         newAverager is what the leaf averager object will be created
         with.  This should be replaced with AutoAverager.
+
+        This will automatically make hierarchical averagers
         """
         self.datatype = datatype
         self.depth = depth
         self.newAverager = newAverager
-        self.order = [ ]
+        self.names = [ ]
         self.data = { }
         self.data_list = [ ]
-    def __getitem__(self, name, newAverager=None):
+        self.auto_proxy = auto_proxy
+    def __getitem__(self, name, newAverager=None, do_proxy=True):
+        # newAverager is used for proxy objects.
         if name not in self.data:
             if self.depth > 1:
                 new = self.__class__(datatype=self.datatype,
                                      newAverager=self.newAverager,
                                      depth=self.depth-1,
+                                     auto_proxy=self.auto_proxy,
                                      )
             else:
                 if newAverager is not None:
                     new = newAverager()
                 else:
                     new = self.newAverager(datatype=self.datatype)
-            self.order.append(name)
+            self.names.append(name)
             self.data[name] = new
             self.data_list.append(new)
+            # Add auto-proxies (e.g. computing std dev?)
+            if self.depth == 1 and not isinstance(new, _AvgProxy) and do_proxy:
+                for suffix, expr in self.auto_proxy:
+                    self.add_proxy(name, name+suffix, expr=expr)
         return self.data[name]
     get = __getitem__
+    def add(self, name, val, do_proxy=True):
+        self.get(name, do_proxy=do_proxy).add(val)
+    def remove(self, name_or_index):
+        if isinstance(name_or_index, int):
+            name = self.names[-1]
+            del self.data[name]
+            del self.names[-1]
+        else:
+            del self.data[name]
+            self.names.remove(name)
     def __iter__(self):
-        for key in self.order:
+        for key in self.names:
             return (key, self.data[key])
+    def add_proxy(self, name_orig, name_new, expr):
+        """Add a proxy object.
 
+        Example usage to add a standard deviation column:
+        .add_proxy('q', 'q_std', 'o.stdmean')"""
+        if name_new not in self.data:
+            self.get(name_new, newAverager=self[name_orig].proxygen(expr))
+    def column(self, name, attrname='mean'):
+        assert self.depth == 2
+        return [getattr(self.data[name_][name], attrname) for name_ in self.names]
+    def column_names(self):
+        return self.data[self.names[0]].names
+    def table(self, attrname='mean'):
+        assert self.depth == 2
+        return zip(*(self.column(name, attrname=attrname)
+                     for name in self.column_names()))
+class _DerivProxy(_AvgProxy):
+    def __init__(self, main, name, t):
+        self.main = main
+    def add(self, x):
+        raise "You can't add values to proxy objects"
+    @property
+    def mean(self):
+        idx = main.names.index(t)
+        if idx == 0 or idx == len(main.names)-1:
+            return float('nan')
+        return (main[t+1][name].mean-main[t-1][name].mean)/2.
 
 # This class is copied from fitz.loginterval
 class LogInterval(object):
@@ -504,7 +561,7 @@ def extremawhere(a, mask, func=numpy.max):
 
     def approxequal(a,b):
         # True if a,b are within 1%
-        return a==b or (a-b)/float(max(abs(a),abs(b))) < 1e-2
+        return a==b or abs(a-b)/float(max(abs(a),abs(b))) < 1e-2
         return numpy.less_equal(
             numpy.divide((a-b)/float((numpy.add(numpy.abs(a), numpy.abs(b))))),
             1e-2)
@@ -602,19 +659,121 @@ def _isTrivialType(t, depth=0):
     else:
         return False
 
-def mainfunc(ns):
+import contextlib
+import shutil
+import tempfile
+@contextlib.contextmanager
+def chdir_context(dirname):
+    """Context manager for chdir.
+
+    chdir to 'dirname'.  Upon cleanup, chdir to the former working
+    directory."""
+    olddir = os.getcwd()
+    os.chdir(dirname)
+    yield
+    os.chdir(olddir)
+
+@contextlib.contextmanager
+def tmpdir_context(chdir=False, delete=True, suffix='', prefix='tmp', dir=None):
+    """Context manager for temporary directories.
+
+    Create a temporary directory using context manager.  If 'chdir' is
+    true (default false), then chdir to the directory and to the
+    original directory upon cleanup.  If delete is true (default
+    true), then delete the temporary directory and all contents upon
+    cleanup.  Other arguments (suffix, prefix, dir) are passed to
+    tempfile.mkdtemp.
+
+    Theb context argument is the tmpdir name, absolute path."""
+    olddir = os.getcwd()
+    tmpdir = tempfile.mkdtemp(suffix=suffix, prefix=prefix, dir=dir)
+    if chdir:
+        os.chdir(tmpdir)
+    yield tmpdir
+    if chdir:
+        os.chdir(olddir)
+    if delete:
+        shutil.rmtree(tmpdir)
+
+def ovIn_LF(cmtys1, cmtys2):
+    from pcd.support.algorithms import _get_file
+    binary = _get_file('mutual3/mutual')
+
+    #def write_cmty_file(f, cmtys):
+    #    for c, nodes in cmtys.cmtynodes().iteritems():
+    #        print >> f, " ".join(str(float(n)) for n in nodes)
+    with tmpdir_context(chdir=True, dir='.', prefix='tmp-nmi-'):
+        #write_cmty_file(open('cmtys1.txt', 'w'), cmtys1)
+        #write_cmty_file(open('cmtys2.txt', 'w'), cmtys2)
+        cmtys1.write_clusters('cmtys1.txt', raw=True)
+        cmtys2.write_clusters('cmtys2.txt', raw=True)
+        args = [binary, 'cmtys1.txt', 'cmtys2.txt' ]
+        p = subprocess.Popen(args, stdout=subprocess.PIPE)
+        ret = p.wait()
+        stdout = p.stdout.read()
+        #print stdout
+        nmi = float(stdout.split(':', 1)[1])
+    return nmi
+
+
+#
+# The following class WeightedChoice is used for selecting items from
+# a group, with a corresponding weight.
+#
+
+# This doesn't exist until 3.2, so redefine here:
+import operator
+def _accumulate(iterable, func=operator.add):
+    'Return running totals'
+    # accumulate([1,2,3,4,5]) --> 1 3 6 10 15
+    # accumulate([1,2,3,4,5], operator.mul) --> 1 2 6 24 120
+    it = iter(iterable)
+    total = next(it)
+    yield total
+    for element in it:
+        total = func(total, element)
+        yield total
+
+import bisect
+class WeightedChoice(object):
+    """Class to pick among n items, weighted.
+
+    Initialize class as
+    itemsweights = [('a', 5), ('b', 4), ('c', 1)]
+    WeightedChoice(itemsweights)
+
+    and then each call to .choice() will return 'a' 50% of the time,
+    'b' 40% of the time, and 'c' 10% of the time.  Weights can be any
+    numbers with satisfy normal addition and comparison operations.
+
+    """
+    def __init__(self, itemsweights):
+        items, weights = zip(*itemsweights)
+        self.cumdist = list(_accumulate(weights))
+        self.norm = self.cumdist[-1]
+        self.items = items
+    def choice(self):
+        x = x = random.random() * self.norm
+        return self.items[bisect.bisect(self.cumdist, x)]
+    def add(self, item, weight):
+        """Add a given item, with """
+        self.cumdist.append(self.cumdist[-1]+weight)
+        self.norm = self.cumdist[-1]
+        self.items.append(item)
+
+
+def mainfunc(ns, defaultmethod='run'):
     import sys
     mode = sys.argv[1]
-    method = 'run'
     kwargs = { }
     if len(sys.argv) > 2:
         if '=' in sys.argv[2]:
-            kwargs = pcd.util.args_to_dict(sys.argv[2:])
+            kwargs = args_to_dict(sys.argv[2:])
         else:
-            method = sys.argv[2]
+            defaultmethod = sys.argv[2]
             if len(sys.argv) > 3:
-                kwargs = pcd.util.args_to_dict(sys.argv[3:])
-    getattr(ns[mode], method)(**kwargs)
+                kwargs = args_to_dict(sys.argv[3:])
+    getattr(ns[mode], defaultmethod)(**kwargs)
 
 
 if __name__ == "__main__":

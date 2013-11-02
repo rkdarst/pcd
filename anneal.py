@@ -13,13 +13,21 @@ import cmodels
 import util
 
 log2 = lambda x: math.log(x, 2)
+def approxeq(a, b):
+    if a is None or b is None: return False
+    if a == 0 and b == 0: return abs(a-b) < 1e-6
+    return a==b or 2*abs(a-b)/float(max(abs(a),abs(b))) < 1e-6
 
 class _GraphAnneal(object):
     """Helper class to hold anneal-related methods
     """
 
     def anneal(self, gamma, Escale=None, stablelength=10,
-               attempts=1000, betafactor=1.001):
+               attempts=1, betafactor=1.001,
+               new_cmty_prob=.01, p_binary=.05, p_collective=.05,
+               const_q_SA=False, constqEcoupling=1.,
+               min_n_SA=False, minnEcoupling=.1,
+               mode=None):
         """An annealing round
 
         Escale: initial energy scale.  Set this high enough for your
@@ -32,32 +40,75 @@ class _GraphAnneal(object):
         all changes rejected.
         """
         if Escale is None:
-            beta = 1./self._find_average_E(gamma)
+            beta = .1/self._find_average_E(gamma)
         else:
             beta = 1./Escale
         totChanges = 0
         running_changes = collections.deque((None,)*stablelength)
 
+        steps = self.N*attempts
+
+        if mode == 'guimera':
+            steps = self.N**2 + self.N
+            new_cmty_prob = .001
+            p_collective = 0.0
+            p_binary = self.N / float(steps)
+            print "steps=%s,p_bin=%s"%(steps, p_binary)
+        elif mode:
+            raise ValueError("Unknown mode: %s"%mode)
+
+        best_E = float('inf')
+        best_state = None
+
+        if self.verbosity >= 2:
+            E = self.energy(gamma)
+            print "  (a------) %9.5fb %7.2fE ------ %4dq"%(
+                beta, E, self.q)
+
         for nRounds in itertools.count():
-            changes = self._anneal(gamma, beta=beta, steps=self.N*attempts)
+            changes = self._anneal(gamma, beta=beta, steps=steps,
+                                   #new_cmty_prob=.01, combine_prob=.01
+                                   new_cmty_prob=new_cmty_prob, p_binary=p_binary,
+                                   p_collective=p_collective,
+                                   const_q_SA=const_q_SA, constqEcoupling=constqEcoupling,
+                                   min_n_SA=min_n_SA, minnEcoupling=minnEcoupling,
+                                   )
+            self.remap()
             totChanges += changes
             E = self.energy(gamma)
             if self.verbosity >= 2:
-                print "  (a%6d) %9.5f %7.2f %6d"%(i, beta, E, changes)
+                print "  (a%6d) %9.5fb %7.2fE %6dc %4dq"%(
+                    nRounds, beta, E, changes, self.q)
             beta *= betafactor
+            if E < best_E:
+                best_state = self.getcmtystate()
 
-            running_changes.append(changes)
+            #running_changes.append(changes)
+            running_changes.append(E)
             del running_changes[0]
-            if all(x==0 for x in running_changes):
+            #if all(x==0 for x in running_changes):
+            #    break
+            if all(approxeq(x,running_changes[0]) for x in running_changes):
                 break
+        self.setcmtystate(best_state)
         return (nRounds, totChanges)
 
 
-    def _anneal(self, gamma, beta, steps=None, deltabeta=0):
+    def _anneal(self, gamma, beta, steps=None, deltabeta=0,
+                new_cmty_prob=.01, p_binary=.05, p_collective=.05,
+                const_q_SA=False, constqEcoupling=1.,
+                min_n_SA=False, minnEcoupling=.1,
+                ):
         if steps is None:
             steps = self.N*1000
+        #new_cmty_prob = .01 # P of shifting to new community.  .01 is former default.
+        #combine_prob = .01  # prob to try *either* split or combine move.  .01 is former default.
         return cmodels.anneal(self._struct_p, gamma, beta,
-                              steps, deltabeta)
+                              steps, deltabeta,
+                              new_cmty_prob, p_binary, p_collective,
+                              const_q_SA, constqEcoupling,
+                              min_n_SA, minnEcoupling,
+                              )
 
     def _find_average_E(self, gamma, trials=None):
         trials = self.N * 100

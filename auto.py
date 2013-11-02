@@ -18,7 +18,7 @@ class Auto(object):
     initial = 'random'  # initial state for minimizations.  If you want
                         # to refine some other communities, add them here.
                         # Format is pcd.Graph.getcmtystate()
-    quiet = False
+    verbosity = 2
 
     plot = True
     plotIntermediate = False
@@ -26,6 +26,7 @@ class Auto(object):
     leaf = False
     #leaf_every = False
     modularity = None
+    const_q = 0
 
     def __init__(self, g=None, options={}):
         self.setOptions(options)
@@ -55,14 +56,13 @@ class Auto(object):
                 d['weight'] = -d['weight']
 
 
-        defaultweight = 1
+        noedgeweight = 1
         if self.VT is not None:
-            defaultweight = 0
-        G = Graph.fromNetworkX(g, defaultweight=defaultweight)
-        if self.quiet:
-            G.verbosity = -1
+            noedgeweight = 0
+        G = Graph.fromNetworkX(g, noedgeweight=noedgeweight)
+        G.verbosity = self.verbosity
         self.G = G.copy()
-        del G._graph
+        #del G._graph
         if self.VT is not None:
             G.make_sparse(default=0.0, cutoff_op=numpy.not_equal)
             G.enableVT(mode='standard')
@@ -70,6 +70,8 @@ class Auto(object):
             G.enableModularity(mode=self.modularity)
         elif self.sparse:
             G.make_sparse(default='auto')
+        if self.const_q:
+            G.set_const_q(self.const_q)
         if self.G0callback:
             G0 = G.copy()
             G0.cmtyListClear()
@@ -159,12 +161,19 @@ class Auto(object):
         cmtys.gamma: the corresponding gamma
         """
         MR = self._MR
-        cmtys = MR.best_communities_mapping([self.G]*self.replicas, leaf=self.leaf, **kwargs)
         if mode is not None:
+            cmtys = MR.best_communities_mapping(
+                [self.G]*self.replicas, leaf=self.leaf, **kwargs)
             return cmtys[mode]
+        cmtys = MR.best_communities([self.G]*self.replicas, leaf=self.leaf, **kwargs)
         return cmtys
 
     def write(self):
+        MR = self.MR()
+        t = MR.table()
+        #for i in zip(t['gamma'], t['q'], t['In']): print i
+        #MR.getDataGmin(.1, [self.G]*self.replicas)
+        #from fitz import interact; interact.interact()
         if not self.plot:
             return
         basename = self.basename

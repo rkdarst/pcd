@@ -1,6 +1,8 @@
 # Richard Darst, May 2012
 
+import itertools
 import math
+from math import log, exp
 import numpy
 import random
 
@@ -10,40 +12,95 @@ class PowerLaw(object):
 
     = 1/N * x**power
     """
+    tol = 1e-12
     @staticmethod
     def integrate(x, power):
         """Integral from zero to x"""
         if power == -1:
-            return math.log(x)
+            return log(abs(x))
         else:
-            return float(pow(x, power+1)) / (power+1)
+            return float(pow(x, power+1)) / (power+1.)
     @staticmethod
     def inverseintegrate(x, power):
         """Inverse of integral funcition."""
         if power == -1:
-            return math.exp(x)
+            return exp(x)
         else:
-            return (power+1) * float(pow(x, 1./(power+1)))
+            return pow(x*(power+1.),  1./(power+1.))
 
-    def __init__(self, power, xmin=None, xmax=None):
+    def __init__(self, power, xmin=None, xmax=None, xmean=None):
         self.power = power
+        if xmin == 'inf': xmin = float('-inf')
+        if xmax == 'inf': xmax = float('inf')
+        if xmin is not None and xmax is not None:
+            # if xmin and xmax given, xmean must not be given, and
+            # then use the values directly.
+            if xmean is not None:
+                raise ValueError("Can't specify xmean with xmin and xmax.")
+        elif xmin is not None and xmean is not None:
+            # if xmin and xmean given, calculate xmax (and check
+            # mean==xmean below)
+            xmax = self._calc_xmax(xmin, xmean)
+        elif xmax is not None and xmean is not None:
+            # if xmax and xmean given, calculate xmin (and check
+            # mean==xmean below)
+            xmin = self._calc_xmin(xmax, xmean)
+
+        self.norm = self._integrate(xmax)-self._integrate(xmin)
         self.xmin = xmin
         self.xmax = xmax
-        if xmin is not None and xmax is not None:
-            self.norm = self.integrate(xmax, power)-self.integrate(xmin, power)
         if xmin:
-            self._lowbound = self.integrate(xmin, power)
+            self._lowbound = self._integrate(xmin)
+        # Double check that xmean was calculated properly.
+        if xmean is not None:
+            assert abs(self.mean() - xmean)*.5 < self.tol
+
+    def _calc_xmax(self, xmin, xmean):
+        """Given xmin and xmean, calculate xmax."""
+        self.xmin = xmin
+        self.xmax = xmean+.01
+        for i in itertools.count():
+            self.norm = self._integrate(self.xmax)-self._integrate(self.xmin)
+            newmean = self.mean()
+            delta = xmean - newmean
+            #print self.xmin, newmean, self.xmax, delta
+            if delta < self.tol:
+                break
+            self.xmax += delta
+            if i > 1e3:
+                raise ValueError("Power law parameter calculation did not converge: "
+                                 "power=%s, xmin=%s, mean=%s"%(self.power, xmin, xmean))
+        return self.xmax
+    def _calc_xmin(self, xmax, xmean):
+        """Given xmax and xmean, calculate xmin."""
+        self.xmin = xmean-.01
+        self.xmax = xmax
+        for i in itertools.count():
+            self.norm = self._integrate(self.xmax)-self._integrate(self.xmin)
+            newmean = self.mean()
+            delta = - newmean + xmean
+            #print self.xmin, newmean, self.xmax, delta
+            if abs(delta) < self.tol:
+                break
+            self.xmin += delta
+            if i > 1e3:
+                raise ValueError("Power law parameter calculation did not converge: "
+                                 "power=%s, xmean=%s, xmax=%s"%(self.power, xmean, xmax))
+        return self.xmin
+
     def _integrate(self, x):
         return self.integrate(x, self.power)
+    def _inverseintegrate(self, x):
+        return self.inverseintegrate(x, self.power)
 
     def pdf(self, x):
         return float(pow(x, self.power))  / self.norm
     def cdf(self, x):
         if x < self.xmin: raise ValueError("x < xmin")
         if x > self.xmax: raise ValueError("x > xmax")
-        return (self._integrate(x) - self._lowbound)  / self.norm
+        return (self._integrate(x) - self._lowbound) / self.norm
     def inversecdf(self, p):
-        return self.inverseintegrate(p*self.norm + self._lowbound, self.power)
+        return self._inverseintegrate(p*self.norm + self._lowbound)
     def rv(self):
         return self.inversecdf(random.uniform(0, 1))
     def rvs(self, n=1):
@@ -69,6 +126,7 @@ class PowerLawInteger(PowerLaw):
         pass
 
 
+
 if __name__ == "__main__":
     import sys
 
@@ -83,6 +141,8 @@ if __name__ == "__main__":
         print 'norm:', p.norm
         print 'mean:', p.mean()
         print 'std: ', p.std()
+        print 'min, max:', p.xmin, p.xmax
+        print '3 RVs:', list(p.rvs(3))
         #xs = list(p.rvs(10))
         #print xs
         #print numpy.power(xs, -2+1.5)

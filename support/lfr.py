@@ -31,8 +31,11 @@ from pcd.nxutil import setCmtyAssignments
 #    print sum(d['k'] for n,d in g.nodes(1))
 
 
-progdir = '/home/richard/research/cd/fortunato_benchmarks'
+progdir = '/home/richard/research/cd/code-dl/lfr_benchmarks/new'
+tmpbase = "."
 
+from pcd.support.algorithms import _get_file
+# _get_file implements a search path to locate binaries.
 
 def read_file(fname):
     for line in open(fname):
@@ -47,7 +50,7 @@ def makeargs(dict):
 
 
 def benchmark(N, k, maxk, gamma, beta, mu,
-              minc="", maxc="", pause=False):
+              minc=None, maxc=None, pause=False):
     """Unweighted, Undirected, Non-overlapping benchmark graph.
 
     This is the graph supporting Lancichenetti, Fortunato, Radicci,
@@ -82,37 +85,33 @@ def benchmark(N, k, maxk, gamma, beta, mu,
     %(maxc)s
     """%locals())
 
-    tmpdir = tempfile.mkdtemp(dir=".", prefix="benchmark")
-    open(join(tmpdir, 'parameters.dat'), 'w').write(params)
-
-    prog = join(progdir, 'benchmark_2_2/benchmark')
+    prog = _get_file('lfr_benchmarks/new/benchmark_2_2/benchmark')
     kwargs = { }
     args = [ prog ] + makeargs(kwargs)
     print "Arguments are: ", " ".join(args)
 
-    retcode = subprocess.call(args, cwd=tmpdir)
-    assert retcode == 0
+    with pcd.util.tmpdir_context(chdir=True, prefix='tmp-lfrbenchmark', dir=tmpbase) as tmpdir:
+        open('parameters.dat', 'w').write(params)
 
-    g = networkx.Graph()
-    for n, c in read_file(join(tmpdir, 'community.dat')):
-        g.add_node(n-1, cmty=c-1)
-    for n1, n2 in read_file(join(tmpdir, 'network.dat')):
-        g.add_edge(n1-1, n2-1)
-    g.graph['statistics'] = open(join(tmpdir, 'statistics.dat')).read()
-    g.graph['stats'] = stats(g)
+        retcode = subprocess.call(args)
+        assert retcode == 0
 
+        g = networkx.Graph()
+        for n, c in read_file('community.dat'):
+            g.add_node(n-1, cmty=c-1)
+        for n1, n2 in read_file('network.dat'):
+            g.add_edge(n1-1, n2-1)
+        g.graph['statistics'] = open('statistics.dat').read()
+        #g.graph['stats'] = stats(g)
 
-    if pause:
-        import fitz.interact ; fitz.interact.interact()
-    # Warning: if python is exited in this interactive process, we
-    # don't clean up the directory.  Add a context manager to fix
-    # this...
-    shutil.rmtree(tmpdir)
+        if pause:
+            import fitz.interact ; fitz.interact.interact()
     return g
 
 
-def binary_graph(pause=False, **kwargs):
-    """
+def binary(pause=False, **kwargs):
+    """Binary networks with overlapping nodes.
+
     -N              [number of nodes]
     -k              [average degree]
     -maxk           [maximum degree]
@@ -123,6 +122,8 @@ def binary_graph(pause=False, **kwargs):
     -maxc           [maximum for the community sizes]
     -on             [number of overlapping nodes]
     -om             [number of memberships of the overlapping nodes]
+    -C              [average clustering coefficient]
+
 
     -N, -k, -maxk, -mu have to be specified. For the others, the
     program can use default values:
@@ -130,29 +131,31 @@ def binary_graph(pause=False, **kwargs):
     degree sequence extremes.
     If you set a parameter twice, the latter one will be taken.
     """
-    prog = join(progdir, 'binary_networks/benchmark')
+    prog = _get_file('lfr_benchmarks/new/binary_networks/benchmark')
     args = [ prog ] + makeargs(kwargs)
     print "Arguments are: ", " ".join(args)
 
-    retcode = subprocess.call(args)
-    assert retcode == 0
+    with pcd.util.tmpdir_context(chdir=True, prefix="tmp-lfrbenchmark", dir=tmpbase):
+        retcode = subprocess.call(args)
+        assert retcode == 0
 
-    g = networkx.Graph()
-    #for n, c in read_file('community.dat'):
-    #    g.add_node(n-1, cmty=c-1)
-    for x in read_file('community.dat'):
-        n, cmtys = x[0], x[1:]
-        cmtys = [c-1 for c in cmtys]
-        g.add_node(n-1, cmtys=cmtys)
-    for n1, n2 in read_file('network.dat'):
-        g.add_edge(n1-1, n2-1)
-    g.graph['stats'] = stats(g)
-    if pause:
-        import fitz.interact ; fitz.interact.interact()
+        g = networkx.Graph()
+        #for n, c in read_file('community.dat'):
+        #    g.add_node(n-1, cmty=c-1)
+        for x in read_file('community.dat'):
+            n, cmtys = x[0], x[1:]
+            cmtys = [c-1 for c in cmtys]
+            g.add_node(n-1, cmtys=cmtys)
+        for n1, n2 in read_file('network.dat'):
+            g.add_edge(n1-1, n2-1)
+        g.graph['statistics'] = open('statistics.dat').read()
+        #g.graph['stats'] = stats(g)
+        if pause:
+            import fitz.interact ; fitz.interact.interact()
     return g
 
-def weighted_graph(pause=False, **kwargs):
-    """
+def weighted(pause=False, **kwargs):
+    """Undirected weighted networks with overlapping nodes.
 ,
     This program is an implementation of the algorithm described in
     the paper\"Directed, weighted and overlapping benchmark graphs for
@@ -175,10 +178,15 @@ def weighted_graph(pause=False, **kwargs):
     -maxc           [maximum for the community sizes]
     -on             [number of overlapping nodes]
     -om             [number of memberships of the overlapping nodes]
+    -C              [average clustering coefficient]
 
-    -N, -k, -maxk, -muw have to be specified. For the others, the program can use default values:
-    t1=2, t2=1, on=0, om=0, beta=1.5, mut=muw, minc and maxc will be chosen close to the degree sequence extremes.
-    If you set a parameter twice, the latter one will be taken.
+
+    -N, -k, -maxk, -muw have to be specified. For the others, the
+    program can use default values:
+
+    t1=2, t2=1, on=0, om=0, beta=1.5, mut=muw, minc and maxc will be
+    chosen close to the degree sequence extremes.  If you set a
+    parameter twice, the latter one will be taken.
 
     To have a random network use:
     -rand
@@ -188,34 +196,48 @@ def weighted_graph(pause=False, **kwargs):
     distribution of the ratio of external degree/total degree is
     superiorly (inferiorly) bounded by the mixing parameter.
 
+    The flag -C is not mandatory. If you use it, the program will
+    perform a number of rewiring steps to increase the average cluster
+    coefficient up to the wished value.  Since other constraints must
+    be fulfilled, if the wished value will not be reached after a
+    certain time, the program will stop (displaying a warning).
+
     Example1:
     ./benchmark -N 1000 -k 15 -maxk 50 -muw 0.1 -minc 20 -maxc 50
     Example2:
     ./benchmark -f flags.dat -t1 3
     """
-    prog = join(progdir, 'weighted_networks/benchmark')
+    prog = _get_file('lfr_benchmarks/new/weighted_networks/benchmark')
     args = [ prog ] + makeargs(kwargs)
     print "Arguments are: ", " ".join(args)
 
-    retcode = subprocess.call(args)
-    assert retcode == 0
+    with pcd.util.tmpdir_context(chdir=True, prefix='tmp-lfrbenchmark', dir=tmpbase):
+        retcode = subprocess.call(args)
+        assert retcode == 0
 
-    g = networkx.Graph()
-    for x in read_file('community.dat'):
-        n, cmtys = x[0], x[1:]
-        cmtys = [c-1 for c in cmtys]
-        g.add_node(n-1, cmtys=cmtys)
-    for n1, n2, weight in read_file('network.dat'):
-        g.add_edge(n1-1, n2-1, weight=weight)
-    g.graph['statistics'] = open('statistics.dat').read()
-    g.graph['stats'] = stats(g)
-    if pause:
-        import fitz.interact ; fitz.interact.interact()
+        g = networkx.Graph()
+        for x in read_file('community.dat'):
+            n, cmtys = x[0], x[1:]
+            cmtys = [c-1 for c in cmtys]
+            g.add_node(n-1, cmtys=cmtys)
+        for n1, n2, weight in read_file('network.dat'):
+            g.add_edge(n1-1, n2-1, weight=weight)
+        g.graph['statistics'] = open('statistics.dat').read()
+        #g.graph['stats'] = stats(g)
+        if pause:
+            import fitz.interact ; fitz.interact.interact()
     return g
 
 
-def hierarchical_graph(pause=False, **kwargs):
-    """
+def hierarchical(pause=False, **kwargs):
+    """Binary networks with overlapping nodes and hierarchies
+
+    This program is an implementation of the algorithm described in
+    the paper'Direc ted, weighted and overlapping benchmark graphs for
+    community detection algorithm s', written by Andrea Lancichinetti
+    and Santo Fortunato. In particular, this program is to produce
+    binary networks with overlapping nodes and hierarchies.
+
     -N              [number of nodes]
     -k              [average degree]
     -maxk           [maximum degree]
@@ -234,23 +256,24 @@ def hierarchical_graph(pause=False, **kwargs):
     ./hbenchmark -f flags.dat
     ./hbenchmark -N 10000 -k 20 -maxk 50 -mu2 0.3 -minc 20 -maxc 50 -minC 100 -maxC 1000 -mu1 0.1
     """
-    prog = join(progdir, 'hierarchical_bench2_2/hbenchmark')
+    prog = _get_file('lfr_benchmarks/new/hierarchical_bench2_2/hbenchmark')
     args = [ prog ] + makeargs(kwargs)
     print "Arguments are: ", " ".join(args)
 
-    retcode = subprocess.call(args)
-    assert retcode == 0
+    with tmpdir_context(chdir=True, prefix="tmp-lfrbenchmark", dir=tmpbase):
+        retcode = subprocess.call(args)
+        assert retcode == 0
 
-    g = networkx.Graph()
-    for n, c in read_file('community_first_level.dat'):
-        g.add_node(n-1, microC=c-1)
-    for n, c in read_file('community_second_level.dat'):
-        g.add_node(n-1, macroC=c-1)
-    for n1, n2 in read_file('network.dat'):
-        g.add_edge(n1-1, n2-1)
-    g.graph['stats'] = stats(g)
-    if pause:
-        import fitz.interact ; fitz.interact.interact()
+        g = networkx.Graph()
+        for n, c in read_file('community_first_level.dat'):
+            g.add_node(n-1, microC=c-1)
+        for n, c in read_file('community_second_level.dat'):
+            g.add_node(n-1, macroC=c-1)
+        for n1, n2 in read_file('network.dat'):
+            g.add_edge(n1-1, n2-1)
+        g.graph['stats'] = stats(g)
+        if pause:
+            import fitz.interact ; fitz.interact.interact()
     return g
 
 

@@ -2,23 +2,144 @@
 
 import collections
 import numpy
+import os
+import re
 import textwrap
+import time
+
+import networkx
 
 import pcd.nxutil
 
+class OverlapError(Exception):
+    pass
+
 class Communities(object):
-    """Store and operate on a community assignment.
+    """Mapping-like communities storage.
 
-    cmtynodes: a dictionary mapping community_id -> set(cmty_nodes)
-    nodes: a set of all possible nodes in the system
-    name: if given, a string to be stored at self.name to use to identify
+    Store and operate on a community assignment.  The standard
+    implementation of this object stores the entire community
+    structure as a dictionary in the attribute self._cmtynodes.  When
+    this dict is needed, call self.cmtynodes() to return a copy.  This
+    entire object has a dictionary-like interface, with .iterkeys(),
+    .itervalues(), and .iteritems() (and the default implementation is
+    a thin mapping to self._cmtynodes).
+
+    This particular object is not very efficient, and dynamical
+    calculates most higher-order structures.  Consider a subclass if
+    you need higher performance.
+
+    This object does not store the full set of nodes spanned.  If the
+    .nodes attribute is called, the union of all communities is
+    calculated and returned.  In the case that this is NOT the correct
+    set of all nodes on the graph (the community structure does not
+    cover the graph), see the 'nodes' parameter to __init__.
+
+    When a mapping nodes -> communities_containing is needed, call
+    self.nodecmtys() and it will generate and return this.  This is
+    not very efficient, so it is advisable to cache the result.
+
+    This object, as implemented here, is not considered mutable.  You
+    can, however, mutate the _cmtynodes object yourself and changes
+    will be reflected since there is no other internal state.
     """
-    def __init__(self, cmtynodes, nodes, name=None):
-        self._cmtynodes = cmtynodes
-        self.nodes = nodes
-        if name:
-            self.name = name
+    def __init__(self, cmtynodes, nodes=None):
+        """init
 
+        cmtynodes: a dictionary mapping community_id -> set(cmty_nodes)
+
+        nodes: if given, this is considered the full set of nodes in
+        the graph.  If it is not given, then if .nodes is accessed,
+        the object will calculate the union of all communities and return that.
+
+        """
+        if cmtynodes is None:
+            raise ValueError('cmtynodes argument should not be None.')
+        self._cmtynodes = cmtynodes
+        self._nodes = nodes
+    def __repr__(self):
+        return '<%s object with q=%d at %s>'%(self.__class__.__name__, self.q,
+                                              hex(id(self)))
+
+    # Mapping type emulation.
+    def iterkeys(self):
+        """Iterator over community names"""
+        return self._cmtynodes.iterkeys()
+    def itervalues(self):
+        """Iterator over community contents (nodes)"""
+        return self._cmtynodes.itervalues()
+    def iteritems(self):
+        """Iterator over community (names, nodes_within) pairs."""
+        return self._cmtynodes.iteritems()
+    def __getitem__(self, c):
+        """Mapping emulation: return nodes within community c"""
+        return self._cmtynodes[c]
+    cmtycontents = __getitem__
+    def __len__(self):
+        """Number of communities"""
+        return len(self._cmtynodes)
+    # Other instance management
+    def copy(self):
+        """Copy of self, with a new cmtynodes dictionary."""
+        #return self.__class__(dict(self._cmtynodes))
+        import copy
+        new = copy.copy(self)
+        new._cmtynodes = dict(self._cmtynodes)
+        return new
+    def to_dict(self):
+        """Return a full, dict-based copy of this object.
+
+        This method is designed for subclasses to override.  When
+        invoked, it should return a new community object with an
+        explitit cmtynodes dictionary.  If called on a Communities
+        object, return self.
+
+        This does not return a dict, it returns a Communities object
+        *based* on a dict."""
+        return self
+
+    # I/O
+    #
+    # These functions create a Communities object out of other objects, or
+    # save the graph structure elsewhere.
+    @classmethod
+    def from_nodecmtys(cls, nodecmtys, **kwargs):
+        """Create new Communities object from mapping nodes->cmty.
+
+        This object takes a dictionary mapping from nodes to
+        communities, makes the cmty->node dictionary, and returns an
+        object."""
+        cmtynodes = { }
+        for n, c in nodecmtys.iteritems():
+            cmtynodes.setdefault(c, set()).add(n)
+        return cls(cmtynodes=cmtynodes, **kwargs)
+    @classmethod
+    def from_nodecmtys_overlap(cls, nodecmtys, nodes=None, **kwargs):
+        """Creat new Communities object from mapping nodes->set(cmtys).
+
+        Differs from `from_nodecmtys` in that this assumes the mapping
+        values are an iterable which contain all communities of the
+        nodes.
+
+        nodes: if given, this is the complete set of all nodes.  If
+        not given, set complete set of all nodes from the nodecmtys
+        keys."""
+        cmtynodes = { }
+        for n, cmtys in nodecmtys.iteritems():
+            for c in cmtys:
+                cmtynodes.setdefault(c, set()).add(n)
+        if nodes is None:
+            nodes = set(nodecmtys)
+        return cls(cmtynodes=cmtynodes, nodes=nodes, **kwargs)
+    @classmethod
+    def from_clustersfile(cls, fname, converter=str, nodes=None):
+        """Convert a clusters file into community structure.
+
+        All of the hard work is done in the CommunitiesIterator class.
+        That class is called, and the cmtynodes dictionary is
+        constructed from it, and a new Communities object is created."""
+        c = CommunityListIterator(fname, converter=converter)
+        return c.full(cls=cls, nodes=nodes)
     @classmethod
     def from_pcd(cls, G):
         """Convert a pcd.Graph into Communities object.
@@ -36,7 +157,6 @@ class Communities(object):
                 cmtynodes[c] = set(nodes)
             nodes = set(range(G.N))
         return cls(cmtynodes=cmtynodes, nodes=nodes)
-
     @classmethod
     def from_networkx(cls, g):
         """Create a new Communities object from a networkx.Graph object.
@@ -54,61 +174,354 @@ class Communities(object):
                 cmtynodes[c].add(node)
         return cls(cmtynodes=cmtynodes, nodes=nodes)
 
-    # I/O
-
-    def to_pcd(self):
+    # Writing/saving/loading community sturcture into other objects.
+    def to_pcd(self, g=None, sparse=True):
         """Load this community structure into a pcd.Graph structure.
 
         Returns pcd.Graph with this community structure stored within
         it."""
-        G = pcd.Graph(N=len(self.nodes), sparse=True)
-        G._makeNodeMap(self.nodes)
+        if g is None:
+            G = pcd.Graph(N=self.N, sparse=sparse)
+            G._makeNodeMap(self.nodes)
+        else:
+            G = pcd.Graph.fromNetworkX(g, sparse=sparse)
         G = self.load_pcd(G, clear=True)
         return G
-    def to_pcd_cmtystate(self):
+    def to_pcd_cmtystate(self, G=None):
         """Return the community structure as pcd.Graph state.
 
         This is suitable for usage in pcd.Graph.setcmtystate().  Thin
         wrapper around self.to_pcd().getcmtystate() (but could someday
         be optimized beyond that)."""
-        G = self.to_pcd()
+        if G is not None:
+            G = G.copy()
+            self.load_pcd(G)
+        else:
+            G = self.to_pcd()
         return G.getcmtystate()
 
     def load_pcd(self, G, clear=True):
-        """Loads communities from a networkx graph g into a pcd graph G.
+        """Loads communities from self into a pcd graph G.
 
         clear: if True, zero all present communities before loading.
         Otherwise, simply add all nodes to the new communities."""
         cmtynodes = self.cmtynodes()
         non_overlapping = self.is_non_overlapping()
-        assert max(cmtynodes.iterkeys()) < G.N
-        assert all(isinstance(c, int) for c in cmtynodes.iterkeys())
+        # Community map: mapping communities to integers, if not already done.
+        assert len(cmtynodes) <= G.N
+        if (    all(isinstance(c, int) for c in cmtynodes.iterkeys())
+            and max(cmtynodes.iterkeys()) < G.N ):
+            cmty_map = dict((c, c) for c in cmtynodes.iterkeys())
+        else:
+            # make a community map, community names -> integer indexes.
+            cmty_map = self.cmtyintmap()
+
         if clear:
             G.cmtyListClear()
+
 
         G.oneToOne = 0
         if non_overlapping and self.is_cover():
             G.oneToOne = 1
         for c, nodes in cmtynodes.iteritems():
+            cid = cmty_map[c]
             for n in nodes:
-                if not clear and G.cmtyContains(c, G._nodeIndex[n]):
+                if not clear and G.cmtyContains(cid, G._nodeIndex[n]):
                     # Ignore nodes which are already in the community
                     # (raises an error in pcd code)
                     continue
-                G.cmtyListAddOverlap(c, G._nodeIndex[n])
+                G.cmtyListAddOverlap(cid, G._nodeIndex[n])
                 if non_overlapping:
-                    G.cmty[G._nodeIndex[n]] = c
+                    G.cmty[G._nodeIndex[n]] = cid
         return G
+    def load_networkx(self, g):
+        self.load_networkx_custom(g, attrname=None, type_=None)
+    def load_networkx_custom(self, g, attrname='cmty', attrnameset='cmtys', type_=None):
+        nodecmtys = self.nodecmtys()
+        for node, cmtys in nodecmtys.iteritems():
+            if attrname is not None and len(cmtys) == 1:
+                # non-overlapping, attrname is given
+                if type_ is None:
+                    g.node[node][attrname] = next(iter(cmtys))
+                else:
+                    g.node[node][attrname] = type_(next(iter(cmtys)))
+            elif attrnameset is None and len(cmtys) > 1:
+                # overlapping, attrnameset not given
+                if type_ is None:
+                    g.node[node][attrname] = cmtys
+                elif type_ is str:
+                    g.node[node][attrname] = ' '.join(str(c) for c in cmtys)
+                else:
+                    g.node[node][attrname] = type_(cmtys)
+            else:
+                # overlapping, attrnameset is given.
+                # OR: non-overlapping and attrname is not given.
+                if type_ is None:
+                    g.node[node][attrnameset] = cmtys
+                elif type_ is str:
+                    g.node[node][attrnameset] = ' '.join(str(c) for c in cmtys)
+                else:
+                    g.node[node][attrnameset] = type_(cmtys)
+    def write_gml(self, g, fname):
+        """Write a gml file, including labels."""
+        #raise NotImplementedError
+        g = g.copy()
+        #nodecolors = self.nodecolors()
+        #for n, color in nodecolors.iteritems():
+        nodecmtys = self.nodecmtys_onetoone()
+        for n, c in nodecmtys.iteritems():
+            g.node[n]['label'] = str(c)
+        networkx.write_gml(g, fname)
+    def to_networkx_label(self, g, attrname='label'):
+        """Modify a networkx graph, adding community IDs as node attributes.
 
-    # Status information
+        This method assumes and requires a one-to-one mapping node ->
+        community.  If some nodes do not have communities, these are
+        simply ignored.
+
+        attrname: set this attribute name to be the community ID.
+        Default: 'label'."""
+        nodecmtys = self.nodecmtys_onetoone()
+        for n, c in nodecmtys.iteritems():
+            g.node[n]['label'] = c
+    def write_clusters(self, fname, headers=[], mapping=None, raw=False,
+                       write_names='separate'):
+        """Write clusters to one-line-per-community file.
+
+        This function does not write empty communities.
+
+        fname: str, filename to write to (or file object).
+
+        headers: list of headers to write at the top of the file.  A
+        comment character and space '# ' is prepended.
+
+        mapping: if given, node names are transformed using this
+        mapping when writing.  Could be used to translate to integers,
+        for example.  If given and 'int' or `int` (the type), then
+        automatically greate a mapping to integers using
+        self.nodeintmap().
+
+        raw: if True, print no header lines or anything.
+
+        write_names: 'separate'(default) or 'inline' or None.
+           'separate': write another file with extension .names which has one line per community
+        """
+        # remove all empty communities:
+        cmtynodes = self.cmtynodes()
+        cnames = [cname for cname, cnodes in cmtynodes.iteritems() if len(cnodes) != 0 ]
+
+        f = fname
+        if not hasattr(f, 'write'):
+            f = open(f, 'w')
+        # This writes out a separate file containing the true names
+        # for the comunities.
+        if write_names == 'separate':
+            # Write the community names to disk:
+            f_names = open(fname+'.names', 'w')
+            print >> f_names, '# Community names for file %s'%fname
+            if isinstance(headers, str):
+                print >> f_names, '#', headers
+            else:
+                for line in headers:
+                    print >> f_names, '#', line
+            # Write the label for self, if it exists:
+            if hasattr(self, 'label'):
+                print >> f_names, '# label:', self.label
+            print >> f_names, '#', time.ctime()
+            for cname in cnames:
+                print >> f_names, cname
+            f_names.close()
+        if not raw:
+            # Write representation of self: includes q and N.
+            print >> f, '# Comunities, one community per line'
+            print >> f, '#', repr(self)
+            # Write any user-supplied headers.
+            if isinstance(headers, str):
+                print >> f, '#', headers
+            else:
+                for line in headers:
+                    print >> f, '#', line
+            cnames = self.cmtynames()
+            # Write the label for self, if it exists:
+            if hasattr(self, 'label'):
+                print >> f, '# label:', self.label
+            # Write the community names inline, if requested:
+            if write_names == 'inline':
+                print >> f, '# community names:', ' '.join(str(cname) for cname in cnames)
+            # Write the current time.
+            print >> f, '#', time.ctime()
+
+        # if mapping='int', then force an integer mapping
+        if (mapping == 'int' or mapping == int or raw) and mapping is None:
+            mapping = self.nodeintmap()
+            assert len(mapping) == self.N
+
+        # Write all the communities.
+        for c in cnames:
+            if mapping:
+                print >> f, ' '.join(str(x) for x in sorted(mapping[n] for n in cmtynodes[c]))
+            else:
+                print >> f, ' '.join(str(x) for x in sorted(cmtynodes[c]))
+
+
+    # Return other data structures related to these communities.
+    @property
+    def nodes(self):
+        """Set of all nodes spanned by this graph.
+
+        If `nodes` was given when creating the object, use that set.
+        If not, dynamically generate it from cmtynodes."""
+        # The following 'if' line is for support of pickled objects
+        # before this method existed.  They will have a 'nodes'
+        # attribute saved on the self instance, so we should return
+        # that directly.  Those don't have self._nodes (with
+        # underscore).
+        if 'nodes' in self.__dict__:
+            return self.__dict__['nodes']
+        elif getattr(self, '_nodes', None):
+            return self._nodes
+        else:
+            return self.nodes_spanned()
+    def _has_nodes_universe(self):
+        if 'nodes' in self.__dict__: return True
+        elif self._nodes: return True
+        return False
+    def cmtynames(self):
+        """Set of all community names.
+
+        Simply returns self._cmtynodes.keys()."""
+        return set(self._cmtynodes.keys())
+    def cmtynodes(self, copy=False):
+        """Return mapping cmty -> node set.
+
+        This is the core data structure, and how this object
+        represents communities internally.  This method might be used
+        when you want direct dict access, and not proxy everything
+        through this method, for example within the body of an
+        analysis script.  This method will simply return a reference
+        to the self._cmtynodes object.  As such, do not modify the
+        dictionary returned unless you pass copy=True which will make
+        a copy.
+
+        Returns a dictionary {c0:set(n00,n01,...), c1:set(n10,n11), ...}
+
+        Warning: do not mutate the returned dictionary unless copy=True.
+
+        For the Communities object, this is a thin mapping on top of
+        self._cmtynodes.  Objects should only use this method if they
+        need the complete dictionary.  Otherwise, they should use one
+        of the self.iter* methods to produce an on-line algorithm, or
+        self[c] to get the contents of one community.  These are more
+        able to be implimented efficiently for other data structures.
+        If this method is called on other objects, it will attempt to
+        generate an entire dictionary, which will be large."""
+        if not copy:
+            return self._cmtynodes
+        else:
+            cmtynodes = { }
+            for c, nodes in self._cmtynodes.iteritems():
+                cmtynodes[c] = set(nodes)
+            return cmtynodes
+    def nodecmtys(self):
+        """Return mapping node -> cmty set.
+
+        Returns a dictionary {n0:set(c00,c01,...), n1:set(c10,c11), ...}
+        """
+        nodecmtys = { }
+        for c, nodes in self.iteritems():
+            for n in nodes:
+                nodecmtys.setdefault(n, set())
+                nodecmtys[n].add(c)
+        return nodecmtys
+    def nodecmtys_onetoone(self):
+        """Return mapping node -> community if there are no overlaps.
+
+        Unlike the `nodecmtys()` method, this returns a dict with
+        values as strings or intergers (or whatever).  As such, this
+        data structure can not handle overlap.  If there are overlaps,
+        raise an exception.
+
+        If there are nodes that are in no community, they will be
+        missing from the return value.
+        """
+        nodecmtys = { }
+        for c, nodes in self.iteritems():
+            for n in nodes:
+                if n in nodecmtys:
+                    raise OverlapError("Overlapping: node %s in cmtys %s and %s"%
+                                       (n, nodecmtys[n], c))
+                nodecmtys[n] = c
+        return nodecmtys
+    def nodes_spanned(self):
+        """Calculate the union of all communities.
+
+        This should be the set of all nodes in the system, if the
+        communities span the system.  If the system is not completly
+        covered, then this is only the nodes within at least one
+        community."""
+        nodes = set()
+        for ns in self.itervalues():
+            nodes.update(ns)
+        return nodes
+    def cmtyintmap(self):
+        """Return a mapping from community names to integer indexes.
+
+        Returns a dictionary mapping (cname) -> int in range(0,q).
+
+        TODO: if keys are already integers, do not construct a new
+        mapping."""
+        #if all(isinstance(c, int) for c in self.iterkeys()):
+        #    return dict((c, c) for c in self.iterkeys())
+        cmtynames = sorted(self.cmtynames())
+        return dict((c, i) for i,c in enumerate(cmtynames))
+    def nodeintmap(self):
+        """Map from node names to integers.
+
+        TODO: if nodes are already integers, do not construct a new mapping"""
+        mapping = { }
+        # Set up node indexes (since NetworkX graph object nodes are
+        # not always going to be integeras in range(0, self.N)).
+        for i, name in enumerate(sorted(self.nodes)):
+            mapping[name] = i
+        return mapping
+
+
+    # Some convenience functions about community structure.
     @property
     def N(self):
-        """Number of nodes"""
+        """Number of nodes.
+
+        Overlapping nodes are only counted once."""
         return len(self.nodes)
     @property
     def q(self):
-        """Number of communities"""
-        return len(self._cmtynodes)
+        """Number of communities."""
+        return len(self)
+    def cmtysizes(self):
+        """Mapping of cmty -> len(cmty_nodes)"""
+        return dict((c, len(ns)) for c,ns in self.iteritems())
+    def cmtysizes_sum(self):
+        """Total number of nodes in communities.  If there are
+        overlaps, count the node multiple times."""
+        return sum(len(v) for v in self.itervalues())
+
+    def fraction_covered(self):
+        """Fraction of networked covered by at least one community."""
+        # if self._nodes is none, we have no total node universe, so
+        # the universe is by definition the union of all communities,
+        # so by definition everything is spanned.
+        if not self._has_nodes_universe():
+            return 1.0
+        # Calculate actual span
+        return len(self.nodes_spanned()) / float(self.N)
+    def overlap(self):
+        """Measure of degree of overlap.
+
+        sum(cmty_sizes)/n_nodes.
+        - A partition has overlap=1,
+        - >1 means greater degree of overlapgreater degrees of overlap
+        - <1 means that the system is not spanned (but the converse is not true)"""
+        return sum(len(nodes) for nodes in self.itervalues())/float(self.N)
 
     def is_cover(self, nodes=None, strict=True):
         """Is every node in at least one community?
@@ -116,64 +529,109 @@ class Communities(object):
         nodes: if given, use this as the universe of nodes to be covered.
         strict: if true, raise an except if we span more than set of nodes.
         """
-        spannednodes = set()
         if nodes is None:
+            if not self._has_nodes_universe():
+                # If we aren't given self._nodes, we always cover the
+                # universe since the universe is defined as the union
+                # of all communities.
+                return 1.0
             nodes = self.nodes
-        for ns in self._cmtynodes.itervalues():
-            spannednodes |= ns
+        spannednodes = self.nodes_spanned()
         if strict:
             if len(spannednodes - nodes) > 0: # No spanned nodes left over.
                 raise ValueError("We cover more than the universe of nodes, and strict mode is enabled.")
         return len(nodes - spannednodes) == 0 # Every node in spanned nodes.
+    def is_non_overlapping(self):
+        """Is no node is in more than one community?"""
+        # Recalculate spannednodes here (instead of using
+        # self.nodes_spanned()) since we need to add up the
+        # sum of community sizes anyway.
+        total_nodes = 0
+        spannednodes = set()
+        for ns in self.itervalues():
+            spannednodes.union(ns)
+            total_nodes += len(ns)
+        return total_nodes == len(spannednodes)
     def is_partition(self, nodes=None):
-        """Every node in exactly one community.
+        """Is every node in exactly one community?
 
         nodes: if given, use this as the universe of nodes to be
         covered.
 
-        Should be equivalent to is_non_overlapping and is_cover."""
+        Should be equivalent to `is_non_overlapping() and is_cover()`."""
         # This should be identical to is_cover and non_overlapping
-        if nodes is None:
-            nodes = self.nodes
+
+        # Recalculate spannednodes here (instead of using
+        # self.nodes_spanned()) since we need to add up the
+        # sum of community sizes anyway.
         spannednodes = set()
         total_nodes = 0
-        for ns in self._cmtynodes.itervalues():
-            spannednodes |= ns
+        for ns in self.itervalues():
+            spannednodes.union(ns)
             total_nodes += len(ns)
-        return (    total_nodes == len(nodes)   # no node in multiple cmtys
-                and len(nodes - spannednodes) == 0 ) # every node covered.
+        # is_non_overlapping:
+        if not ( total_nodes == len(spannednodes) ):   # not (no node in multiple cmtys)
+            return False
+        # is_cover:
+        # If neither nodes nor self._nodes is given, then we are not
+        # given a universe, so we automatically span the system.
+        if  nodes is not None  or  self._has_nodes_universe():
+            if nodes is None:
+                # This only happens if nodes is None and self._nodes is not.
+                nodes = self.nodes
+            if not (len(nodes - spannednodes) == 0): # not (every node covered)
+                return False
+        return True
 
-    def is_non_overlapping(self):
-        """No node is in more than one community."""
-        total_nodes = 0
-        spannednodes = set()
-        for ns in self._cmtynodes.itervalues():
-            spannednodes |= ns
-            total_nodes += len(ns)
-        return total_nodes == len(spannednodes)
-
-    def stats(self):
+    #
+    # Human-readable statistics on the structure.
+    #
+    def stats(self, width=120):
+        """Human-readable statistics on the overall community sturucture."""
         cmtynodes = self.cmtynodes()
-        cmtynodes = dict((k,v) for (k,v) in cmtynodes.iteritems() if v)
+        cmtynodes = dict((k,v) for (k,v) in self.iteritems() if v)
+        cmtynodes_nonsingle = dict((k,v) for (k,v) in self.iteritems()
+                                   if len(v)>1)
+        def iter_nonsingle():
+            return ((k,v) for (k,v) in self.iteritems()
+                    if len(v)>1)
 
         stats = [ ]
         stats.append("number of nodes: %d"%self.N)
         if hasattr(self, 'g'):
             stats.append("number of edges: %d"%self.g.number_of_edges())
-        stats.append("number of communities: %d"%len(cmtynodes))
+        # Regular stats
+        stats.append("number of communities: %d"%self.q)
         stats.append("mean community size: %f"%numpy.mean(
-            [len(c) for c in cmtynodes.values()]))
+            [len(c) for c in self.itervalues()]))
         stats.append("std community size: %f"%numpy.std(
-            [len(c) for c in cmtynodes.values()]))
+            [len(c) for c in self.itervalues()]))
+        # Stats excluding singletons
+        stats.append("number of non-singleton communities: %d"%(
+            len(cmtynodes_nonsingle)))
+        stats.append("mean community size (no singletons): %f"%numpy.mean(
+            [len(c) for c in cmtynodes_nonsingle.values()]))
+        stats.append("std community size (no singletons): %f"%numpy.std(
+            [len(c) for c in cmtynodes_nonsingle.values()]))
         cmtys_by_rev_size = [c for (c,ns) in sorted(cmtynodes.iteritems(),
                                                     reverse=True,
                                                     key=lambda (c,ns):len(ns))]
-        stats.append("community sizes: %s"%' '.join(
-            str(len(cmtynodes[c])) for c in cmtys_by_rev_size))
+        stats.append(textwrap.fill(("community sizes: %s"%' '.join(
+                         str(len(cmtynodes[c])) for c in cmtys_by_rev_size)),
+                     width=width,
+                     initial_indent="", subsequent_indent="     ",
+                     ))
         stats.append("fraction of nodes in largest community: %f"%(
             max(len(c) for c in cmtynodes.values())/float(self.N)))
+        nodecmtys = self.nodecmtys()
+        stats.append("fraction of network covered: %f"%self.fraction_covered())
+        stats.append("fraction of network covered (non-singleton): %f"%(
+            sum(1 for (n, cs) in nodecmtys.iteritems()
+                if any((len(cmtynodes[c])>1) for c in cs))
+            /float(self.N)))
         return stats
     def list_communities(self, width=120):
+        """Human-readable list of community contents."""
         stats = [ ]
         stats.append("List of communities:")
         singleton_cmtys = [ ]
@@ -193,12 +651,13 @@ class Communities(object):
                 ))
         stats.append(textwrap.fill(
             "Nodes in singleton communities: "+' '.join(
-                str(cmtynodes[c].pop()) for c in singleton_cmtys),
+                str(next(iter(cmtynodes[c]))) for c in singleton_cmtys),
             width=width,
             initial_indent="", subsequent_indent="     ",
             ))
         return stats
     def list_overlapping_nodes(self, width=120):
+        """Generate list of overlapping nodes."""
         stats = [ ]
         stats.append("How many communities does each node belong to?:")
         cmty_counts = collections.defaultdict(set)
@@ -212,7 +671,6 @@ class Communities(object):
                 initial_indent="", subsequent_indent="      ",
                 ))
         return stats
-
     def nodeInfo(self, n, g):
         """Print detailed information about a node, including what
         communities it is connected to.
@@ -234,54 +692,44 @@ class Communities(object):
         print "Connections to each community:"
         for c, nodes in sorted(cmtys.iteritems()):
             print " %3s: %3d edges, %s"%(c, len(nodes), sorted(nodes))
+    #
+    # Operations on communities.
+    #
+    def nodecolors(self, colormap_name='gist_rainbow'):
+        """Return a map of nodes->colors, based on communities.  Suitable for matplotlib."""
+        #import matplotlib.cm as cm
+        #import matplotlib.colors as mcolors
+        #
+        #colormap = cm.get_cmap(colormap_name)
+        #normmap = mcolors.Normalize(vmin=0, vmax=self.q)
+        #cmty_index = dict((c,i) for i,c in enumerate(self.cmtynames()))
 
+        cmtycolors = self.cmtycolors(colormap_name=colormap_name)
 
+        nodecolors = { }
+        for node, c in self.nodecmtys_onetoone().iteritems():
+            nodecolors[node] = numpy.asarray(cmtycolors[c])
+        return nodecolors
+    def cmtycolors(self, colormap_name='gist_rainbow'):
+        """Return a map of communities -> colors.
 
-    # Transformations
+        Create a mapping of communities to colors.  Every community is
+        a different color, and there is no graph coloring employed.
+        The result is suitable for matplotlib.
 
-    def cmtynames(self):
-        return set(self._cmtynodes.keys())
-    def cmtynodes(self, copy=False):
-        """Return mapping cmty -> node set.
+        Warning: this function is not finalized yet, the 'index'
+        argument needs better handling."""
+        import matplotlib.cm as cm
+        import matplotlib.colors as mcolors
 
-        Returns a dictionary {c0:set(n00,n01,...), c1:set(n10,n11), ...}
+        colormap = cm.get_cmap(colormap_name)
+        normmap = mcolors.Normalize(vmin=0, vmax=self.q)
+        cmty_index = dict((c,i) for i,c in enumerate(self.cmtynames()))
 
-        Warning: do not mutate the returned dictionary unless copy=True."""
-        if not copy:
-            return self._cmtynodes
-        else:
-            cmtynodes = { }
-            for c, nodes in self._cmtynodes.iteritems():
-                cmtynodes[c] = set(nodes)
-            return cmtynodes
-    def cmtysizes(self):
-        return dict((c, len(ns)) for c,ns in self._cmtynodes.iteritems())
+        cmtycolors = dict((c, colormap(normmap(cmty_index[c])))
+                          for c in self.cmtynames())
+        return cmtycolors
 
-    def nodecmtys(self, copy=False):
-        """Return mapping node -> cmty set.
-
-        Returns a dictionary {n0:set(c00,c01,...), n1:set(c10,c11), ...}
-
-        Warning: do not mutate the returned dictionary unless copy=True.
-        """
-        nodecmtys = { }
-        for c, nodes in self._cmtynodes.iteritems():
-            for n in nodes:
-                nodecmtys.setdefault(n, set())
-                nodecmtys[n].add(c)
-        return nodecmtys
-    def nodecmtys_onetoone(self):
-        """Return mapping node -> community if there are no overlaps.
-
-        If there are overlaps, raise an exception."""
-        nodecmtys = { }
-        for c, nodes in self._cmtynodes.iteritems():
-            for n in nodes:
-                if n in nodecmtys:
-                    raise ValueError("Overlapping: node %s in cmtys %s and %s"%
-                                     (n, nodecmtys[n], c))
-                nodecmtys[n] = c
-        return nodecmtys
 
     def cmty_mapping(self, otherCmtys, mode="overlap"):
         """For each community in self, find the community in g1 which most
@@ -303,7 +751,7 @@ class Communities(object):
         cmtys1list = list(cmtys1.iterkeys())
         cmty0_to_cmty1 = dict()
         assigned_cmtys = set()
-
+        plantedToDetectedMap = dict()
 
         overlaps = numpy.zeros(shape=(len(cmtys0), len(cmtys1)), dtype=int)
         #overlaps[detected, planted]
@@ -317,7 +765,7 @@ class Communities(object):
                 overlap = len(c0nodes & c1nodes)
                 overlaps[i0,i1] = overlap
                 score = 0
-                if mode == "overlap":
+                if mode == "overlap_forward":
                     # Using overlap / planted community size (note:
                     # constant divisor, so the division doesn't do
                     # anything really.)
@@ -335,16 +783,36 @@ class Communities(object):
                     pass
                     #overlaps[c0,c1] = overlap
                 else:
-                    raise ValueError("Unknown mode: %s"%mode)
+                    #raise ValueError("Unknown mode: %s"%mode)
+                    pass #XXXXX
 
                 if bestScore is None or score > bestScore:
                     bestScore = score
                     bestcmty = c1
-            cmty0_to_cmty1[c0] = c1
+            #cmty0_to_cmty1[c0] = bestcmty
             assigned_cmtys.add(c1)
-        if mode == "xxx":
-            pass
-        if mode == "newman":
+        if mode == "overlap":
+            cmty_map = { }
+            sorted_overlaps = [ (overlaps[i,j], (i, j))
+                                for i in xrange(overlaps.shape[0])
+                                for j in xrange(overlaps.shape[1])
+                                if overlaps[i,j] > 0]
+            #if overlaps.shape[1] == 1: raise
+            sorted_overlaps.sort(reverse=True, key=lambda x: x[0])
+            planted_used = set()
+            detected_used = set()
+            for ov, (i,j) in sorted_overlaps:
+                if i in planted_used or j in detected_used:
+                    continue
+                cmty_map[i] = j   # j is sometimes None XXXX
+                if j is None: raise
+                planted_used.add(i)
+                detected_used.add(j)
+            if None in cmtys0list or None in cmtys1list: raise
+            for k, v in cmty_map.iteritems():
+                cmty0_to_cmty1[cmtys0list[k]] = cmtys1list[v]
+            if None in cmty0_to_cmty1.values(): raise
+        elif mode == "newman":
             cmty0_to_cmty1 = { }
             # Newman algorithm in newman2004fast, footnote #19.
             plant_to_detect = collections.defaultdict(set)
@@ -365,13 +833,30 @@ class Communities(object):
         return cmty0_to_cmty1
 
 
-    def frac_detected(self, detected, cmtyMapping, n_nodes, limit_nodes=None,
-                      full=False):
-        """Fraction of nodes properly identified.
+    def frac_detected(self, detected, cmtyMapping, n_nodes=None, limit_nodes=None,
+                      norm=False, full=False):
+        """Compute fraction of nodes properly identified.
 
-        self: planted
+        self: planted configuration
         detected: detected communities, another Communities object.
+        cmtyMapping: the mapping between detected -> planted communities.
+            In order to calculate fraction detected, one must know some way
+            to associate the detected communities with their corresponding planted
+            communities.
+        limit_nodes: if true, then should be a set which limits the number of nodes
+            which are considered when calculating the fraction detected.  This can
+            be used to implement a 'fraction of well-defined detected' measure or
+            or some such.
+        n_nodes: if specified, then assume that this is universe size.  Useful for
+            partial mappings.  If false, require self.N == detected.N and use that
+            value
+        norm: if True, return ((frac-(1./q)) / (1-(1./q))).
+
+        full: if True, then return tuple (fraction_detected, set(nodes_detected)).
+            Otherwise just return fraction_detected.
         """
+        if isinstance(cmtyMapping, str):
+            cmtyMapping = self.cmty_mapping(cmtyMapping)
         if isinstance(cmtyMapping, tuple):
             cmtyMapping = self.cmty_mapping(cmtyMapping[0], **cmtyMapping[1])
         n_detected = 0
@@ -379,6 +864,9 @@ class Communities(object):
         cmtysPlanted = self.cmtynodes()
         cmtysDetected = detected.cmtynodes()
         allDetected = set()
+        if n_nodes is None:
+            assert self.N == detected.N
+            n_nodes = self.N
 
         # for each planted communitiy select the best detected community
         for cPlanted, cDetected in cmtyMapping.iteritems():
@@ -392,32 +880,40 @@ class Communities(object):
             #detected = cmtysPlanted[cPlanted] & cmtysDetected[cDetected]
             detected = plantedNodes & detectedNodes
             if limit_nodes is not None:
-                detected &= limit_nodes
+                detected.intersect(limit_nodes)
             # If we use the line below, we miscalculate the total
             # number of nodes we are trying to detect.
             n_total += len(plantedNodes)
             n_detected += len(detected)
-            allDetected |= detected
+            allDetected.union(detected)
             #print sorted(plantedNodes-detectedNodes)
             #print sorted(detectedNodes-plantedNodes)
             #print cPlanted, cDetected, len(plantedNodes), len(detected)
 
         # This is done because plantedNodes only includes planted
         # cmtys where there was any match.  We need to know the size of the entire universe.
+        #if limit_nodes is not None:
         n_total = n_nodes
         if n_total == 0:
             #print limit_nodes
-            return float('nan')
+            if full:
+                return float('nan'), allDetected
+            else:
+                return float('nan')
             #return 0
+        frac_detected = float(n_detected) / n_total
+        if norm:
+            frac_detected = (frac_detected-(1./self.q)) / (1-(1./self.q))
         if full:
-            return float(n_detected) / n_total, allDetected
-        return float(n_detected) / n_total
+            return frac_detected, allDetected
+        return frac_detected
 
 
     def illdefined(self, g,
                    mode='internaledgedensity',
                    insist_cover=True,
                    insist_non_overlapping=True):
+        """Calculate the ill-defined nodes"""
 
         nodecmtys = self.nodecmtys()
         cmtynodes = self.cmtynodes()
@@ -461,14 +957,16 @@ class Communities(object):
                             degree_ext_by_cmty[c1] += 1
                 int_density = float(degree_int)/(cmtysizes[c0]-1)
 
-                density_ext_by_cmty = dict(
-                      (_c, float(_deg)/cmtysizes[_c])
-                      for _c,_deg in degree_ext_by_cmty.iteritems()
-                      if _deg != 0
-                    )
-                if len(density_ext_by_cmty) == 0:
+                if len(degree_ext_by_cmty) == 0:
+                    max_ext_degree = 0
                     max_ext_density = 0
                 else:
+                    max_ext_degree = max(degree_ext_by_cmty.itervalues())
+                    density_ext_by_cmty = dict(
+                        (_c, float(_deg)/cmtysizes[_c])
+                        for _c,_deg in degree_ext_by_cmty.iteritems()
+                        if _deg != 0
+                        )
                     max_ext_density = max(density_ext_by_cmty.itervalues())
 
 
@@ -476,14 +974,14 @@ class Communities(object):
 
             # At what level of indention should this be?
             if mode == "degree":
-                if degree_int > max(degree_ext_by_cmty.itervalues()):
+                if degree_int > max_ext_degree:
                     n_well_defined += 1
                 else:
-                    n_ill_defined +=1
+                    n_ill_defined += 1
                     illnodes.add(n0)
             elif mode == "internaledgedensity":
-                #if int_density > max_ext_density:
-                if int_density >= max_ext_density:
+                if int_density > max_ext_density:
+                #if int_density >= max_ext_density:
                     #g.node[n0]['ill'] = False
                     n_well_defined += 1
                 else:
@@ -502,10 +1000,14 @@ class Communities(object):
             fracwell=float(n_well_defined)/len(g),
             )
     def illnodes(self, g, *args, **kwargs):
+        """Return list of ill-defined nodes"""
         return self.illdefined(g, *args, **kwargs)['illnodes']
 
 
-
+    #
+    # These all implement partition-comparison measures.  They use
+    # different techniques, so some are more efficient than others.
+    #
     def VI(self, other):
         import pcd.util
         G1 = self.to_pcd()
@@ -521,6 +1023,10 @@ class Communities(object):
         G1 = self.to_pcd()
         G2 = other.to_pcd()
         return pcd.util.N(G1, G2, weighted=True)
+    def ovIn_LF(self, other):
+        """NMI using LF's code"""
+        nmi = pcd.util.ovIn_LF(self, other)
+        return nmi
     def In(self, other):
         import pcd.util
         G1 = self.to_pcd()
@@ -539,4 +1045,329 @@ class Communities(object):
         G2 = other.to_pcd()
         return .5 * (  pcd.F1.F1(G1, G2, weighted=True)[0]
                      + pcd.F1.F1(G2, G1, weighted=True)[0])
+    def Q(self, g, gamma=1.0):
+        """Modularity computation using full numpy arrays."""
+        if self.N > 1000:
+            return self._Q_cmty(g, gamma=gamma)
+        nodeList = g.nodes()
+        nodecmty = self.nodecmtys_onetoone()
+        cmtyList = tuple(nodecmty[n] for n in nodeList)
+
+        cmtyintmap = self.cmtyintmap()
+        cmtyList = tuple(cmtyintmap[c] for c in cmtyList)
+
+        #nodeList = tuple(self._nodeLabel[i] for i in range(self.N))
+        #cmtyList = tuple(self.cmty[i] for i in range(self.N))
+        in_degrees = [ g.degree(n) for n in nodeList ]
+        out_degrees= [ g.degree(n) for n in nodeList ]
+        E = g.number_of_edges()
+
+        expected_degree = numpy.multiply.outer(in_degrees, out_degrees) / float(2*E)
+        #print expected_degree
+        adj_matrix = networkx.to_numpy_matrix(g, nodelist=nodeList, dtype=float)
+        #print adj_matrix
+        same_cmty_mask = numpy.asarray(numpy.equal.outer(cmtyList, cmtyList), dtype=int)
+        #print same_cmty_mask
+
+        #print (adj_matrix - expected_degree) #* same_cmty_mask
+        #print numpy.multiply((adj_matrix - expected_degree), same_cmty_mask)
+        mod = numpy.sum(
+            numpy.multiply((adj_matrix - gamma*expected_degree), same_cmty_mask)) \
+            / float(2*E)
+
+        #print mod, self._Q_cmty(g)
+        return mod
+    def _Q_pcd(self, g, gamma=1.0):
+        """Network modularity, computed using pcd C functions"""
+        if gamma != 1.0: raise NotImplementedError('gamma != 1.0')
+        G = pcd.Graph,from_networkx(g)
+        return G.modularity()
+
+    def _Q_cmty(self, g, gamma=1.0):
+        """Modularity, computed in a community-centric method.
+
+        This turns out to be much slowen than Q, due to the cost of
+        repeatedly constructing the numpy matrices.  This will
+        probably be more efficient when the number of communities is
+        smaller, or when constructing the full modularity matrix is
+        impractical."""
+        def to_numpy_matrix(g, nodelist, dtype):
+            """More efficient to_numpy_matrix.
+
+            The networkx function of this uses the entire
+            G.adjacency_iter() function, which is far too inefficient
+            for use with every single community.  This is based off
+            that function in networkx/convert.py, but far more
+            efficient."""
+            nlen = len(nodelist)
+            assert nlen == len(set(nodelist)), "Duplicate nodes in community."
+            assert not g.is_multigraph(), "This not valid for multigraphs (yet)"
+            assert not g.is_directed(), "This not valid for multigraphs (yet)"
+            index = dict(zip(nodelist, range(nlen)))
+            M = numpy.zeros((nlen,nlen), dtype=dtype)
+            for u, v, data in g.edges_iter(nodelist, data=True):
+                #if v not in index: continue
+                try:
+                    # This is where we assume the graph is undirected.
+                    # Duplicate this for loop for directed graphs, and
+                    # place edges only once.
+                    M[index[u],index[v]] = M[index[v],index[u]] = data.get('weight', 1)
+                except KeyError:
+                    pass
+            return M
+
+        mod = 0
+        cmtynodes = self.cmtynodes()
+        E = g.number_of_edges()
+        # Old method creating numpy matrices for everything.
+        #for c in self.cmtynames():
+        #    nodeList = list(cmtynodes[c])
+        #    #print c, len(nodeList)
+        #    in_degrees = [ g.degree(n) for n in nodeList ]
+        #    #out_degrees= [ g.degree(n) for n in nodeList ]
+        #    out_degrees = in_degrees
+        #
+        #    expected_degree = numpy.multiply.outer(in_degrees, out_degrees) / float(2*E)
+        #    #print expected_degree
+        #    #adj_matrix = networkx.to_numpy_matrix(g, nodelist=nodeList, dtype=float)
+        #    adj_matrix = to_numpy_matrix(g, nodelist=nodeList, dtype=float)
+        #    #print adj_matrix
+        #    mod_cmty = numpy.sum((adj_matrix - expected_degree)) / float(2*E)
+        #    #print 'ma', numpy.sum(adj_matrix)/2., numpy.sum(expected_degree), mod_cmty
+        #    mod += mod_cmty
+        # New method computing only what is needed.
+        for c in self.cmtynames():
+            nodeList = list(cmtynodes[c])
+            #print c, len(nodeList)
+            in_degrees = [ g.degree(n) for n in nodeList ]
+            #out_degrees= [ g.degree(n) for n in nodeList ]
+            out_degrees = in_degrees
+
+            tot_expected_degree = sum(in_degrees)*sum(out_degrees) / (float(2*E)**2)
+            number_of_edges = g.subgraph(cmtynodes[c]).number_of_edges()
+            mod_cmty = (number_of_edges / float(E)) - gamma*tot_expected_degree
+            #print 'mb', number_of_edges, tot_expected_degree, mod_cmty
+            mod += mod_cmty
+
+        return mod
+
+
+
+class CommunityListIterator(Communities):
+    """On-line community obejct, from a file.
+
+    This object iterates through a file and returns communities.  The file is
+    in the standard 'one line per community' format.
+
+    This object implements a dictionary-like interface.  In
+    particular, one can iterate through (cmty_name, cmty_nodes) pairs
+    using the iteritems method, just as in dictionaries.  After the
+    iteration is complete, self.q is set as the number of communities
+    detected.  See `iteritems` method for more details.
+
+    The number of communities attribute '.q' is None until one full
+    iteration has completed.  Then, q is the true number of
+    communities.
+
+    """
+    # These are all cached properties.
+    _cmtynames = None
+    _label = None
+    _nodes = None
+    _N = None
+    _q = None
+    def __init__(self, fname, cmtynames=None, converter=str):
+        """
+
+        fname: input filename.
+
+        converter: each node id in the file is passed through this
+        function to convert it to a python object.  For example, to
+        convert the nodes to integers, pass `int`.  Default: str."""
+        self.fname = fname
+        self.abspath_dir = os.getcwd()
+        self.converter = converter
+        if not os.access(self.fname, os.F_OK):
+            raise ValueError("%s is not accessable"%self.fname)
+        if cmtynames:
+            if isinstance(cmtynames, str):
+                self._cmtynames = [x.strip() for x in open(cmtynames).read().split()
+                               if x.strip() and x[0]!='#' ]
+            else:
+                self._cmtynames = cmtynames
+    def __repr__(self):
+        """Repr of self: include q if it is known, otherwise don't."""
+        if self._q is None:
+            return '<%s(%s) object at %s>'%(self.__class__.__name__,
+                                            self.fname, hex(id(self)))
+        else:
+            return '<%s(%s) object with q=%d at %s>'%(
+                self.__class__.__name__, self.fname, self.q, hex(id(self)))
+    def __len__(self):
+        """Number of communities, or RuntimeError if not known yet."""
+        if self._q is None:
+            self._q = sum(1 for _ in self.iteritems())
+        return self._q
+    @property
+    def N(self):
+        """Calculate number of total nodes.  This runs the iterator fully."""
+        if self._N is None:
+            self._N = len(self.nodes)
+        return self._N
+    def _find_label(self):
+        # At first, I was going to have the finding replace
+        # self.__dict__['label'], but even when I do that it still
+        # calls the descriptor from the class to find the attribute.
+        # Since every lookup of .label calls this proxy, may as well
+        # use the internal _label.
+        if self._label is not None:
+            return self._label
+        data = open(self.fname).read(512)
+        m = re.search(r'^# label: ([^\n]+)$', data, re.M|re.I)
+        if m:
+            label = self._label = m.group(1).strip()
+            return label
+        return None
+    def _set_label(self, label):
+        self._label = label
+    label = property(fget=_find_label, fset=_set_label, doc="""Label of this community file""")
+    def cmtynames(self):
+        """Names of all communities.
+
+        This is a function, because the Communities object has
+        .cmtynames() as a function."""
+        if self._cmtynames is not None:
+            return self._cmtynames
+        if os.path.exists(self.fname+'.names'):
+            cmtynames = self._cmtynames \
+                    = [ line.strip() for line in open(self.fname+'.names')
+                        if line.strip() and line[0]!='#' ]
+            return cmtynames
+    #def _set_cmtynames(self, cmtynames):
+    #    print 'setting cmtynames'
+    #    self.__dict__['_cmtynames'] = cmtynames
+    #cmtynames = property(fget=_find_cmtynames, fset=_set_cmtynames,
+    #                  doc="""Community names of this file.""")
+
+
+    def cmtynodes(self):
+        """Create full dictionary of community structure."""
+        return dict(self.iteritems())
+    def to_dict(self, cls=Communities, nodes=None):
+        """Convert to a full dict-based copy of this community structure.
+
+        If nodes is given, use this as the node universe.  Be careful,
+        if your file is large, this will use up much memory.
+        """
+        cmtys = cls(self.cmtynodes(), nodes=nodes)
+        if self.label is not None:
+            cmtys.label = self.label
+        return cmtys
+    def copy(self):
+        """Copy of self.  Return self, iterator is immutable."""
+        return self
+
+    def iterkeys(self):
+        """Iterater over community names.
+
+        This is simply a thin wrapper over self.iteritems()."""
+        return (c for c,nodes in self.iteritems())
+    def itervalues(self):
+        """Iterate over community contents.
+
+        This is simply a wrapper around self.iteritems()."""
+        return (nodes for c,nodes in self.iteritems())
+
+    def iteritems(self):
+        """Iterate (cmty_name, cmty_nodes_list) pairs.
+
+        This is the central iterator of the file.  Iterates through
+        the file and returns (c, nodes) pairs, like
+        dictionary.iteritems().  If we see a line that begins with
+        exactly '# community names: ', this is taken as the true
+        community namess, and these will be returned as community
+        names `c`.
+
+        After the iterator exits, this will save the total number of
+        communities found as `self.q`"""
+        number_of_cmty = 0
+        converter = self.converter
+        names = self.cmtynames()
+        label = self.label
+
+        file = open(os.path.join(self.abspath_dir, self.fname), 'U')
+
+        cmty_id = 0
+        for lineno, line in enumerate(file):
+            line = line.strip()
+            if not line: continue
+            if line[0] == '#':
+                if not label and line.startswith('# label: '):
+                    self.label = line[9:].strip() # maxsplit of 1
+                if names is None and line.startswith('# community names: '):
+                    names = self._cmtynames = line[19:].strip().split()
+                # Comment line, do not parse it.
+                continue
+
+            # If we found labels, then use that as the name of the
+            # community.  This is written out write_clusters.
+            if names:   cname = names[cmty_id]
+            else:       cname = cmty_id
+
+            nodes = set(converter(x) for x in line.split())
+            number_of_cmty += 1
+
+            yield cname, nodes
+            cmty_id += 1
+
+        # Insert this into dict directly, since q is a property of a
+        # superclass and doesn't support item assignment.
+        self.__dict__['q'] = number_of_cmty
+
+
+
+def _test_interface(cmtys):
+    repr(cmtys)
+    #cmtys.__getitem__[]
+    cmtys.nodes
+    len(cmtys)
+    cmtys.to_dict()
+    cmtys.nodes
+    cmtys.q
+    cmtys.cmtynames()
+    cmtys.nodes_spanned()
+    cmtys.overlap()
+    cmtys.is_cover()
+    cmtys.is_non_overlapping()
+    cmtys.is_partition()
+    cmtys.fraction_covered()
+    tuple(cmtys.iteritems())
+    tuple(cmtys.iterkeys())
+    tuple(cmtys.itervalues())
+
+    cmtys.cmtyintmap()
+    cmtys.nodeintmap()
+    cmtys.cmtysizes()
+    cmtys.cmtysizes_sum()
+    
+
+
+
+#def calc_sizes(cmtys):
+#    cmtysizes = [ ]
+#    for cname, nodes in cmtys.iteritems():
+#        cmtysizes.append(len(nodes))
+#
+#
+#cmtys1 = CommunityIterator('path/to/file.txt')
+#cmtys2 = Communities(some_dict)
+#
+#calc_sizes(cmtys1)
+#calc_sizes(cmtys2)
+#
+#
+#
+#class Graph(networkx.Graph):
+#    def __init__(self, *args, **kwargs):
+#        self.cmtys = Communities()
 

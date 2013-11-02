@@ -24,6 +24,9 @@ typedef struct Graph {
   int *cmty;
   imatrix_t *imatrix;
   imatrix_t *rmatrix;
+  int *linklist;
+  int *linklist_idx;
+  int *linklistN;
 
   /* For sparse implementation */
   int hasSparse;

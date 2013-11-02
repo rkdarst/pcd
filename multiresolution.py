@@ -18,6 +18,8 @@ from fitz.mathutil import Averager
 
 import F1
 
+class NoResultsError(Exception):
+    pass
 
 def recursive_dict_update(d, dnew):
     for k,v in dnew.iteritems():
@@ -490,35 +492,55 @@ class MultiResolution(object):
         Unlike the function above, this uses only the symmetric
         measures: does not return the maximum value of the similarity
         to planted measures."""
-        returns = { }
+        #returns = { }
+        returns = [ ]
 
         table = self.table()
         mask = numpy.logical_and(table['n_mean'] > minn,
                                  table['q'] > minq)
+        if not numpy.any(mask):
+            raise NoResultsError("There are no gammas where n>%s and q>%s"%(minn, minq))
         #from fitz.mathutil import extrema
         #maxima = extrema(table['s_F1'], halfwidth=halfwidth,
         #                 excludeedges=True)[1] # maxima
         #maxima = [x for x in maxima if mask[x]]
 
-        vals = [('s_F1', numpy.max),
+        # For three values, it is (value_of, extrema_func, at_extrema_of)
+        vals = [
                 ('In', numpy.max),
                 ('VI', numpy.min),
                 ('N', numpy.max),
+                ('s_F1', numpy.max),
 
                 ('VI_0', numpy.min),
                 ('In_0', numpy.max),
                 ('N_0', numpy.max),
                 ('F1', numpy.max),
+
+                ('In', numpy.max, 'In_0'),
+                ('VI', numpy.min, 'VI_0'),
+                ('N', numpy.max, 'N_0'),
+                ('s_F1', numpy.max, 'F1'),
                 ]
         for row in vals:
-            nameWhere = row[0]
             extremaFunc = row[1]
+            if len(row) == 2:
+                nameWhere = row[0]
+                selectWhere = nameWhere
+                modeName = nameWhere
+            else:
+                nameWhere = row[2]
+                selectWhere = row[0]
+                modeName = row[0]+'-at-'+row[2]
+                if selectWhere not in table:
+                    continue
             if nameWhere not in table:
                 # Silently ignore things we don't have
                 continue
 
             if sum(mask) == 0 or numpy.isnan(table[nameWhere][mask]).all():
-                returns[nameWhere] = float('nan'), float('nan')
+                #returns[nameWhere] = float('nan'), float('nan')
+                #returns.append((modeName, maxgamma, maximum))
                 continue
 
             # To use this, change from max -> argmax and so on.
@@ -530,8 +552,10 @@ class MultiResolution(object):
             maxwhere = util.extremawhere(table[nameWhere], mask,
                                              func=extremaFunc)
             maxgamma = table['gamma'][maxwhere]
-            maximum = table[nameWhere][maxwhere]
-            returns[nameWhere] = (maxgamma, maximum)
+            maximum = table[selectWhere][maxwhere]
+            #returns[nameWhere] = (maxgamma, maximum)
+            returns.append((modeName, maxgamma, maximum))
+            #from fitz import interact ; interact.interact(banner='aaa')
 
         return returns
     def best_communities(self, Gs, overlap=False, leaf=None, **kwargs):
@@ -542,20 +566,21 @@ class MultiResolution(object):
         results = [ ]
         #extremums = self.extrema()  # return extrema of similarity to planted
         extremums = self.extrema2(**kwargs)  # extrema of symmetric
-        for varname, (maxgamma, maximum) in extremums.iteritems():
+        #for varname, (maxgamma, maximum) in extremums.iteritems():
+        for modename, maxgamma, maximum in extremums:
             if numpy.isnan(maxgamma): continue
-            name = "Extremum of %s (=%s, at %.3f)"%(varname, maximum, maxgamma)
+            name = "Extremum of %s (=%s, at %.3f)"%(modename, maximum, maxgamma)
             G = self.getGammaGmin(maxgamma, Gs=Gs, overlap=overlap)
             if leaf:
                 G.combine_singletons(leaf) # inplace.
             cmtys = pcd.cmty.Communities.from_pcd(G)
-            cmtys.varname = varname
+            cmtys.varname = modename
             cmtys.name = name
-            cmtys.shortname = varname
+            cmtys.shortname = modename
             cmtys.gamma = maxgamma
             cmtys.maxval = maximum
             cmtys.table = self.table(gamma=maxgamma)
-            cmtys.G = G
+            #cmtys.G = G
             cmtys.quality = G.energy(maxgamma)
             results.append(cmtys)
         #from fitz import interactnow
