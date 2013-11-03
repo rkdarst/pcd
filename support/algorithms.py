@@ -1113,7 +1113,7 @@ class LouvainWeighted(Louvain):
 class ModularitySA(CDMethod):
     _input_format = 'edgelist'
     #binary = 'lancichinetti_codes/clustering_programs_5_1/bin/modopt'
-    binary = 'lancichinetti_codes/lancichinetti_modSA/modopt/modopt'
+    binary = 'lancichinetti_modSA/modopt/modopt'
     _nodemapZeroIndexed = True
     trials = 5
     resolution = 1
@@ -1127,8 +1127,9 @@ class ModularitySA(CDMethod):
             # Write initial seed structure
             f = open('community.dat', 'w')
             nodecmtys = self.initial.nodecmtys_onetoone()
-            for node, cmty in nodecmtys:
-                print >> f, node, cmty
+            cmty_map = self.initial.cmtyintmap()
+            for node, cmty in nodecmtys.iteritems():
+                print >> f, self.vmap[node], cmty_map[cmty]
         args = (binary,
                 self.graphfile,
                 str(self.randseed),  # seed
