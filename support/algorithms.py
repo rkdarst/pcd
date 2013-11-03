@@ -515,11 +515,11 @@ class Infomap(CDMethod):
     args = [ ]
     def run(self):
         args = [_get_file(self.binary),
-                self.graphfile,
-                '.',
                 '--num-trials=%d'%self.trials,
                 '--input-format=link-list', '--zero-based-numbering',
                 '--seed=%d'%self.randseed,
+                self.graphfile,
+                '.',
                 ]
         if self.directed:
             args.append('--directed')
@@ -543,12 +543,19 @@ class Infomap(CDMethod):
         self.cmtys = self.results[0]
         return self.results
 
-    @staticmethod
-    def read_infomap_cmtys(fname, full_lower_levels=True, vmap_inv=None):
+    def read_infomap_cmtys(self, fname, full_lower_levels=True, vmap_inv=None):
         """General function for reading Infomap tree files.
 
         This is a static method, so can easily be used in other code
-        separate from this framework."""
+        separate from this framework.
+
+        WARNING: Infomap writes an output with node indexes one-based,
+        even if the input is zero-based.  We subtract one from each
+        output node ID to correct for that."""
+        # Correct for Infomap changing zero-based to one-based
+        # indexes.  If we don't have self._nodemapZeroIndexed, then
+        # the code below must be corrected (search "zero" below).
+        assert self._nodemapZeroIndexed
 
         linere = re.compile(r'([\d:]+) ([\d.e-]+) "([^"]+)"')
         #cmtynodes = collections.defaultdict(set)
@@ -572,6 +579,13 @@ class Infomap(CDMethod):
             #nodeCmtyID = int(m.group(2))
             #weight = float(m.group(3))
             nodeID = int(m.group(3))
+            # Correct for Infomap changing zero-based to one-based
+            # indexes.  The assertion makes sure that future infomap
+            # behavior does not change, and begin outputting
+            # zero-based indexes.
+            nodeID -= 1
+            assert 0 <= nodeID, "Infomap indexing behavior may have changed, see source."
+            #
             node = vmap_inv[nodeID]
             for level in range(len(cmtys)-1):
                 # for each level and community, but excluding the
@@ -597,6 +611,9 @@ class Infomap(CDMethod):
             cmtys = pcd.cmty.Communities.from_nodecmtys(levels[l])
             cmtys.label = 'level%02d'%l
             results.append(cmtys)
+        # Test for zero-based indexing fixing.
+        #if isinstance(self.g, networkx.Graph):
+        #    assert set(cmtys.nodes) == set(self.g.nodes_iter())
 
         return results
 
