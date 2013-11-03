@@ -1352,6 +1352,33 @@ class CommunityListIterator(Communities):
         # superclass and doesn't support item assignment.
         self.__dict__['q'] = number_of_cmty
 
+def CommunityFilter(Communities):
+    _cmtynodes = None
+    def __init__(self, cmtys, filter, remap=None):
+        self.cmtys = cmtys
+    def __len__
+    def __repr__(self):
+        return '<%s object with q=%d at %s>'%(self.__class__.__name__, self.q,
+                                              hex(id(self)))
+    def copy()
+    def to_dict()
+    def cmtynodes
+    def iteritems(self):
+        filter = self.filter
+        for cname, nodes in self.cmtys.iteritems():
+            for new_name, new_nodes in filter(cname, nodes):
+                yield new_name, new_nodes
+def CommunityProcess(Communities):
+    def __init__(self, cmtys, filter, remap=None):
+        self.cmtys = cmtys
+    def __repr__(self):
+        return '<%s object with q=%d at %s>'%(self.__class__.__name__, self.q,
+                                              hex(id(self)))
+    def iteritems(self):
+        filter = self.filter
+        for cname, nodes in self.cmtys.iteritems():
+            for new_name, new_nodes in filter(cname, nodes):
+                yield new_name, new_nodes
 
 
 def _test_interface(cmtys):
