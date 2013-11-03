@@ -1832,6 +1832,7 @@ int anneal(Graph_t G, double gamma, double beta,
 	// accept
 	cmtyMoveAll(G, c2, c1);
 	Gq += -1;
+	changes += 1;
       }
     /** Splitting ***************************************/
     } else if (rand < cdf_split && !const_q) /* cdf_combine */ {
@@ -1855,6 +1856,7 @@ int anneal(Graph_t G, double gamma, double beta,
 	  if (metropolis_criteria(beta, deltaE)) {
 	    // accept - null op
 	    Gq += +1;
+	    changes += 1;
 	  }
 	  else { // reject - move all nodes from c2 back to c1.
 	    cmtyMoveAll(G, c2, c1);
