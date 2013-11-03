@@ -553,7 +553,7 @@ class Communities(object):
         total_nodes = 0
         spannednodes = set()
         for ns in self.itervalues():
-            spannednodes.union(ns)
+            spannednodes.update(ns)
             total_nodes += len(ns)
         return total_nodes == len(spannednodes)
     def is_partition(self, nodes=None):
@@ -571,7 +571,7 @@ class Communities(object):
         spannednodes = set()
         total_nodes = 0
         for ns in self.itervalues():
-            spannednodes.union(ns)
+            spannednodes.update(ns)
             total_nodes += len(ns)
         # is_non_overlapping:
         if not ( total_nodes == len(spannednodes) ):   # not (no node in multiple cmtys)
@@ -884,12 +884,12 @@ class Communities(object):
             #detected = cmtysPlanted[cPlanted] & cmtysDetected[cDetected]
             detected = plantedNodes & detectedNodes
             if limit_nodes is not None:
-                detected.intersection(limit_nodes)
+                detected.intersection_update(limit_nodes)
             # If we use the line below, we miscalculate the total
             # number of nodes we are trying to detect.
             n_total += len(plantedNodes)
             n_detected += len(detected)
-            allDetected.union(detected)
+            allDetected.update(detected)
             #print sorted(plantedNodes-detectedNodes)
             #print sorted(detectedNodes-plantedNodes)
             #print cPlanted, cDetected, len(plantedNodes), len(detected)
