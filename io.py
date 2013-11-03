@@ -123,3 +123,76 @@ def _test_edgelist(fname):
     if re.search(r'^(?!#)\S+[ \t]+\S+([ \t]+[-0-9.e]+([ \t]+(.*?))?)?[ \t]*$', data, re.I|re.M):
         return True
 
+
+import gzip
+import bz2
+def zopen(fname, mode='r', compress=None):
+    """Automatic compression and decompression.
+
+    If compress='gz' or 'bz2', write file with that compression.  If
+    the file does not have the proper extension, add it to the
+    filename.
+
+    If filename ends in .gz or .bz2, automatically compress/decompress
+    on opening.
+
+    If filename doesn't exist, look for the same name with .gz or .bz2
+    and open that if it exists (but only if exactly one of them
+    exists).
+    """
+    # Find the true filename, if we are reading.  You can pass the
+    # name 'x.txt' and it will find 'x.txt.gz' or 'x.txt.bz2'
+    # automatically.
+    if 'r' in mode and not os.path.exists(fname):
+        gz_exists  = os.path.exists(fname+'.gz')
+        bz2_exists = os.path.exists(fname+'.bz2')
+        assert not (gz_exists and bz2_exists)
+        if gz_exists:   fname = fname+'.gz'
+        if bz2_exists:  fname = fname+'.bz2'
+    # if compression specified, make sure filename ends in that.
+    if compress:
+        if compress == 'gz':
+            if not fname.endswith('.gz'):
+                fname = fname + '.gz'
+        if compress == 'bz2':
+            if not fname.endswith('.bz2'):
+                fname = fname + '.bz2'
+    # if compression not speecified, see if we can infer one from the
+    # extension.
+    else:
+        if fname.endswith('.gz'):
+            compress = 'gz'
+        elif fname.endswith('.bz2'):
+            compress = 'bz2'
+    # Decide on the opening interface
+    if compress == 'gz':
+        compressor = gzip.GzipFile
+    elif compress == 'bz2':
+        compressor = bz2.BZ2File
+    else:
+        compressor = open
+
+    if 'r' in mode:
+        f = compressor(fname, mode=mode)
+    elif 'w' in mode:
+        f = compressor(fname, mode=mode)
+    else:
+        raise ValueError("We can't handle mode %s"%mode)
+    return f
+def _test_zopen(tmp='/tmp'):
+    from os.path import join
+    import random
+
+    # Test writing compression.
+    tmpname = random.uniform(1, 2**32-1)
+    name1 = join(tmp, 'pcdiotestzopen-A-%d'%tmpname)
+    zopen(name1+'.bz2', 'w').write('test data')
+    assert zopen(name1, compress='bz2').read() == 'test data'
+    os.unlink(name1+'.bz2')
+
+    # Test automatically adding the extension
+    tmpname = random.uniform(1, 2**32-1)
+    name2 = join(tmp, 'pcdiotestzopen-B-%d'%tmpname)
+    zopen(name2, 'w', compress='gz').write('test data2')
+    assert zopen(name2+'.gz', compress='gz').read() == 'test data2'
+    os.unlink(name2+'.gz')
