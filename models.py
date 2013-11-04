@@ -1446,6 +1446,18 @@ class Graph(anneal._GraphAnneal, cmodels._cobj, object):
         def A(): return cmodels.overlapAdd(self._struct_p, gamma)
         def B(): return cmodels.overlapRemove(self._struct_p, gamma)
         return self.alternate(funcs=(A, B))
+    def greedy_merge(self, gamma, **kwargs):
+        """Greedy minimizer emphasizing merge moves first."""
+        def ro(): self._gen_random_order() ; return 0
+        def M():
+            if not self.const_q: return self.combine(gamma=gamma)
+            else: return 0
+        def rm1(): self.remap(check=False) ; return 0
+        def S(): return self._greedy(gamma=gamma)
+        def rm2(): self.remap(check=False) ; return 0
+        x = self.alternate(funcs=(ro, M, rm1, S, rm2), mode='restart',
+                              maxrounds=15)
+        return x
 
     def shift_degree(self, gamma, mode='once', maxrounds=1):
         """argument 'gamma' needed for compatibility but not used."""
