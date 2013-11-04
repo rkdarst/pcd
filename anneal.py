@@ -27,7 +27,8 @@ class _GraphAnneal(object):
                new_cmty_prob=.01, p_binary=.05, p_collective=.05,
                const_q_SA=False, constqEcoupling=1.,
                min_n_SA=False, minnEcoupling=.1,
-               mode=None):
+               mode=None,
+               maxrounds=None):
         """An annealing round
 
         Escale: initial energy scale.  Set this high enough for your
@@ -89,6 +90,8 @@ class _GraphAnneal(object):
             #if all(x==0 for x in running_changes):
             #    break
             if all(approxeq(x,running_changes[0]) for x in running_changes):
+                break
+            if maxrounds and nRounds > maxrounds:
                 break
         self.setcmtystate(best_state)
         return (nRounds, totChanges)

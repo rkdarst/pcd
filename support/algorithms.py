@@ -1223,11 +1223,12 @@ class _PCD_SA(object):
     # Minimum n mode:
     min_n_SA = False
     minnEcoupling = 1
+    maxrounds = None
     _args_names = ('betafactor', 'attempts', 'Escale',
                    'mode',
                    'new_cmty_prob', 'p_binary', 'p_collective',
                    'const_q_SA', 'constqEcoupling',
-                   'min_n_SA', 'minnEcoupling')
+                   'min_n_SA', 'minnEcoupling', 'maxrounds')
     @property
     def minargs_default(self):
         a = super(_PCD_SA, self).minargs_default.copy()
