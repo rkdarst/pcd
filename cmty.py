@@ -1236,11 +1236,12 @@ class CommunityListIterator(Communities):
         if m:
             label = self._label = m.group(1).strip()
             return label
-        data = open(self._cmtynamesfile).read(512)
-        m = re.search(r'^# label: ([^\n]+)$', data, re.M|re.I)
-        if m:
-            label = self._label = m.group(1).strip()
-            return label
+        if self._cmtynamesfile is not None:
+            data = open(self._cmtynamesfile).read(512)
+            m = re.search(r'^# label: ([^\n]+)$', data, re.M|re.I)
+            if m:
+                label = self._label = m.group(1).strip()
+                return label
         return None
     def _set_label(self, label):
         self._label = label
