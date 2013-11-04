@@ -196,3 +196,21 @@ def _test_zopen(tmp='/tmp'):
     zopen(name2, 'w', compress='gz').write('test data2')
     assert zopen(name2+'.gz', compress='gz').read() == 'test data2'
     os.unlink(name2+'.gz')
+def zexists(fname):
+    """Test for existance of filename or compressed versions of it.
+
+    If fname exists, return it.  If both fname.gz and fname.bz2
+    exists, raise an error.  If just one of them exists, return that
+    filename.
+
+    This can be used as a boolean function, with True indicating that
+    the given fname will be openable by zopen."""
+    if os.path.exists(fname):
+        return fname
+    gz_exists  = os.path.exists(fname+'.gz')
+    bz2_exists = os.path.exists(fname+'.bz2')
+    if gz_exists and bz2_exists:
+        raise ValueError("Both %s.gz and %s.bz2 exist"%(fname, fname))
+    if gz_exists:   return fname+'.gz'
+    if bz2_exists:  return fname+'.bz2'
+
