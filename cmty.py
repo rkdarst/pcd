@@ -78,6 +78,8 @@ class Communities(object):
     def __len__(self):
         """Number of communities"""
         return len(self._cmtynodes)
+    def __iter__(self):
+        raise NotImplementedError("Use .iter{keys,values,items} instead")
     # Other instance management
     def copy(self):
         """Copy of self, with a new cmtynodes dictionary.
@@ -1216,6 +1218,8 @@ class CommunityListIterator(Communities):
         if self._q is None:
             self._q = sum(1 for _ in self.iteritems())
         return self._q
+    def __iter__(self):
+        raise NotImplementedError("Use .iter{keys,values,items} instead")
     @property
     def N(self):
         """Calculate number of total nodes.  This runs the iterator fully."""
