@@ -84,13 +84,13 @@ class _GraphAnneal(object):
             if E < best_E:
                 best_state = self.getcmtystate()
 
-            #running_changes.append(changes)
-            running_changes.append(E)
+            running_changes.append((changes, E))
             del running_changes[0]
-            #if all(x==0 for x in running_changes):
-            #    break
-            if all(approxeq(x,running_changes[0]) for x in running_changes):
-                break
+            if nRounds >= stablelength-1:
+                #if all(x[0]==0 for x in running_changes):
+                #    break
+                if all(approxeq(x[1],running_changes[0][1]) for x in running_changes):
+                    break
             if maxrounds and nRounds > maxrounds:
                 break
         self.setcmtystate(best_state)
