@@ -214,3 +214,70 @@ def zexists(fname):
     if gz_exists:   return fname+'.gz'
     if bz2_exists:  return fname+'.bz2'
 
+
+
+def write_pajek(fname, g, cmtys):
+    """Write graph structure g colored by cmtys in pajek format."""
+    open(fname, 'w').write('\n'.join(gen_pajek(g, cmtys)))
+def gen_pajek(g, cmtys):
+    """Return a list of strings, represting pajek contents of g and cmtys."""
+    # This heavily draws on networkx's generate_pajek
+    lines = [ ]
+    if g.name and getattr(cmtys, 'label', None):
+        name = "%s - %s"%(g.name, cmtys.label)
+    elif g.name:
+        name = g.name
+    elif getattr(cmtys, 'label', None):
+        name = cmtys.label
+    else:
+        name = '%r - %r'%(g, cmtys)
+    lines.append('*network %s'%name)
+    # Vertices
+    lines.append('*vertices %d'%g.number_of_nodes())
+    # Map for our node names, to integers 1 to N
+    node_reindex = 1
+    if all('id' in data for data in g.node.itervalues()):
+        node_map = dict((n, int(data['id'])) for n, data in g.nodes_iter(data=True))
+        if min(node_map.itervalues()) == 1:
+            node_reindex = 0
+    else:
+        node_map = cmtys.nodeintmap()
+    cmtys.load_networkx_custom(g)
+    nodecmtys = cmtys.nodecmtys()
+    colors = cmtys.cmtycolors()
+    for n, data in g.nodes_iter(data=True):
+        nid = node_map[n] + node_reindex
+        x = 0.0
+        y = 0.0
+        shape = 'ellipse'
+        # decide color
+        cmtys = nodecmtys.get(n, set())
+        if len(cmtys) > 1:
+            color = 'Black'
+            extra = 'cmtys %s'%(','.join(str(x) for x in nodecmtys[n]))
+        elif len(cmtys) == 0:
+            color = 'White'
+            extra = ''
+        else:
+            cmty = next(iter(cmtys))
+            color = colors[cmty]
+            #color = 'RGB(%0.2f,%0.2f,%0.2f)'%color[:3]
+            color = 'RGB%02X%02X%02X'%tuple(x*255 for x in color[:3])
+            extra = 'cmty %s'%cmty
+        # Can use RGB colors like: 'RGB(1,0.8,0)' (no spaces)
+        lines.append(' %(nid)d "%(n)s" %(x)f %(y)f %(shape)s ic %(color)s %(extra)s'%(
+            locals()))
+
+    # Edges.  Networkx uses this *arcs vs *edges distinction.
+    if g.is_directed():
+        lines.append('*arcs')
+    else:
+        lines.append('*edges')
+    for u,v,edgedata in g.edges(data=True):
+        nid1 = node_map[u] + node_reindex
+        nid2 = node_map[v] + node_reindex
+        weight = edgedata.get('weight', 1.0)
+        lines.append('  %(nid1)d %(nid2)s %(weight)s'%locals())
+
+    return lines
+

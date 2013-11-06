@@ -15,6 +15,7 @@ import networkx
 
 import pcd.nxutil
 import pcd.cmty
+import pcd.io
 import pcd.support.algorithms
 
 import contextlib
@@ -337,9 +338,10 @@ class BulkAnalyzer(object):
         #plt.savefig(self.outname+'.infomap.png')
 
 def hook_result_pajek(g, cmtys, basename, **kwargs):
-    g = g.copy()
-    cmtys.load_networkx_custom(g, type_=str)
-    networkx.write_pajek(g, basename+'.net')
+    #g = g.copy()
+    #cmtys.load_networkx_custom(g, type_=str)
+    #networkx.write_pajek(g, basename+'.net')
+    pcd.io.write_pajek(basename+'.net', g, cmtys)
     #raise
 
 def output_subdir(self, base='output/', cut_dirs=1):

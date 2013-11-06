@@ -1459,6 +1459,8 @@ if __name__ == "__main__":
     r = method(g, **options)
     #initial = r.cmtys
     #r = method(g, initial=initial, **options)
+    #import pcd.io
+    #pcd.io.write_pajek(input+'.cmtys.net', g, r.cmtys)
     from fitz import interactnow
 
 
