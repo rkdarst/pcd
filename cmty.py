@@ -1246,7 +1246,9 @@ class CommunityListIterator(Communities):
             if m:
                 label = self._label = m.group(1).strip()
                 return label
-        return None
+        else:
+            label = self._label = os.path.basename(self.fname)
+            return label
     def _set_label(self, label):
         self._label = label
     label = property(fget=_find_label, fset=_set_label, doc="""Label of this community file""")
