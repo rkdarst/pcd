@@ -635,14 +635,45 @@ class InfomapSingle_dir(Infomap):
 
 
 class _Oslom(CDMethod):
+    """Oslom.
+
+    merge_singletons: default False.  If true, return the partitions
+    which have singletons (homeless nodes) merged into their best
+    community.
+
+    strip_singletons: if there are singletons in the result, do not
+    return those in the detected structure (and thus the result will
+    not be a cover).  This is a custom option, not from the core oslom
+    code.  If the merge_singletons option is true, this option will do
+    nothing.
+
+    initial: initial configuration, Communities object.
+
+    weighted: use -w option (floating point weights, instead of
+    integer weights transforming into multiple edges).
+
+    trials: number of trials to run for first hierarchical level, '-r'
+    option.  For fastest execution, set this option and trials_hier to
+    1.
+
+    trials_hier: number of trials for each hierarchical level.
+
+    p_value: significance level of modules, default 0.1
+
+    coverage_parameter: submodule merging criteria.  default .5, range
+    0 to 1.  Larger leads to bigger clusters.
+    """
     #binary = 'oslom/OSLOM2/oslom_undir'
     _input_format = 'edgelist'
     trials = 10
+    trials_hier = 50
 
-    no_singletons = False
+    merge_singletons = False
     initial = None
     weighted = None
     strip_singletons = False
+    p_value = None
+    coverage_parameter = None
 
     #def _use_weigthed(self, g):
     #    if self.weigthed is not None:
@@ -664,25 +695,44 @@ class _Oslom(CDMethod):
                 "-w" if self.weighted else '-uw', #unweighted or weighted
                 "-f", self.graphfile,
                 '-r', str(self.trials),
+                '-hr', '%d'%self.trials_hier,
                 )
-        if self.no_singletons:
-            # In the new code, this is called "-singlet" and has the
-            # opposite effect, so negate the conditional.
-            args = args + ('-all', )
+        #if not self.merge_singletons:
+        if True:
+            # The old code defaulted to singletons for homeless nodes,
+            # and had an option "-all" to specify that they should be
+            # merged.  In the new code, the situation is reversed, and
+            # there is an option called "-singlet" which causes
+            # homeless nodes to be included.  However, no matter what,
+            # if you use -singlet, there is tpN_without_singletons
+            # written.  So, we always run with -singlet, and we select
+            # which files to read at the end.
+            args = args + ('-singlet', )
         if self.initial:
             args = args + ('-hint', "initial_state.txt",)
             f = open("initial_state.txt", 'w')
             for cmty, nodes in self.initial.cmtynodes():
                 f.write(' '.join(str(self.vmap[n]) for n in nodes))
                 f.write('\n')
+            raise NotImplementedError("Check documentation and ensure that this works.  "
+                                      "-r 0 option may be needed.")
             f.close()
+        if self.p_value:
+            args = args + ('-t', '%f'%self.p_value)
+        if self.coverage_parameter:
+            args = args + ('-cp', '%f'%self.coverage_parameter)
 
         self.call_process(args)
 
     def read_cmtys(self):
         self.results = [ ]
         for level in itertools.count():
-            fname = self.outdir+'tp%s'%(level if level else '')
+            if self.merge_singletons:
+                # Files with singletons merged
+                fname = self.outdir+'tp%s_without_singletons'%(level if level else '')
+            else:
+                # Files with singletons in homeless communities
+                fname = self.outdir+'tp%s'%(level if level else '')
             if not os.access(fname, os.F_OK):
                 if self.verbosity >= 3:
                     print "*** level %s"%level
