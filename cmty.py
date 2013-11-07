@@ -14,6 +14,12 @@ import pcd.nxutil
 class OverlapError(Exception):
     pass
 
+# This is used to override the default open / os.path.exists to
+# provide transparent compression and decompression.
+import __builtin__
+if 'open' not in globals():   open   = __builtin__.open
+if 'exists' not in globals(): exists = os.path.exists
+
 class _CommunitiesBase(object):
     """Base properties for community objects.
 
@@ -1255,16 +1261,16 @@ class CommunityFile(_CommunitiesBase):
         self.fname = fname
         self.abspath_dir = os.getcwd()
         self.converter = converter
-        if not os.path.exists(self.fname):
+        if not exists(self.fname):
             raise ValueError("%s is not accessable"%self.fname)
         if cmtynames:
             if isinstance(cmtynames, str):
-                if not os.path.exists(cmtynames):
+                if not exists(cmtynames):
                     raise ValueError("%s is not accessable"%cmtynames)
                 self._cmtynamesfile = cmtynames
             else:
                 self._cmtynames = cmtynames
-        elif os.path.exists(self.fname+'.names'):
+        elif exists(self.fname+'.names'):
             self._cmtynamesfile = self.fname+'.names'
     def __repr__(self):
         """Repr of self: include q if it is known, otherwise don't."""
@@ -1330,7 +1336,7 @@ class CommunityFile(_CommunitiesBase):
         if self._cmtynamesfile is not None:
             self._cmtynames = [
                 x.strip() for x in
-                   open(self._cmtynamesfile, 'U').read().split('\n')
+                   open(self._cmtynamesfile, 'rU').read().split('\n')
                 if x.strip() and x[0]!='#' ]
             return self._cmtynames
         # No default, return None and user should just use integer
@@ -1392,7 +1398,7 @@ class CommunityFile(_CommunitiesBase):
         names = self.cmtynames()
         label = self.label
 
-        file = open(os.path.join(self.abspath_dir, self.fname), 'U')
+        file = open(os.path.join(self.abspath_dir, self.fname), 'rU')
 
         cmty_id = 0
         for lineno, line in enumerate(file):
