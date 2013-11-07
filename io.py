@@ -11,6 +11,8 @@ import re
 
 import networkx
 
+import __builtin__
+
 class UnknownTypeError(Exception):
     pass
 
@@ -126,6 +128,12 @@ def _test_edgelist(fname):
 
 import gzip
 import bz2
+def _open(fname, mode='r', buffering=-1):
+    """Proxy for built-in open function.  Return self if already file-like."""
+    if hasattr(fname, 'write') or hasattr(fname, 'read'):
+        return fname
+    return open(fname, mode, buffering=buffering)
+
 def zopen(fname, mode='r', compress=None):
     """Automatic compression and decompression.
 
@@ -143,7 +151,10 @@ def zopen(fname, mode='r', compress=None):
     When opening, always go by the file extension, even if compress=
     is given and contradictory.
     """
-    print compress, fname
+    # If already a file-like, just return it.
+    if hasattr(fname, 'write') or hasattr(fname, 'read'):
+        return fname
+    #print compress, fname
     # Find the true filename, if we are reading.  You can pass the
     # name 'x.txt' and it will find 'x.txt.gz' or 'x.txt.bz2'
     # automatically.
@@ -171,15 +182,18 @@ def zopen(fname, mode='r', compress=None):
             compress = 'gz'
         elif fname.endswith('.bz2'):
             compress = 'bz2'
+        else:
+            compress = None
     # Decide on the opening interface
     if compress == 'gz':
         compressor = gzip.GzipFile
     elif compress == 'bz2':
         compressor = bz2.BZ2File
     else:
-        compressor = open
+        compressor = __builtin__.open
 
-    print compress, fname
+    #print compress, fname
+    #print "opening with mode %s"%mode
     if 'r' in mode:
         f = compressor(fname, mode=mode)
     elif 'w' in mode:
@@ -238,6 +252,21 @@ def zexists(fname):
     if gz_exists:   return fname+'.gz'
     if bz2_exists:  return fname+'.bz2'
 
+def zlistdir(dirname, dup_ok=False):
+    """List directory, normalizing compressed files.
+
+    List a directory.  If any files end in .gz or .bz2, remove the
+    extension.  If this results in any duplicate files, raise an error
+    (unless dup_ok is true)."""
+    files = os.listdir(dirname)
+    files_d = set()
+    for f in files:
+        if f.endswith('.gz'):     f = f[:-3]
+        elif f.endswith('.bz2'):  f = f[:-4]
+        if not dup_ok and f in files_d:
+            raise ValueError("File found multiple times: %s"%f)
+        files_d.add(f)
+    return sorted(files_d)
 
 
 def write_pajek(fname, g, cmtys):

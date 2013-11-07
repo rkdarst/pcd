@@ -20,3 +20,4 @@ assert pcd.io._get_reader('pajek') == networkx.read_pajek
 assert isinstance(pcd.io.read_any(fname_gml), networkx.Graph)
 assert isinstance(pcd.io.read_any('gml:'+fname_gml), networkx.Graph)
 
+pcd.io._test_zopen()
