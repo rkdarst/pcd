@@ -500,6 +500,7 @@ class _CommunitiesBase(object):
         # remove all empty communities:
         cmtynodes = self.cmtynodes()
         cnames = [cname for cname, cnodes in cmtynodes.iteritems() if len(cnodes) != 0 ]
+        #cnames = self.cmtynames()
 
         f = fname
         if not hasattr(f, 'write'):
@@ -510,6 +511,7 @@ class _CommunitiesBase(object):
             # Write the community names to disk:
             f_names = open(fname+'.names', 'w')
             print >> f_names, '# Community names for file %s'%fname
+            print >> f, '#', repr(self)
             if isinstance(headers, str):
                 print >> f_names, '#', headers
             else:
@@ -532,7 +534,6 @@ class _CommunitiesBase(object):
             else:
                 for line in headers:
                     print >> f, '#', line
-            cnames = self.cmtynames()
             # Write the label for self, if it exists:
             if hasattr(self, 'label'):
                 print >> f, '# label:', self.label
@@ -1300,15 +1301,16 @@ class CommunityFile(_CommunitiesBase):
         if m:
             label = self._label = m.group(1).strip()
             return label
+        # Search for label in the names file.
         if self._cmtynamesfile is not None:
             data = open(self._cmtynamesfile).read(512)
             m = re.search(r'^# label: ([^\n]+)$', data, re.M|re.I)
             if m:
                 label = self._label = m.group(1).strip()
                 return label
-        else:
-            label = self._label = os.path.basename(self.fname)
-            return label
+        # If all else files, return the basename as the label.
+        label = self._label = os.path.basename(self.fname)
+        return label
     def _set_label(self, label):
         self._label = label
     label = property(fget=_find_label, fset=_set_label, doc="""Label of this community file""")
