@@ -431,9 +431,14 @@ class _CommunitiesBase(object):
                 if non_overlapping:
                     G.cmty[G._nodeIndex[n]] = cid
         return G
-    def load_networkx(self, g):
-        self.load_networkx_custom(g, attrname=None, type_=None)
-    def load_networkx_custom(self, g, attrname='cmty', attrnameset='cmtys', type_=None):
+    def load_networkx_custom(self, g, attrnameset='cmtys', attrname=None, type_=None,
+                             clear=True):
+        """Load the communities from this object onto node attributes"""
+        # Remove existing community labels
+        if clear:
+            for node, data in g.nodes_iter():
+                data.discard(attrname)
+                data.discard(attrnameset)
         nodecmtys = self.nodecmtys()
         for node, cmtys in nodecmtys.iteritems():
             if attrname is not None and len(cmtys) == 1:
@@ -459,6 +464,32 @@ class _CommunitiesBase(object):
                     g.node[node][attrnameset] = ' '.join(str(c) for c in cmtys)
                 else:
                     g.node[node][attrnameset] = type_(cmtys)
+    #def load_networkx(self, g):
+    #    self.load_networkx_custom(g, attrname=None, type_=None)
+    def load_networkx_online(self, g, attrnameset='cmtys', type_=None, clear=True):
+        """Load these communities into a networkx graph as node attributes.
+
+        This function returns None.  The graph g is modified so that
+        each node has a set which lists all communities that node is
+        within.
+
+        The node community sets are written into the argument
+        'attrnameset' option, by default 'cmtys'.  If clear is
+        specified (default True), then all existing 'cmtys' attributes
+        are removed first."""
+        #from fitz import interact ; interact.interact('x')
+        if clear:
+            for node, data in g.nodes_iter(data=True):
+                #data.pop(attrnameset, None)
+                data[attrnameset] = set()
+        nodes = g.node
+        for cname, cnodes in self.iteritems():
+            #print cname, cnodes
+            for node in cnodes:
+                #g.node[node].setdefault(attrnameset, set()).add(cname)
+                g.node[node][attrnameset].add(cname)
+    load_networkx = load_networkx_online
+
     def write_gml(self, g, fname):
         """Write a gml file, including labels."""
         #raise NotImplementedError
