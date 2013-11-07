@@ -139,7 +139,11 @@ def zopen(fname, mode='r', compress=None):
     If filename doesn't exist, look for the same name with .gz or .bz2
     and open that if it exists (but only if exactly one of them
     exists).
+
+    When opening, always go by the file extension, even if compress=
+    is given and contradictory.
     """
+    print compress, fname
     # Find the true filename, if we are reading.  You can pass the
     # name 'x.txt' and it will find 'x.txt.gz' or 'x.txt.bz2'
     # automatically.
@@ -150,7 +154,7 @@ def zopen(fname, mode='r', compress=None):
         if gz_exists:   fname = fname+'.gz'
         if bz2_exists:  fname = fname+'.bz2'
     # if compression specified, make sure filename ends in that.
-    if compress:
+    if 'w' in mode and compress:
         if compress == 'gz':
             if not fname.endswith('.gz'):
                 fname = fname + '.gz'
@@ -159,7 +163,10 @@ def zopen(fname, mode='r', compress=None):
                 fname = fname + '.bz2'
     # if compression not speecified, see if we can infer one from the
     # extension.
-    else:
+    #if not compress:
+    # if True means "always use the compression indicated by the
+    # extension", even if it disagrees with the compress= option.
+    if True:
         if fname.endswith('.gz'):
             compress = 'gz'
         elif fname.endswith('.bz2'):
@@ -172,6 +179,7 @@ def zopen(fname, mode='r', compress=None):
     else:
         compressor = open
 
+    print compress, fname
     if 'r' in mode:
         f = compressor(fname, mode=mode)
     elif 'w' in mode:
@@ -183,19 +191,35 @@ def _test_zopen(tmp='/tmp'):
     from os.path import join
     import random
 
+    # Test explicitely giving everything
+    tmpname = random.uniform(1, 2**32-1)
+    name2 = join(tmp, 'pcdiotestzopen-A-%d'%tmpname)
+    zopen(name2+'.gz', 'w', compress='gz').write('test data A')
+    assert zopen(name2+'.gz', compress='gz').read() == 'test data A'
+    os.unlink(name2+'.gz')
+
     # Test writing compression.
     tmpname = random.uniform(1, 2**32-1)
-    name1 = join(tmp, 'pcdiotestzopen-A-%d'%tmpname)
-    zopen(name1+'.bz2', 'w').write('test data')
-    assert zopen(name1, compress='bz2').read() == 'test data'
+    name1 = join(tmp, 'pcdiotestzopen-B-%d'%tmpname)
+    zopen(name1+'.bz2', 'w').write('test data B')
+    assert zopen(name1, compress='bz2').read() == 'test data B'
     os.unlink(name1+'.bz2')
 
     # Test automatically adding the extension
     tmpname = random.uniform(1, 2**32-1)
-    name2 = join(tmp, 'pcdiotestzopen-B-%d'%tmpname)
-    zopen(name2, 'w', compress='gz').write('test data2')
-    assert zopen(name2+'.gz', compress='gz').read() == 'test data2'
+    name2 = join(tmp, 'pcdiotestzopen-C-%d'%tmpname)
+    zopen(name2, 'w', compress='gz').write('test data C')
+    assert zopen(name2+'.gz').read() == 'test data C'
     os.unlink(name2+'.gz')
+
+    # How is wrong compress= defined?
+    tmpname = random.uniform(1, 2**32-1)
+    name2 = join(tmp, 'pcdiotestzopen-D-%d'%tmpname)
+    zopen(name2, 'w', compress='gz').write('test data D')
+    assert zopen(name2, compress='bz2').read() == 'test data D'
+    os.unlink(name2+'.gz')
+
+
 def zexists(fname):
     """Test for existance of filename or compressed versions of it.
 
