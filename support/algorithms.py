@@ -44,7 +44,7 @@ def _get_file(name):
         ]
     search_path.extend(global_code_path)
     if 'PCD_EXTERNAL_CODE_PATH' in os.environ:
-        search_path.extend(os.environ[PCD_EXTERNAL_CODE_PATH].split(':'))
+        search_path.extend(os.environ['PCD_EXTERNAL_CODE_PATH'].split(':'))
     for dirname in search_path:
         path = os.path.join(dirname, name)
         if os.access(path, os.F_OK):
@@ -123,7 +123,9 @@ class CDMethod(object):
     verbosity = 2
     map_nodes_to_int = True       # Do we need to remap all nodes to ints?
     _run_method = True
-    _load_communities = True
+    _load_results = True
+    _recovery_mode = False        # recovery mode - do nothing, user should
+                                  # call .run(), .read_cmtys() etc.
 
     def __init__(self, g, dir=None, basename=None, **kwargs):
         """
@@ -197,9 +199,9 @@ class CDMethod(object):
                 if os.path.islink(self.graphfile):
                     raise RuntimeError("%s is a symlink, aborting."%self.graphfile)
                 getattr(self, 'write_'+self._input_format)(self.g, self.graphfile)
-            if self._run_method:
+            if self._run_method        and not self._recovery_mode:
                 self.run()
-            if self._load_communities:
+            if self._load_results  and not self._recovery_mode:
                 self.read_cmtys()
             if self._interact_results:
                 import code; code.interact(banner=("In dir=%s\n"
@@ -725,6 +727,7 @@ class _Oslom(CDMethod):
         self.call_process(args)
 
     def read_cmtys(self):
+        self.outdir = self.graphfile + '_oslo_files/'
         self.results = [ ]
         for level in itertools.count():
             if self.merge_singletons:
@@ -742,7 +745,7 @@ class _Oslom(CDMethod):
             cmtys.label = "level%02d"%level
 
             self.results.append(cmtys)
-            if not self.strip_singletons:
+            if not self.strip_singletons and isinstance(self.g, networkx.Graph):
                 assert len(self.g) <= self.results[-1].cmtysizes_sum()
         self.cmtys = self.results[0]
         return self.results
@@ -767,6 +770,7 @@ class _Oslom(CDMethod):
         # structure.  Return one community covering the whole graph,
         # since we tend to have problems with null-graphs.
         if len(cmtynodes) == 0:
+            if not isinstance(self.g, networkx.Graph): raise NotImplemented
             cmtynodes[0] = set(self.g.nodes())
         # If we can strip singletons, then we can end up not spanning
         # the whole network.  In that case we must specify nodes= to
@@ -774,6 +778,7 @@ class _Oslom(CDMethod):
         # recalculate the universe correctly when asked.
         nodes = None
         if self.strip_singletons:
+            if not isinstance(self.g, networkx.Graph): raise NotImplemented
             nodes = set(self.g.nodes())
         return pcd.cmty.Communities(cmtynodes,
                                     nodes=nodes,
