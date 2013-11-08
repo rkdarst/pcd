@@ -28,10 +28,19 @@ class _CommunitiesBase(object):
     .iteritems()
     .iterkeys()
     .itervalues()
-    .cmtynodes()
-    len(self)
-    """
+    __len__()
+    __getitem__()
+    copy()
 
+    Methods you might want to implement, if you can do so efficiently:
+    __repr__ (include additional cheap status information)
+    .cmtynodes()
+    .nodes()
+    .cmtynames()
+
+    """
+    def __repr__(self):
+        return '<%s object at %s>'%(self.__class__.__name__, hex(id(self)))
     # Some convenience functions about community structure.
     @property
     def N(self):
@@ -1123,6 +1132,7 @@ class Communities(_CommunitiesBase):
     can, however, mutate the _cmtynodes object yourself and changes
     will be reflected since there is no other internal state.
     """
+    _nodes = None
     def __init__(self, cmtynodes, nodes=None):
         """init
 
@@ -1136,7 +1146,7 @@ class Communities(_CommunitiesBase):
         if cmtynodes is None:
             raise ValueError('cmtynodes argument should not be None.')
         self._cmtynodes = cmtynodes
-        self._nodes = nodes
+
     def __repr__(self):
         return '<%s object with q=%d at %s>'%(self.__class__.__name__, self.q,
                                               hex(id(self)))
@@ -1187,6 +1197,7 @@ class Communities(_CommunitiesBase):
     @classmethod
     def from_dict(cls, cmtynodes, nodes=None):
         return cls(cmtynodes, nodes=nodes)
+    @classmethod
     def from_iter(cls, nodes=None):
         return cls(dict(cmtynodes), nodes=nodes)
 
@@ -1495,6 +1506,55 @@ class CommunityFilter(_CommunitiesBase):
 #        for cname, nodes in self.cmtys.iteritems():
 #            for new_name, new_nodes in filter(cname, nodes):
 #                yield new_name, new_nodes
+
+
+class CommunityUnion(_CommunitiesBase):
+    """Combine multiple iterators into their union.
+
+    This object takes multiple input Communities objects, and returns
+    a new Communities object.  The new communities object iterates
+    over each community object, and returns every community in every object.
+
+    cmtys: the input Communities objects.  The interface should also
+    work with dicts.
+
+    dup_ok: if false, communities which exist in multiple levels are
+    returned only one. (default false).  If true, the same community
+    of nodes could be returned multiple times from this iterator."""
+    def __init__(self, cmtys, dup_ok=False):
+        self._cmtys = cmtys
+        self._dup_ok = dup_ok
+    def __len__(self):
+        if self._dup_ok:
+            return sum(len(c) for c in self._cmtys)
+        else:
+            return sum(1 for x in self.iteritems())
+    def iterkeys(self):
+        for cname, nodes in self.iteritems():
+            yield cname
+    def itervalues(self):
+        for cname, nodes in self.iteritems():
+            yield nodes
+    def iteritems(self):
+        dup_ok = self._dup_ok
+        dups = set()
+        for i, cmty in enumerate(self._cmtys):
+            label = getattr(cmty, 'label', None)
+            if label:
+                label = "U-%02d-%s"%(i, label)
+            else:
+                label = "U-%02d"%i
+
+            for cname, nodes in cmty.iteritems():
+                cname = label+'-'+str(cname)
+                # If duplicates are not allowed, do our duplicate checking.
+                if not dup_ok:
+                    nodes_hash = hash(frozenset(nodes))
+                    if nodes_hash in dups:
+                        continue
+                    dups.add(nodes_hash)
+                yield cname, nodes
+
 
 
 def _test_interface(cmtys):

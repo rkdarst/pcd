@@ -38,11 +38,11 @@ assert cmtys_full.cmtynames() == set(('one', 'two'))
 assert len(cmtys_full) == 2
 pcd.cmty._test_interface(cmtys_full)
 
-# Test label loading
+# Test label loading from the .names file
 cmtys = pcd.cmty.CommunityFile(fname2)
 assert cmtys.label == 'test-communities2'
 
-
+# Test some filters
 cmtys = pcd.cmty.Communities(cmtynodes)
 def filter(c, ns):
     yield str(c)+'.1', ns
@@ -61,3 +61,27 @@ def filter(c, ns):
         yield c, ns
 cmtys_filter = pcd.cmty.CommunityFilter(cmtys, filter)
 assert len(cmtys_filter) == 2
+
+
+# Test unions
+cn1 = dict(A=set((0, 1, 3)), B=set((1, 2, 3, 4)))
+cn2 = dict(A=set((0, 1, 3)), B=set((5, 6, 7, 8, 9)))
+c1 = pcd.cmty.Communities(cn1)
+c2 = pcd.cmty.Communities(cn2)
+cU = pcd.cmty.CommunityUnion((c1, c2))
+assert len(cU) == 3
+assert cU.nodes == set(range(10))
+assert set(frozenset(x) for x in cU.itervalues()) \
+       == set((frozenset((0,1,3)),frozenset((1,2,3,4)),frozenset((5,6,7,8,9))))
+#print list(cU.iteritems())
+assert len(set(cU.iterkeys())) == 3
+assert len(list(cU.itervalues())) == 3
+pcd.cmty._test_interface(cU)
+
+# Same test, but without dup_ok.
+cU = pcd.cmty.CommunityUnion((cn1, cn2), dup_ok = True)
+assert len(cU) == 4
+assert len(set(cU.iterkeys())) == 4
+assert cU.nodes == set(range(10))
+#print list(cU.iteritems())
+pcd.cmty._test_interface(cU)
