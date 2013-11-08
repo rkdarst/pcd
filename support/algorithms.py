@@ -1505,8 +1505,8 @@ if __name__ == "__main__":
     options = leval(options)
     print options
 
-    import pcd.io
-    g = pcd.io.read_any(input)
+    import pcd.ioutil
+    g = pcd.ioutil.read_any(input)
 
     options['basename'] = os.path.basename(input)
 
@@ -1514,8 +1514,8 @@ if __name__ == "__main__":
     r = method(g, **options)
     #initial = r.cmtys
     #r = method(g, initial=initial, **options)
-    #import pcd.io
-    #pcd.io.write_pajek(input+'.cmtys.net', g, r.cmtys)
+    #import pcd.ioutil
+    #pcd.ioutil.write_pajek(input+'.cmtys.net', g, r.cmtys)
     from fitz import interactnow
 
 
