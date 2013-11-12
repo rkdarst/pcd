@@ -1,6 +1,7 @@
 # Richard Darst, October 2011
 
 import collections
+import ctypes
 import itertools
 import math
 from math import exp, log, floor, ceil
@@ -67,19 +68,28 @@ class _GraphAnneal(object):
                 beta, E, self.q)
 
         for nRounds in itertools.count():
-            changes = self._anneal(gamma, beta=beta, steps=steps,
+            move_info = self._anneal(gamma, beta=beta, steps=steps,
                                    #new_cmty_prob=.01, combine_prob=.01
                                    new_cmty_prob=new_cmty_prob, p_binary=p_binary,
                                    p_collective=p_collective,
                                    const_q_SA=const_q_SA, constqEcoupling=constqEcoupling,
                                    min_n_SA=min_n_SA, minnEcoupling=minnEcoupling,
                                    )
+            changes = sum(move_info[1::3])
             self.remap()
             totChanges += changes
             E = self.energy(gamma)
-            if self.verbosity >= 2:
-                print "  (a%6d) %9.5fb %7.2fE %6dc %4dq"%(
-                    nRounds, beta, E, changes, self.q)
+            if nRounds > 10 or nRounds%10 == 0:
+                if self.verbosity >= 2:
+                    print "  (a%6d) %9.3eb %7.2fE %6dc %4dq"%(
+                        nRounds, beta, E, changes, self.q),
+                    # verbose status info
+                    print ":: "+"  ".join( (
+                        "%4d %8.2e %9.2e"%(move_info[i*3+0],
+                                           move_info[i*3+1]/move_info[i*3+0],
+                                           move_info[i*3+2]/move_info[i*3+0])
+                        for i in range(3)) )
+
             beta *= betafactor
             if E < best_E:
                 best_state = self.getcmtystate()
@@ -106,12 +116,16 @@ class _GraphAnneal(object):
             steps = self.N*1000
         #new_cmty_prob = .01 # P of shifting to new community.  .01 is former default.
         #combine_prob = .01  # prob to try *either* split or combine move.  .01 is former default.
-        return cmodels.anneal(self._struct_p, gamma, beta,
+        move_info = (ctypes.c_double*12)()
+        changes = cmodels.anneal(self._struct_p, gamma, beta,
                               steps, deltabeta,
                               new_cmty_prob, p_binary, p_collective,
                               const_q_SA, constqEcoupling,
                               min_n_SA, minnEcoupling,
+                                 move_info,
                               )
+        move_info = numpy.array(move_info, dtype=float)
+        return move_info
 
     def _find_average_E(self, gamma, trials=None):
         trials = self.N * 100

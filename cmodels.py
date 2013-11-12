@@ -224,6 +224,7 @@ cfuncs = (
                                  c_double, c_double, c_double,
                                  c_int, c_double,
                                  c_int, c_double, # min_n_SA, minnEcoupling
+                                 c_double_p,      # move_info
                                  )),
     ("combine",       c_int,    (cGraph_p, c_double)),
     ("combine_sparse_overlap",c_int,    (cGraph_p, c_double)),

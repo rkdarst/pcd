@@ -1707,7 +1707,8 @@ int anneal(Graph_t G, double gamma, double beta,
 	   double p_binary, /* split and merge moves */
 	   double p_collective, /* collective node motions */
 	   int constq_SA, double constqEcoupling,
-	   int min_n_SA, double minnEcoupling
+	   int min_n_SA, double minnEcoupling,
+	   double *move_info
 	   ) {
   int changes=0;
   int step;
@@ -1798,11 +1799,15 @@ int anneal(Graph_t G, double gamma, double beta,
 				     );
       double x = exp(- beta * deltaE);
       double ran = genrand_real2();
+      //printf("                    shift: %5.3e, %5.3e\n", deltaE, x);
+      move_info[0] += 1;
+      move_info[2] += deltaE;
       if (ran < x) {
 	// accept
 	cmtyMove(G, n, c_old, c);
 	changes += 1;
 	Gq += dq;
+	move_info[1] += 1;
       }
       else {
 	// reject
@@ -1821,15 +1826,21 @@ int anneal(Graph_t G, double gamma, double beta,
 	  break;
       }
       double deltaE = energy_cmty_cmty(G, gamma, c1, c2);
-      if (const_q_SA)
+      if (const_q_SA) {
+	//printf("                          merge: %5.3e %5.3e\n", deltaE, beta);
 	deltaE += constqEcoupling * constq_deltaE(const_q_SA, Gq, -1);
+      }
       if (min_n_SA)
 	deltaE += minnEcoupling * (  min_n_E(min_n_SA, cmtyN(G, c1)+cmtyN(G, c2) )
 				   - min_n_E(min_n_SA, cmtyN(G, c1) )
 				   - min_n_E(min_n_SA, cmtyN(G, c2) )
 				   );
+      //printf("                          merge: %5.3e %5.3e\n", deltaE, beta);
+      move_info[1*3+0] += 1;
+      move_info[1*3+2] += deltaE;
       if (metropolis_criteria(beta, deltaE)) {
 	// accept
+	move_info[1*3+1] += 1;
 	cmtyMoveAll(G, c2, c1);
 	Gq += -1;
 	changes += 1;
@@ -1846,17 +1857,23 @@ int anneal(Graph_t G, double gamma, double beta,
 	  int oldSize = cmtyN(G, c1);
 	  int c2 = split_community(G, c1, .5, 0);
 	  double deltaE = - energy_cmty_cmty(G, gamma, c1, c2);
-	  if (const_q_SA)
+	  if (const_q_SA) {
+	    //printf("                               split: %5.3e %5.3e\n", deltaE, beta);
 	    deltaE += constqEcoupling * constq_deltaE(const_q_SA, Gq, +1);
+	  }
 	  if (min_n_SA)
 	    deltaE += minnEcoupling * (  min_n_E(min_n_SA, cmtyN(G, c1) )
 				       + min_n_E(min_n_SA, cmtyN(G, c2) )
 				       - min_n_E(min_n_SA, oldSize)
 					 );
+	  //printf("                               split: %5.3e %5.3e\n", deltaE, beta);
+	  move_info[2*3+0] += 1;
+	  move_info[2*3+2] += deltaE;
 	  if (metropolis_criteria(beta, deltaE)) {
 	    // accept - null op
 	    Gq += +1;
 	    changes += 1;
+	  move_info[2*3+2] += 1;
 	  }
 	  else { // reject - move all nodes from c2 back to c1.
 	    cmtyMoveAll(G, c2, c1);
@@ -1906,11 +1923,14 @@ int anneal(Graph_t G, double gamma, double beta,
       // Accept or not?
       /* printf("collective: %d(%d) %d(%d) %d(%d,%d) %0.20e\n", c1, c1size, cNew,G->cmtyN[cNew], */
       /* 	     cSub, subSize, G->cmtyN[cSub], deltaE); */
+      move_info[3*3+0] += 1;
+      move_info[3*3+2] += deltaE;
       if (metropolis_criteria(beta, deltaE)) {
 	cmtyMoveAll(G, c1Sub, c2);
 	cmtyMoveAll(G, c2Sub, c1);
 	/* printf("accept\n"); */
 	changes += 1;
+	move_info[3*3+1] += 1;
       }
       else { // reject - move all nodes from c2 back to c1.
 	cmtyMoveAll(G, c1Sub, c1);
