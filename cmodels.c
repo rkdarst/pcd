@@ -1728,7 +1728,7 @@ int anneal(Graph_t G, double gamma, double beta,
   //double cdf_shift = 1.0 - p_combine;
   ////double cdf_combine = 1.0 - combine_prob + combine_prob*(.5);
   //// New method
-  int q_ = q(G);
+  //int q_ = q(G);
   ////double p_combine = combine_prob;
   //double norm_combine = q_ + q_*(q_-1);
   //double p_merge = (q_*(q_-1)) / norm_combine;
@@ -1740,9 +1740,11 @@ int anneal(Graph_t G, double gamma, double beta,
   //
   //double p_merge = .5*p_binary;
   //double p_split = 0;
-  double norm_combine = q_ + q_*(q_-1);
-  double p_merge = p_binary * ( (q_*(q_-1)) / ((double)norm_combine) );
-  double p_split = p_binary * (       q_    / ((double)norm_combine) );
+  //double norm_combine = q_ + q_*(q_-1);
+  //double p_merge = p_binary * ( (q_*(q_-1)) / ((double)norm_combine) );
+  //double p_split = p_binary * (       q_    / ((double)norm_combine) );
+  double p_merge = p_binary * .5;
+  double p_split = p_binary * .5;
   // make CDFs
   double cdf_shift = 1-p_collective-p_split-p_merge;
   double cdf_merge = 1-p_collective-p_merge;
