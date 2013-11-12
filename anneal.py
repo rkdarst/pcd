@@ -126,7 +126,7 @@ class _GraphAnneal(object):
                               min_n_SA, minnEcoupling,
                                  move_info,
                               )
-        move_info = numpy.array(move_info, dtype=float)
+        move_info = numpy.array([x for x in move_info], dtype=float)
         return move_info
 
     def _find_average_E(self, gamma, trials=None):
