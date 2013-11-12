@@ -97,8 +97,10 @@ class _GraphAnneal(object):
             running_changes.append((changes, E))
             del running_changes[0]
             if nRounds >= stablelength-1:
+                # If no more changes
                 #if all(x[0]==0 for x in running_changes):
                 #    break
+                # if E doesn't change for the last stable_length rounds.
                 if all(approxeq(x[1],running_changes[0][1]) for x in running_changes):
                     break
             if maxrounds and nRounds > maxrounds:
