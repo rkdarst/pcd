@@ -84,9 +84,9 @@ class _GraphAnneal(object):
                     print "  (a%6d) %9.3eb %7.2fE %6dc %4dq"%(
                         nRounds, beta, E, changes, self.q),
                     # verbose status info
-                    print ":: "+"  ".join( (
-                        "%4d %8.2e %9.2e"%(move_info[i*3+0],
-                                           move_info[i*3+1]/move_info[i*3+0],
+                    print ":: "+" - ".join( (
+                        "%4d %4d %9.2e"%(move_info[i*3+0],
+                                           move_info[i*3+1],
                                            move_info[i*3+2]/move_info[i*3+0])
                         for i in range(3)) )
 
