@@ -1215,6 +1215,8 @@ class Graph(anneal._GraphAnneal, cmodels._cobj, object):
 
         if threads <= 1:
             for i in range(trials):
+                if self.verbosity >= 1.5:
+                    print "Trial start: %d"%i
                 if initial == 'random':
                     self.cmtyCreate() # randomizes it
                 else:
@@ -1226,7 +1228,7 @@ class Graph(anneal._GraphAnneal, cmodels._cobj, object):
                     minE = thisE
                     minCmtyState = self.getcmtystate()
                 if self.verbosity >= 1.5:
-                    print "Trial %d, minimum energy %f"%(i, thisE)
+                    print "Trial finish: %d, minimum energy %f"%(i, thisE)
         else:
             Gs = [ self.copy() for i in range(trials) ]
             def do(G):
