@@ -1195,6 +1195,11 @@ class ModularitySA(CDMethod):
 
     def run(self):
         binary = _get_file(self.binary)
+        if os.path.exists('community.dat'):
+            # This file will be read regardless of if it is requested
+            # or not.  Move it to another name if it alreday exists, I
+            # think this is the simplest least unsafe way.
+            os.rename('community.dat', 'community.dat.old')
         if self.initial is not None:
             # Write initial seed structure
             f = open('community.dat', 'w')
