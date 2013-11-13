@@ -306,8 +306,8 @@ void hashDestroy(Graph_t G) {
 }
 void hashPrintKeys(GHashTable *HT) {
   void printkey(void *key, void *value, void *data) {
-    value=NULL;
-    data=NULL;
+    value=value;  // Unused argument, this supresses GCC warning
+    data=data;    // Unused argument, this supresses GCC warning
     printf("%d ", GPOINTER_TO_INT(key));
   }
   g_hash_table_foreach(HT, printkey, NULL);
