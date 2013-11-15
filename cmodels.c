@@ -779,8 +779,8 @@ double energy_cmty_n(Graph_t G, double gamma, int c, int n) {
   g_hash_table_iter_init(&hashIterInner, G->cmtyListHash[c]);
   while (g_hash_table_iter_next(&hashIterInner, &m_p, NULL)) {
     int m = GPOINTER_TO_INT(m_p);
-    if (m == n)
-      continue;
+    //if (m == n)
+    //  continue;
     if (rmatrix_row == NULL) {
       //imatrix_t interaction = G->imatrix[n*G->N + m];
       imatrix_t interaction = imatrix_row[m];
@@ -1793,6 +1793,7 @@ int anneal(Graph_t G, double gamma, double beta,
 	continue;
       float deltaE =   energy_cmty_n(G, gamma, c, n)
                      - energy_cmty_n(G, gamma, c_old, n);
+      deltaE *= 2;
       if (dq && const_q_SA)
 	deltaE += constqEcoupling * constq_deltaE(const_q_SA, Gq, dq);
       if (min_n_SA)
@@ -1834,6 +1835,7 @@ int anneal(Graph_t G, double gamma, double beta,
 	//printf("                          merge: %5.3e %5.3e\n", deltaE, beta);
 	deltaE += constqEcoupling * constq_deltaE(const_q_SA, Gq, -1);
       }
+      deltaE *= 2;
       if (min_n_SA)
 	deltaE += minnEcoupling * (  min_n_E(min_n_SA, cmtyN(G, c1)+cmtyN(G, c2) )
 				   - min_n_E(min_n_SA, cmtyN(G, c1) )
@@ -1842,7 +1844,12 @@ int anneal(Graph_t G, double gamma, double beta,
       //printf("                          merge: %5.3e %5.3e\n", deltaE, beta);
       move_info[1*3+0] += 1;
       move_info[1*3+2] += deltaE;
+      //if (deltaE > 0) {
+      //	//printf("           Merge: forbid, sizes %d %d %f\n", G->cmtyN[c1], G->cmtyN[c2], deltaE);
+      //	continue;
+      //}
       if (metropolis_criteria(beta, deltaE)) {
+	//printf("           Merge: accept, sizes %d %d %f\n", G->cmtyN[c1], G->cmtyN[c2], deltaE);
 	// accept
 	move_info[1*3+1] += 1;
 	cmtyMoveAll(G, c2, c1);
