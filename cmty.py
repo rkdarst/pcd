@@ -223,8 +223,20 @@ class _CommunitiesBase(object):
     def _Q_pcd(self, g, gamma=1.0):
         """Network modularity, computed using pcd C functions"""
         if gamma != 1.0: raise NotImplementedError('gamma != 1.0')
-        G = pcd.Graph,from_networkx(g)
+        G = pcd.Graph.fromNetworkX(g)
+        self.load_pcd(G)
         return G.modularity()
+    def _Q_pcd_energy(self, g, gamma=1.0):
+        """Network modularity, computed using pcd C functions"""
+        if gamma != 1.0: raise NotImplementedError('gamma != 1.0')
+        G = pcd.Graph.fromNetworkX(g)
+        G.enableModularity(None)
+        self.load_pcd(G)
+        energy = G.energy(gamma)
+        #print sum(G.rmatrix.diagonal())/g.number_of_edges()
+        print "Q_with_diag=", ( -energy - sum(G.rmatrix.diagonal()/2.) ) / g.number_of_edges()
+        print "Q=", -energy / float(g.number_of_edges())
+        return -energy / float(g.number_of_edges())
 
     def _Q_cmty(self, g, gamma=1.0):
         """Modularity, computed in a community-centric method.
