@@ -693,6 +693,8 @@ double energy(Graph_t G, double gamma) {
   /* GHashTableIter hashIterInner; */
 
   for (c=0 ; c<G->Ncmty ; c++) {
+    if (G->cmtyN[c] == 0)
+      continue;
     // for communities c
     void *n_p;
     g_hash_table_iter_init(&hashIterOuter, G->cmtyListHash[c]);
