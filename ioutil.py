@@ -1,10 +1,26 @@
 
-"""Functions for dealing with reading/writing graphs.
+"""Functions for dealing with reading/writing graphs and files.
 
-This function is designed to compliment, not replace, the networkx
+Some functions in here deal with reading and writing graphs.  These
+functions are designed to compliment, not replace, the networkx
 reading/writing functions.
 
-TODO: handle compressed files."""
+There is a suite of utilities for handling compressed IO:
+- zopen: open files, with automatic compression or decompression
+- zexists: if we try to zopen this, are we able to?
+- zlistdir: normalized listdir (remove compressed extensions).
+
+Example usage in a program:
+
+from pcd.ioutil import zopen as _zopen, zexists, zlistdir
+zopen=lambda fname,mode='r',compress='bz2':_zopen(fname,mode,compress=compress)
+pcd.cmty.open = zopen
+pcd.cmty.exists = zexists
+
+Then use zopen instead of open, zexists instead of os.path.exists, and
+zlistdir instead of os.listdir.
+
+"""
 
 import os
 import re
