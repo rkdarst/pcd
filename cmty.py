@@ -1,5 +1,205 @@
 # Richard Darst, December 2012
 
+"""Class representing community object.
+
+Communities represent groupings of nodes.  These groups of nodes can
+optionally have some meaningful name.  This module contains classes
+for represting community objects (stored in different forms, such as a
+dict or file on disk).
+
+Iterators
+=========
+
+The most general method of accessing communities is by iterating
+through them.  This allows on to implement streaming schemes, for
+example, from a file.  This allows partial loading of the community
+information from files, allowing one to access larger scale networks.
+
+The basic iterator methods are:
+  cmtys.iteritems()
+    iterate over (name, set(nodes)) pairs
+    example: `for name, nodes in cmtys.iteritems(): print len(nodes)`
+  cmtys.itervalues()
+    like .iteritems() but only iterates over nodes
+    example: `for nodes in cmtys.itervalues(): print len(nodes)`
+  cmtys.iterkeys()
+    like .iteritems() but only iterates over community  names
+    example: `for name in cmtys.itervalues(): print name`
+  len(cmtys)
+    number of communities.  Note that this may require internally
+    iterating through all communities to calculate this, thus it may
+    not be fast process.  Some metheds will cache this value.
+
+You will notice the similarity of this to dict methods.  This is by
+design, so that simple functions can take either dictionaries or
+Communities objects.
+
+Normally, you would think the universe of nodes is the union of all
+communities.  This would mean that the structure always covers the
+entire graph.  Sometimes, the community sturcture doesn't span the
+entire universe of nodes, and we need a way to represent that.  For
+Communities objects, you can pass a nodes= parameter to the
+constructor.  This distinction is relevant to the difference between
+.nodes and .nodes_spanned().
+
+
+
+Methods implemented using only iterators
+========================================
+
+Given the four iterators above, many things can be calculated
+automatically.  These methods are implemented in the _CommunitiesBase
+object, which groups all methods which take only the requirements
+above (for the most part, this is not quite true yet).
+
+cmtys.N: int
+    Number of nodes
+cmtys.q: int
+    Number of communities
+cmtys.to_dict(): dict
+    All communities.  Like dict(self.iteritems())
+cmtys.cmtysizes(): dict
+    Mapping name->len(nodes)
+cmtys.cmtysizes_sum() : int
+    Sum of all community sizes (may be more than N if there are overlaps)
+cmtys.nodecmtys(): dict
+    Mapping node -> set(communities_of_node).  The reverse of
+    iteritems() and to_dict()
+cmtys.nodecmtys_onetoone(): dict
+    Mapping node -> community.  Like above, but raises error if
+    communities overlap.
+cmtys.nodes: set
+    Set of all nodes in this object.  If not explicitely given at
+    creation time, this is union of all self.itervalues().  This
+    differs from the below since Communities objects (the dict
+    based one) can be given a nodes= option at creation, which
+    represents the universe.  This is needed in order to support
+    non-spanning systems.
+cmtys.nodes_spanned(): set
+    Union of all self.itervalues().  Compare to above.
+cmtys.cmtyintmap(): dict
+    Mapping community_names -> int.  This can be used as a mapping
+    to ints.  May not be totally efficient in space or time (since
+    you can't optimize both at the same time).
+cmtys.nodeintmap(): dict
+    Mapping community_names -> int.  This can be used as a mapping
+    to ints.  May not be totally efficient in space or time.
+fraction_covered(): float
+    Fraction of network covered by at least one community.  Only makes
+    sense for objects which have a node universe given at creation.
+overlap(): float
+    sum(all_community_sizes) / N
+is_cover(): bool
+is_non_overlapping(): bool
+is_partition(): bool
+    Exactly what they say.
+Q(g): int
+    Modularity calculation.  Requires argument of the networkx graph.
+
+
+Input/output
+~~~~~~~~~~~~
+
+These constructors should work for any subclass that implements
+from_iter():
+
+from_iter(nodecmtys):  new instance
+   Constructor from iterator over (nodes, communities).  This is the
+   'base constructor' that all other subclasses should implement, if
+   they want to be creatable from any of the below constructors.
+from_nodecmtys(nodecmtys):  new instance
+   Constructor from mapping node -> community
+from_nodecmtys(nodecmtys):  new instance
+   Constructor from mapping node -> set(communities)
+from_pcd(G): new instance
+   Constructor from pcd object G
+from_networkx(g): new instance
+   Constructor from networkx object with 'cmty' or 'cmtys' attributes
+   on nodes.
+
+to_dict(G): dict
+   Convert to dictionary.
+to_full(G): new Communities instance
+   Return a Communities object that is based on a dictionary.  This
+   is used to load any subclass into memory.
+to_pcd(): pcd.Graph
+to_pcd_cmtystate(): dict
+load_pcd(pcd G):
+load_networkx_custom(g):
+    Add communities to networkx node data.
+load_networkx_online(g):
+    Add communities to networkx node data.
+write_gml(g, fname):
+to_networkx_label(g):
+write_clusters(self, fname, ...):
+    Write to a clusters file, consisting of one line per community.
+
+Other
+~~~~~
+
+stats(): list
+    Print out some stats on community sturcture
+list_communities(): list
+    List all communities
+list_overlapping_nodes(): list
+
+There is a lot more that isn't documented.
+
+
+Other classes
+=============
+
+Communities:
+    This is the main class which uses a dict as community storage.
+
+CommunityFile:
+    Iterative access of a one-line-per-community file.
+
+CommunityFilter:
+    Iterative filtering of communities.  Can apply transformations to
+    communitiy names and nodes, such as largest component, splitting,
+    ... .  No merging yet.
+
+CommunityUnion:
+    Union of several community objects, either allowing or not
+    allowing duplicates.
+
+
+Community interface
+===================
+
+Summary of the above copy and pasted from somewhere else.  The above
+is much more complete.
+
+comms.label
+
+# What is the raw filename?
+comms.fname
+
+# iterate over comm_name, nodes:
+comms.iteritems()
+
+# iterate over only community names:
+comms.iterkeys()
+
+# iterate over only community names:
+comms.itervalues()
+
+# What if we want the full community object (not an iterator)?
+# This loads everything into memory.  Once it is in memory, you
+# can do comms[cname] to get the contents of community cname
+# (random access, as opposed to iterative access).
+comms.to_full()
+
+# Convert this to a dictionary.  Generally, there is no need to do
+# this instead of to_full
+comms.to_dict()
+
+# What if you want a mapping of node -> communities?
+comms.nodecmtys()  # dict node -> set((c1, c2, ...))
+
+"""
+
 import collections
 import numpy
 import os
@@ -121,27 +321,48 @@ class _CommunitiesBase(object):
             nodes.update(ns)
         return nodes
 
-    def cmtyintmap(self):
+    def cmtyintmap(self, consecutive=True, new=False):
         """Return a mapping from community names to integer indexes.
 
-        Returns a dictionary mapping (cname) -> int in range(0,q).
+        Returns a dictionary mapping (cname) -> int in range(0,q-1).
+        This might require iterating through all community names
+        twice, unless new=True in which case it will only require
+        iterating through communities once but always make a new
+        dictionary.
 
-        TODO: if keys are already integers, do not construct a new
-        mapping."""
-        #if all(isinstance(c, int) for c in self.iterkeys()):
-        #    return dict((c, c) for c in self.iterkeys())
-        cmtynames = sorted(self.cmtynames())
-        return dict((c, i) for i,c in enumerate(cmtynames))
-    def nodeintmap(self):
+        consecutive: bool, default true
+           if false, do not require integers be consecutive.  This
+           might make it easier to return the current  mapping
+        new: bool, default false
+            If true, always return a new mapping, which might not
+            preserve existing names.
+        """
+        # Ensure everything is integers:
+        if not new \
+               and all(isinstance(c, int) for c in self.iterkeys()):
+            q = len(self)
+            # If we require consecutive.
+            if not consecutive \
+                   or all( 0 <= name < q  for name in self.iterkeys()):
+                # TODO: return a shortcut to making a new dictionary
+                return dict((c, c) for c in self.iterkeys())
+        return dict((c, i) for i,c in enumerate(self.iterkeys()))
+    def nodeintmap(self, consecutive=True, new=False):
         """Map from node names to integers.
 
         TODO: if nodes are already integers, do not construct a new mapping"""
-        mapping = { }
-        # Set up node indexes (since NetworkX graph object nodes are
-        # not always going to be integeras in range(0, self.N)).
-        for i, name in enumerate(sorted(self.nodes)):
-            mapping[name] = i
-        return mapping
+
+        # Ensure everything is integers:
+        if not new \
+               and all(isinstance(n, int) for n in self.nodes):
+            N = self.N
+            # If we require consecutive.
+            if not consecutive \
+                   or all( 0 <= n < N  for n in self.nodes):
+                # TODO: return a shortcut to making a new dictionary
+                return dict((n, n) for n in self.nodes)
+
+        return dict((n, i) for i,n in enumerate(self.nodes))
 
     def fraction_covered(self):
         """Fraction of networked covered by at least one community."""
@@ -387,10 +608,7 @@ class _CommunitiesBase(object):
     #
     def to_dict(self):
         """Return dictionary of cmty->node_set"""
-        cmtynodes = { }
-        for c, nodes in self.iteritems():
-            cmtynodes[c] = set(nodes)
-        return cmtynodes
+        return dict(self.iteritems())
     def to_full(self):
         return Communities(self.to_dict())
     def to_pcd(self, g=None, sparse=True):
@@ -1588,8 +1806,10 @@ def _test_interface(cmtys):
     tuple(cmtys.iterkeys())
     tuple(cmtys.itervalues())
 
-    cmtys.cmtyintmap()
-    cmtys.nodeintmap()
+    assert set(cmtys.cmtyintmap().keys()) == set(cmtys.iterkeys())
+    assert set(cmtys.cmtyintmap().values()) == set(range(len(cmtys)))
+    assert set(cmtys.nodeintmap().keys()) == set(cmtys.nodes)
+    assert set(cmtys.nodeintmap().values()) == set(range(cmtys.N))
     cmtys.cmtysizes()
     cmtys.cmtysizes_sum()
 
