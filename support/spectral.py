@@ -13,6 +13,7 @@ from pcd import cmty
 import networkx
 
 class Spectrum(object):
+    check_empty = True
     sparse = False
     verbosity = 1
     def __init__(self, **kwargs):
@@ -104,27 +105,35 @@ class Spectrum(object):
 
         self.check_empty: if true (default), raise a warning if we detect some empty communities."""
         from pcd import cmty
+        if q is None and not hasattr(self, 'q'):
+            raise ValueError('Must supply q to detect.')
         if q is None:
             q = self.q()
         # q==1 is one giant community.  We have no vectors to classify.
         if q == 1:
-            nodes = set(to for from_, to in self.B_edgelist)
-            if len(nodes) != self.Nnodes:
+            nodes = self._all_nodes()
+            if len(nodes) != self.N:
                 print "We seem to not spanned the graph.  Do all nodes have an incoming edge?"
             cmtynodes={0:nodes}
-            cmtynodes = self.readd_nodes(cmtynodes)
+            if hasattr(self, 'self.readd_nodes'):
+                cmtynodes = self.readd_nodes(cmtynodes)
             cmtys = cmty.Communities(cmtynodes)
             return cmtys
-        # Create initial classification vectors
+        # Create initial classification vectors.  To detect q
+        # communities, we need q-1 EVs.
         vecs = [ ]
-        for index in range(-2, -q-1, -1):
-            vecs.append(self.cmty_classify(index))
+        for index in range(q-1):
+            # Some methods take EVs [0,q-1], some take [-1, -q-1], some take [-2, -q-1]
+            ev_index = self._classification_index(index)
+            vecs.append(self.cmty_classify(ev_index))
+
         # Create a list of all nodes
         nodes_set = set()
         for cl in vecs:
             nodes_set.update(cl.keys())
         nodes = sorted(nodes_set)
-        if len(nodes) != self.Nnodes:
+        #nodes = sorted(self._all_nodes())
+        if len(nodes) != self.N:
             print "We seem to not spanned the graph.  Do all nodes have an incoming edge?"
         # Convert list of dictionaries into a list of tuples
         vecs = [
@@ -134,35 +143,56 @@ class Spectrum(object):
 
         # Do the clustering
         import scipy.cluster.vq
-        centroids, distortion = scipy.cluster.vq.kmeans(
-            vecs,
-            #scipy.cluster.vq.whiten(vecs),
-            q,
-            iter=10 # run k-means 10 times
-            )
-        #centroids, labels = scipy.cluster.vq.kmeans2(
-        #    scipy.cluster.vq.whiten(vecs),
-        #    q,
-        #    )
+        def do_classify():
+            """Function to do the clustering.  Within a function since
+            we may apply it multiple times."""
+            centroids, distortion = scipy.cluster.vq.kmeans(
+                vecs,
+                #scipy.cluster.vq.whiten(vecs),
+                q,
+                iter=10 # run k-means 10 times
+                )
+            #centroids, labels = scipy.cluster.vq.kmeans2(
+            #    scipy.cluster.vq.whiten(vecs),
+            #    q,
+            #    )
 
-        # Classify into the communities
-        def dist(a, b):
-            return numpy.linalg.norm(a-b)
-        cmtynodes = dict((c, set()) for c in range(q))
-        for i, node in enumerate(nodes):
-            vec = vecs[i]
-            dists = [ dist(vec, cent) for cent in centroids ]
-            c = numpy.argmin(dists)
-            cmtynodes[c].add(node)
+            # Classify into the communities
+            def dist(a, b):
+                return numpy.linalg.norm(a-b)
+            cmtynodes = dict((c, set()) for c in range(q))
+            for i, node in enumerate(nodes):
+                vec = vecs[i]
+                dists = [ dist(vec, cent) for cent in centroids ]
+                c = numpy.argmin(dists)
+                cmtynodes[c].add(node)
+            return  cmtynodes
+
+        # Try the classification 10 times.  Stop when we have a
+        # classification that has non-empty communities.  There is a
+        # high chance to have empty communities.
+        for i in range(10):
+            cmtynodes = do_classify()
+            if all(len(ns)>0 for ns in cmtynodes.itervalues()):
+                break
         # Print a warning if we have empty communities
         if self.check_empty:
-            assert all(len(ns)>0 for ns in cmtynodes.itervalues()), "We detected some empty communities (q=%s,%s detected, q=%s sought) (%s)."%(self.q_bulk(), self.q_circle(), q, sorted([len(ns) for ns in cmtynodes.itervalues()]))
+            def errormsg():
+                if hasattr(self, 'q_circle'):
+                    return "Detected some empty communities (q=%s,%s detected, q=%s sought) (%s)."%(
+                        self.q_bulk(), self.q_circle(), q,
+                        sorted([len(ns) for ns in cmtynodes.itervalues()]))
+                return "Detected some empty communities: (q=%s sought, %s found) (%s)"%(
+                    q, sum(1 for ns in cmtynodes.itervalues() if len(ns)>0),
+                    sorted([len(ns) for ns in cmtynodes.itervalues()]))
+            assert all(len(ns)>0 for ns in cmtynodes.itervalues()), errormsg()
         # And then remove the communities with no nodes.
         for cname in list(cmtynodes.keys()):
             if len(cmtynodes[cname]) == 0:
                 del cmtynodes[cname]
         # re-add dangling tree nodes:
-        cmtynodes = self.readd_nodes(cmtynodes)
+        if hasattr(self, 'self.readd_nodes'):
+            cmtynodes = self.readd_nodes(cmtynodes)
         # Create and return final communities object.
         cmtys = cmty.Communities(cmtynodes=cmtynodes)
         #from fitz import interact ; interact.interact()
@@ -184,8 +214,12 @@ class _SimpleSpectrum(Spectrum):
         self._calc_ev(M, herm=True)
         self._init()
         #E = g.number_of_edges()
-    def readd_nodes(self, cmtys):
-        pass
+    def _all_nodes(self):
+        return self.nodes
+    def cmty_classify(self, index, signs=False):
+        """Classify nodes into communities using the specified eigenvector."""
+        evec = self.get_evec_index(index)
+        return dict(zip(self.nodes, evec))
 
 class Adjacency(_SimpleSpectrum):
     def get_matrix(self, g, nodelist=None):
@@ -193,12 +227,17 @@ class Adjacency(_SimpleSpectrum):
     def relevant_ev(self, k):
         """We want the largest eigenvalues"""
         return [self.get_ev_index(i) for i in range(-1, -k-1, -1) ]
+    def _classification_index(self, k):
+        raise NotImplementedError("Check this first.")
+        return -k-1  # 0: -1   1: -2, etc.
 class Laplacian(_SimpleSpectrum):
     def get_matrix(self, g, nodelist=None):
         return networkx.laplacian_matrix(g, nodelist=nodelist)
     def relevant_ev(self, k):
         """We want the smallest eigenvalues"""
         return [self.get_ev_index(i) for i in range(0, k, 1) ]
+    def _classification_index(self, k):
+        return k+1  # 0: 1   1: 2, etc.
 class Modularity(_SimpleSpectrum):
     def get_matrix(self, g, nodelist=None):
         adj = networkx.to_numpy_matrix(g, nodelist=nodelist)
@@ -206,6 +245,9 @@ class Modularity(_SimpleSpectrum):
         degree_products = numpy.outer(d, d)
         B = adj - degree_products/float(2.*g.number_of_edges())
         return B
+    def _classification_index(self, k):
+        raise NotImplementedError("Check this first.")
+        return -k-1  # 0: -1   1: -2, etc.
     def relevant_ev(self, k):
         """We want the largest eigenvalues"""
         return [self.get_ev_index(i) for i in range(-1, -k-1, -1) ]
@@ -213,7 +255,6 @@ class Modularity(_SimpleSpectrum):
 
 
 class _2Walk(Spectrum):
-    check_empty = True
     check_num_ev = True
     def __init__(self, g, num_ev=None, **kwargs):
         for k, v in kwargs.iteritems():
@@ -231,7 +272,7 @@ class _2Walk(Spectrum):
         self.average_dDd1 = numpy.mean([ g.degree(n)/float(g.degree(n)-1) for n in g.nodes_iter()])
 
         self.E = E = g.number_of_edges()
-        self.Nnodes = len(g)  # number of nodes
+        self.N = len(g)  # number of nodes
         if num_ev is not None:
             self.sparse = True
 
@@ -291,7 +332,7 @@ class _2Walk(Spectrum):
         `readd_nodes` to re-add nodes to a 'cmtynodes' object."""
         g = g.copy()
         self.allnodes = set(g.nodes())
-        # change g IN PLACE.
+        # change (the copy of) g in place.
         self.root_map = remove_trees(g)
         return g
     def readd_nodes(self, cmtynodes):
@@ -300,7 +341,11 @@ class _2Walk(Spectrum):
         This modifies cmtynodes IN PLACE..."""
         new_cmtynodes = add_trees_to_cmtys(cmtynodes, self.root_map, self.allnodes)
         return new_cmtynodes
+    def _all_nodes(self):
+        """All nodes that should be detectable.
 
+        This is used for q=1"""
+        return set(to for from_, to in self.B_edgelist)
 
 
     def q(self, *args, **kwargs):
@@ -327,7 +372,7 @@ class _2Walk(Spectrum):
                 cmtynodes[random.choice((0,1))].add(node)
 
         #from fitz import interact ; interact.interact()
-        if sum(len(ns) for ns in cmtynodes.itervalues()) != self.Nnodes:
+        if sum(len(ns) for ns in cmtynodes.itervalues()) != self.N:
             print "We seem to not spanned the graph.  Do all nodes have an incoming edge?"
         # re-add dangling tree nodes:
         if complete_graph:
@@ -335,6 +380,13 @@ class _2Walk(Spectrum):
         # Make communities object.
         cmtys = cmty.Communities(cmtynodes=cmtynodes)
         return cmtys
+
+    def _classification_index(self, k):
+        """The kth relevant EV for clustering.
+
+        For these 2-walk matrices, the first EV to use for clustering
+        is the second highest, or -2 in Python syntax."""
+        return -k-2  # 0: -2  1: -3, etc
 
     def q_circle(self):
         """Returns detected number of communities.
