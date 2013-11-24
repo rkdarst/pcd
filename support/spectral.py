@@ -96,6 +96,80 @@ class Spectrum(object):
             if abs(ev.imag) < tol:
                 yield ev
 
+    def cmtys(self, q=None):
+        """Detect communities.
+
+        q: if given, assume this number of communities.  Otherwise,
+        use self.q().
+
+        self.check_empty: if true (default), raise a warning if we detect some empty communities."""
+        from pcd import cmty
+        if q is None:
+            q = self.q()
+        # q==1 is one giant community.  We have no vectors to classify.
+        if q == 1:
+            nodes = set(to for from_, to in self.B_edgelist)
+            if len(nodes) != self.Nnodes:
+                print "We seem to not spanned the graph.  Do all nodes have an incoming edge?"
+            cmtynodes={0:nodes}
+            cmtynodes = self.readd_nodes(cmtynodes)
+            cmtys = cmty.Communities(cmtynodes)
+            return cmtys
+        # Create initial classification vectors
+        vecs = [ ]
+        for index in range(-2, -q-1, -1):
+            vecs.append(self.cmty_classify(index))
+        # Create a list of all nodes
+        nodes_set = set()
+        for cl in vecs:
+            nodes_set.update(cl.keys())
+        nodes = sorted(nodes_set)
+        if len(nodes) != self.Nnodes:
+            print "We seem to not spanned the graph.  Do all nodes have an incoming edge?"
+        # Convert list of dictionaries into a list of tuples
+        vecs = [
+            tuple(cl[n] for n in nodes)
+            for cl in vecs ]
+        vecs = numpy.asarray(vecs).T
+
+        # Do the clustering
+        import scipy.cluster.vq
+        centroids, distortion = scipy.cluster.vq.kmeans(
+            vecs,
+            #scipy.cluster.vq.whiten(vecs),
+            q,
+            iter=10 # run k-means 10 times
+            )
+        #centroids, labels = scipy.cluster.vq.kmeans2(
+        #    scipy.cluster.vq.whiten(vecs),
+        #    q,
+        #    )
+
+        # Classify into the communities
+        def dist(a, b):
+            return numpy.linalg.norm(a-b)
+        cmtynodes = dict((c, set()) for c in range(q))
+        for i, node in enumerate(nodes):
+            vec = vecs[i]
+            dists = [ dist(vec, cent) for cent in centroids ]
+            c = numpy.argmin(dists)
+            cmtynodes[c].add(node)
+        # Print a warning if we have empty communities
+        if self.check_empty:
+            assert all(len(ns)>0 for ns in cmtynodes.itervalues()), "We detected some empty communities (q=%s,%s detected, q=%s sought) (%s)."%(self.q_bulk(), self.q_circle(), q, sorted([len(ns) for ns in cmtynodes.itervalues()]))
+        # And then remove the communities with no nodes.
+        for cname in list(cmtynodes.keys()):
+            if len(cmtynodes[cname]) == 0:
+                del cmtynodes[cname]
+        # re-add dangling tree nodes:
+        cmtynodes = self.readd_nodes(cmtynodes)
+        # Create and return final communities object.
+        cmtys = cmty.Communities(cmtynodes=cmtynodes)
+        #from fitz import interact ; interact.interact()
+        return cmtys
+
+
+
 class _SimpleSpectrum(Spectrum):
     #operator = networkx.adjacency_matrix
     def __init__(self, g, **kwargs):
@@ -110,6 +184,8 @@ class _SimpleSpectrum(Spectrum):
         self._calc_ev(M, herm=True)
         self._init()
         #E = g.number_of_edges()
+    def readd_nodes(self, cmtys):
+        pass
 
 class Adjacency(_SimpleSpectrum):
     def get_matrix(self, g, nodelist=None):
@@ -258,77 +334,6 @@ class _2Walk(Spectrum):
             cmtynodes = self.readd_nodes(cmtynodes)
         # Make communities object.
         cmtys = cmty.Communities(cmtynodes=cmtynodes)
-        return cmtys
-    def cmtys(self, q=None):
-        """Detect communities.
-
-        q: if given, assume this number of communities.  Otherwise,
-        use self.q().
-
-        self.check_empty: if true (default), raise a warning if we detect some empty communities."""
-        from pcd import cmty
-        if q is None:
-            q = self.q()
-        # q==1 is one giant community.  We have no vectors to classify.
-        if q == 1:
-            nodes = set(to for from_, to in self.B_edgelist)
-            if len(nodes) != self.Nnodes:
-                print "We seem to not spanned the graph.  Do all nodes have an incoming edge?"
-            cmtynodes={0:nodes}
-            cmtynodes = self.readd_nodes(cmtynodes)
-            cmtys = cmty.Communities(cmtynodes)
-            return cmtys
-        # Create initial classification vectors
-        vecs = [ ]
-        for index in range(-2, -q-1, -1):
-            vecs.append(self.cmty_classify(index))
-        # Create a list of all nodes
-        nodes_set = set()
-        for cl in vecs:
-            nodes_set.update(cl.keys())
-        nodes = sorted(nodes_set)
-        if len(nodes) != self.Nnodes:
-            print "We seem to not spanned the graph.  Do all nodes have an incoming edge?"
-        # Convert list of dictionaries into a list of tuples
-        vecs = [
-            tuple(cl[n] for n in nodes)
-            for cl in vecs ]
-        vecs = numpy.asarray(vecs).T
-
-        # Do the clustering
-        import scipy.cluster.vq
-        centroids, distortion = scipy.cluster.vq.kmeans(
-            vecs,
-            #scipy.cluster.vq.whiten(vecs),
-            q,
-            iter=10 # run k-means 10 times
-            )
-        #centroids, labels = scipy.cluster.vq.kmeans2(
-        #    scipy.cluster.vq.whiten(vecs),
-        #    q,
-        #    )
-
-        # Classify into the communities
-        def dist(a, b):
-            return numpy.linalg.norm(a-b)
-        cmtynodes = dict((c, set()) for c in range(q))
-        for i, node in enumerate(nodes):
-            vec = vecs[i]
-            dists = [ dist(vec, cent) for cent in centroids ]
-            c = numpy.argmin(dists)
-            cmtynodes[c].add(node)
-        # Print a warning if we have empty communities
-        if self.check_empty:
-            assert all(len(ns)>0 for ns in cmtynodes.itervalues()), "We detected some empty communities (q=%s,%s detected, q=%s sought) (%s)."%(self.q_bulk(), self.q_circle(), q, sorted([len(ns) for ns in cmtynodes.itervalues()]))
-        # And then remove the communities with no nodes.
-        for cname in list(cmtynodes.keys()):
-            if len(cmtynodes[cname]) == 0:
-                del cmtynodes[cname]
-        # re-add dangling tree nodes:
-        cmtynodes = self.readd_nodes(cmtynodes)
-        # Create and return final communities object.
-        cmtys = cmty.Communities(cmtynodes=cmtynodes)
-        #from fitz import interact ; interact.interact()
         return cmtys
 
     def q_circle(self):
