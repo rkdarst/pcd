@@ -315,6 +315,9 @@ def gen_pajek(g, cmtys):
     nodecmtys = cmtys.nodecmtys()
     colors = cmtys.cmtycolors()
     for n, data in g.nodes_iter(data=True):
+        label = n
+        if 'label' in data:
+            label = data['label']
         nid = node_map[n] + node_reindex
         x = 0.0
         y = 0.0
@@ -334,7 +337,7 @@ def gen_pajek(g, cmtys):
             color = 'RGB%02X%02X%02X'%tuple(x*255 for x in color[:3])
             extra = 'cmty %s'%cmty
         # Can use RGB colors like: 'RGB(1,0.8,0)' (no spaces)
-        lines.append(' %(nid)d "%(n)s" %(x)f %(y)f %(shape)s ic %(color)s %(extra)s'%(
+        lines.append(' %(nid)d "%(label)s" %(x)f %(y)f %(shape)s ic %(color)s %(extra)s'%(
             locals()))
 
     # Edges.  Networkx uses this *arcs vs *edges distinction.
