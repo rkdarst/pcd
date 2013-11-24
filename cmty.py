@@ -675,7 +675,7 @@ class _CommunitiesBase(object):
         """Load the communities from this object onto node attributes"""
         # Remove existing community labels
         if clear:
-            for node, data in g.nodes_iter():
+            for node, data in g.nodes_iter(data=True):
                 data.discard(attrname)
                 data.discard(attrnameset)
         nodecmtys = self.nodecmtys()
