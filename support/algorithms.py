@@ -820,8 +820,8 @@ class _Copra(CDMethod):
             args += ['-vs', str(self.max_overlap_range[0]), str(self.max_overlap_range[1])]
         self.call_process(args)
 
-    def read_cmtys(self, fname):
-        cmtys = self.read_cmtys('clusters-'+os.path.basename(self.graphfile))
+    def read_cmtys(self):
+        fname = 'clusters-'+os.path.basename(self.graphfile)
         cmtynodes = collections.defaultdict(set)
         for cmty, line in enumerate(open(fname)):
             nodes = [ int(x) for x in line.split() ]
