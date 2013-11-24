@@ -676,8 +676,8 @@ class _CommunitiesBase(object):
         # Remove existing community labels
         if clear:
             for node, data in g.nodes_iter(data=True):
-                data.discard(attrname)
-                data.discard(attrnameset)
+                data.pop(attrname, None)
+                data.pop(attrnameset, None)
         nodecmtys = self.nodecmtys()
         for node, cmtys in nodecmtys.iteritems():
             if attrname is not None and len(cmtys) == 1:
