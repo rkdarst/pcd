@@ -1492,6 +1492,103 @@ class FlowSpectrum(_2WalkSpectrum):
     from pcd.support.spectral import Flow as SpectralMethod
 
 
+class LinkCommunities(CDMethod):
+    """Link communities
+
+    Link communities in complex networks, Yong-Yeol Ahn, James
+    P. Bagrow, Sune Lehmann
+
+    http://barabasilab.neu.edu/projects/linkcommunities/
+    Link communities reveal multiscale complexity in networks, Nature (doi:10.1038/nature09182)
+    """
+    _input_format = 'edgelist'
+    graphfileExtension = '.pairs'
+    _nodemapZeroIndexed = True
+    _binary_calc = 'linkcommunities/calcJaccards'
+    _binary_cluster = 'linkcommunities/clusterJaccards'
+    threshold = .5, .25, .75
+    _threshold_doc = """\
+    Threshold is edge density cutoff for communities.  May be either a
+    list or single number.  The first value is the 'default'
+    communities returned.
+    """
+    def run(self):
+        """Run link community calculation.
+
+        This only runs the first step and computes the .jaccs files.
+        read_communities processes that file with the thresholds and
+        calculates the actual communities.
+        """
+        jaccs_file = self.graphfile+'.jaccs'
+        args = [_get_file(self._binary_calc),
+                self.graphfile, jaccs_file,
+                ]
+        self.call_process(args)
+
+    def _get_threshold(self, thr):
+        """Compute communities at a threshold.
+
+        Return filename.  If filename already exists, do not
+        re-compute it."""
+        jaccs_file = self.graphfile+'.jaccs'
+        fname = self.graphfile+'.thr=%f'%thr
+        # From the docs:
+        # record all the clusters at THRESHOLD in net.clusters
+        out_clusters = fname+'.clusters'
+        # and the sizes of each cluster (number of edges and number of
+        # induced nodes) to net.mc_nc.
+        out_sizes = fname+'.mc_nc'
+
+        if os.path.exists(out_clusters):
+            return out_clusters
+        # Run it
+        args = [ _get_file(self._binary_cluster),
+                 self.graphfile, jaccs_file, out_clusters, out_sizes,
+                 str(thr),
+                 ]
+        self.call_process(args, binary_name=self._binary_calc+'.thr=%f'%thr)
+        return out_clusters
+
+    def read_cmtys(self):
+        """Read and set all communities"""
+        jaccs_file = self.graphfile+'.jaccs'
+        self.results = [ ]
+        # Ensure threshold is going to be an iterable
+        threshold = self._threshold_doc
+        if isinstance(self.threshold, (int, float)):
+            threshold = (threshold, )
+        # For each threshold, do our calculation.
+        for thr in self.threshold:
+            # Calculate clusters at a threshold.  Do not re-calculate
+            # it if the output files already exist on disk.
+            fname = self._get_threshold(thr)
+            # Read results in, and label it.
+            cmtys = self.read_file(fname)
+            cmtys.label = "Threshold=%f"%thr
+            self.results.append(cmtys)
+        self.cmtys = self.results[0]
+        return self.results
+
+    def read_file(self, fname):
+        """Parse a single link community file and return Communities object."""
+        cmtynodes = { }
+        cname = 0
+        for line in open(fname):
+            if line.startswith('#'): continue
+            line = line.split()
+            if not line: continue
+            if cname not in cmtynodes:
+                cmtynodes[cname] = set()
+            nodes = cmtynodes[cname]
+            for link in line:
+                a, b = link.split(',')
+                a = int(a)
+                b = int(b)
+                nodes.add(self.vmap_inv[a])
+                nodes.add(self.vmap_inv[b])
+            cname += 1
+        cmtys = pcd.cmty.Communities(cmtynodes)
+        return cmtys
 
 if __name__ == "__main__":
     if len(sys.argv) < 2 or '-h' in sys.argv or '--help' in sys.argv:
