@@ -1428,7 +1428,7 @@ class Communities(_CommunitiesBase):
     def from_dict(cls, cmtynodes, nodes=None):
         return cls(cmtynodes, nodes=nodes)
     @classmethod
-    def from_iter(cls, nodes=None):
+    def from_iter(cls, cmtynodes, nodes=None):
         return cls(dict(cmtynodes), nodes=nodes)
 
     # Return other data structures related to these communities.
