@@ -246,17 +246,18 @@ class CDMethod(object):
         # There is still one problem here: we don't know test if x's
         # are all ints, or strings representing ints.  I ignore this
         # problem for now.  FIXME.
-        try:
-            node_set = set(int(x) for x in self.g.nodes_iter())
-            int_set = set(range(start_at, len(self.g)+start_at))
-        except ValueError:
-            node_set = 1
-            int_set = 0
-        if node_set == int_set:
-            # This will convert resultant values to Python ints.
-            self.vmap = NullMap()
-            self.vmap_inv = self.vmap.inverse()
-            return
+        if all(isinstance(x, int) for x in self.g.nodes_iter()):
+            try:
+                node_set = set(int(x) for x in self.g.nodes_iter())
+                int_set = set(range(start_at, len(self.g)+start_at))
+            except ValueError:
+                node_set = 1
+                int_set = 0
+            if node_set == int_set:
+                # This will convert resultant values to Python ints.
+                self.vmap = NullMap()
+                self.vmap_inv = self.vmap.inverse()
+                return
         # Otherwise, map all nodes to integers:
         self.vmap = vmap = { }
         self.vmap_inv = vmap_inv = { }
@@ -1521,6 +1522,11 @@ if __name__ == "__main__":
     #r = method(g, initial=initial, **options)
     #import pcd.ioutil
     #pcd.ioutil.write_pajek(input+'.cmtys.net', g, r.cmtys)
+
+    #g2 = g.copy()
+    #r.cmtys.load_networkx_custom(g2, attrname='cmty')
+    #networkx.write_gml(g2, options['basename']+'.gml')
+
     from fitz import interactnow
 
 
