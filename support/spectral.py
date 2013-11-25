@@ -197,6 +197,35 @@ class Spectrum(object):
         cmtys = cmty.Communities(cmtynodes=cmtynodes)
         #from fitz import interact ; interact.interact()
         return cmtys
+    def cmtys_q2(self, complete_graph=True):
+        """Detect communities, assuming q=2.
+
+        If complete_graph is True (default), then re-add extra nodes
+        that were removed as part of dangling trees."""
+        if self.q() != 2:
+            print "Warning(\"We didn't detect two communities (%s actual)"%self.q()
+
+        signs = self.cmty_classify(-2)
+
+        cmtynodes = {0:set(), 1:set()}   # this case (q=2) case limited to two communities
+        for node, sum_ in signs.iteritems():
+            if sum_ < 0:
+                cmtynodes[0].add(node)
+            elif sum_ > 0:
+                cmtynodes[1].add(node)
+            else:
+                # random placement in both of them... any better ideas?
+                cmtynodes[random.choice((0,1))].add(node)
+
+        #from fitz import interact ; interact.interact()
+        if sum(len(ns) for ns in cmtynodes.itervalues()) != self.N:
+            print "We seem to not spanned the graph.  Do all nodes have an incoming edge?"
+        # re-add dangling tree nodes:
+        if complete_graph:
+            cmtynodes = self.readd_nodes(cmtynodes)
+        # Make communities object.
+        cmtys = cmty.Communities(cmtynodes=cmtynodes)
+        return cmtys
 
 
 
@@ -350,37 +379,6 @@ class _2Walk(Spectrum):
 
     def q(self, *args, **kwargs):
         return getattr(self, 'q_'+self.q_mode)(*args, **kwargs)
-
-    def cmtys_q2(self, complete_graph=True):
-        """Detect communities, assuming q=2.
-
-        If complete_graph is True (default), then re-add extra nodes
-        that were removed as part of dangling trees."""
-        if self.q() != 2:
-            print "Warning(\"We didn't detect two communities (%s actual)"%self.q()
-
-        signs = self.cmty_classify(-2)
-
-        cmtynodes = {0:set(), 1:set()}   # this case (q=2) case limited to two communities
-        for node, sum_ in signs.iteritems():
-            if sum_ < 0:
-                cmtynodes[0].add(node)
-            elif sum_ > 0:
-                cmtynodes[1].add(node)
-            else:
-                # random placement in both of them... any better ideas?
-                cmtynodes[random.choice((0,1))].add(node)
-
-        #from fitz import interact ; interact.interact()
-        if sum(len(ns) for ns in cmtynodes.itervalues()) != self.N:
-            print "We seem to not spanned the graph.  Do all nodes have an incoming edge?"
-        # re-add dangling tree nodes:
-        if complete_graph:
-            cmtynodes = self.readd_nodes(cmtynodes)
-        # Make communities object.
-        cmtys = cmty.Communities(cmtynodes=cmtynodes)
-        return cmtys
-
     def _classification_index(self, k):
         """The kth relevant EV for clustering.
 
