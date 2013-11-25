@@ -311,6 +311,8 @@ class CDMethod(object):
             #self.basename = os.path.basename(self.basename)
         self._absdir = os.path.abspath(self.dir)
         self.graphfile = self.basename+getattr(self, 'graphfileExtension', '.net')
+        if hasattr(self, '_filter_graphfilename'):
+            self.graphfile = self._filter_graphfilename(self.graphfile)
         if not os.access(self.dir, os.F_OK): os.mkdir(self.dir)
     def call_process(self, args, binary_name=None):
         """Call a process, saving the standard output to disk.
@@ -1662,6 +1664,169 @@ class Conclude(CDMethod):
         self.cmtys = pcd.cmty.Communities(cmtynodes)
         self.cmtys.label = "Conclude"
         self.results = [ self.cmtys ]
+
+
+class _SNAPmethod(CDMethod):
+    _input_format = 'edgelist'
+    graphfileExtension = '.txt'
+    _nodemapZeroIndexed = True
+    def read_cmtys(self):
+        cmtys = pcd.cmty.Communities.from_clustersfile(
+            'cmtyvv.txt',
+            converter=lambda x: self.vmap_inv[int(x)],
+            )
+        #if hasattr(self, 'g'):   # This is NOT true.
+        #    assert cmtys.N == len(self.g)
+        cmtys.label = self.name()
+        self.cmtys = cmtys
+        self.results = [ self.cmtys ]
+
+class SnapBigClam(_SNAPmethod):
+    """BigClam via SNAP library.
+
+    https://snap.stanford.edu/snap/index.html
+    http://dl.acm.org/citation.cfm?id=2433471
+
+    Formulates community detection problems into non-negative matrix
+    factorization and discovers community membership factors of nodes.
+
+    From the abstract:
+
+    Network communities represent basic structures for understanding
+    the organization of real-world networks. A community (also
+    referred to as a module or a cluster) is typically thought of as a
+    group of nodes with more connections amongst its members than
+    between its members and the remainder of the network. Communities
+    in networks also overlap as nodes belong to multiple clusters at
+    once. Due to the difficulties in evaluating the detected
+    communities and the lack of scalable algorithms, the task of
+    overlapping community detection in large networks largely remains
+    an open problem.
+
+    In this paper we present BIGCLAM (Cluster Affiliation Model for
+    Big Networks), an overlapping community detection method that
+    scales to large networks of millions of nodes and edges. We build
+    on a novel observation that overlaps between communities are
+    densely connected. This is in sharp contrast with present
+    community detection methods which implicitly assume that overlaps
+    between communities are sparsely connected and thus cannot
+    properly extract overlapping communities in networks. In this
+    paper, we develop a model-based community detection algorithm that
+    can detect densely overlapping, hierarchically nested as well as
+    non-overlapping communities in massive networks. We evaluate our
+    algorithm on 6 large social, collaboration and information
+    networks with ground-truth community information. Experiments show
+    state of the art performance both in terms of the quality of
+    detected communities as well as in speed and scalability of our
+    algorithm.
+    """
+    #_binary = 'snap/Snap/examples/bigclam/bigclam'
+    _binary = 'snap/bigclam/bigclam'
+    # Note: this binary had to be modified to support edgelists
+    # separated by spaces.
+    _threads = None
+    q = -1   # Auto-detect q
+    _q_doc = """Number of communities to detect (-1 autodetect, but within the given range)"""
+    q_max = None  # default 100
+    q_min = None  # default 5
+    q_trials = None
+    _q_trials_doc = """How many trials for the number of communities"""
+    alpha = None
+    _alpha_doc = "Alpha for backtracking line search"
+    beta = None
+    _beta_doc = "Beta for backtracking line search"
+    def _filter_graphfilename(self, name):
+        # This method special-cases reading of files contains
+        # '.ungraph', so stript that from any input filenames.
+        return name.replace('.ungraph', '')
+    def run(self):
+        #output = self.graphfile+'.out..'
+        args = [_get_file(self._binary),
+                '-i:%s'%self.graphfile,
+                #'-o:%s'%output,
+                #'-l:%s'%label_file,
+                ]
+        if self._threads:          args.append('-nt:%s'%str(self._threads))
+        if self.q is not None:     args.append('-c:%d'%self.q)
+        if self.q_min:             args.append('-mc:%d'%self.q_max)
+        if self.q_max:             args.append('-xc:%d'%self.q_min)
+        if self.q_trials:          args.append('-nc:%d'%self.q_trials)
+        if self.alpha is not None: args.append('-sa:%f'%self.alpha)
+        if self.beta  is not None: args.append('-sb:%f'%self.beta)
+        self.call_process(args)
+
+class SnapAGMfit(_SNAPmethod):
+    """Fitting to an AGM, via SNAP library.
+
+    https://snap.stanford.edu/snap/index.html
+    Reference: http://ieeexplore.ieee.org/xpls/abs_all.jsp?arnumber=6413734&tag=1 (???)
+
+    """
+    _binary = 'snap/agmfit/agmfitmain'
+    # Note: this binary had to be modified to support edgelists
+    # separated by spaces.
+    q = -1   # Auto-detect q
+    _q_doc = """Number of communities to detect (-1 autodetect, but within the given range)"""
+    epsilon = None
+    _epsilon_doc = """Edge probability between the nodes that do not share any community (default (0.0): set it to be 1 / N^2"""
+    def run(self):
+        #output = self.graphfile+'.out..'
+        #label_file = self.graphfile+'.labels'
+        args = [_get_file(self._binary),
+                '-i:%s'%self.graphfile,
+                #'-o:%s'%output,
+                '-l:',
+                '-s:%d'%int(self.randseed),
+                ]
+        if self.q is not None:     args.append('-c:%d'%self.q)
+        if self.epsilon is not None: args.append('-e:%f'%self.epsilon)
+        self.call_process(args)
+
+
+class _SNAPcommunity(_SNAPmethod):
+    """Base class for the 'community' examples in SNAP.
+
+    GN and CNM algorithms derived from this."""
+    _binary = 'snap/Snap/examples/community/community'
+    def run(self):
+        args = [_get_file(self._binary),
+                '-i:%s'%self.graphfile,
+                #'-o:%s'%output,
+                '-a:%d'%self._algorithm,
+                ]
+        self.call_process(args)
+    def read_cmtys(self):
+        f = open('communities.txt')
+        cmtynodes = { }
+        for line in f:
+            if line.startswith('# Communities:'):
+                # It tells us how many communities were found, so we
+                # can pre-create all the community sets.
+                Ncmty = int(line.split(':')[1])
+                for cid in range(Ncmty):
+                    cmtynodes[cid] = set()
+            if line.startswith('#'): continue
+            if not line.strip(): continue
+            a, b = line.split()
+            nid = int(a)
+            cid = int(b)
+            cmtynodes[cid].add(self.vmap_inv[nid])
+        cmtys = pcd.cmty.Communities(cmtynodes)
+        cmtys.label = self._algorithm_name
+        self.cmtys = cmtys
+        self.results = [ self.cmtys ]
+class SnapGN(_SNAPcommunity):
+    """Girvan-Newman algorithm in SNAP library.
+
+    http://dx.doi.org/10.1073/pnas.122653799"""
+    _algorithm = 1
+    _algorithm_name = 'Girvan-Newman'
+class SnapCNM(_SNAPcommunity):
+    """Clauset-Newman-Moore algorithm in SNAP library.
+
+    http://arxiv.org/abs/cond-mat/0408187"""
+    _algorithm = 2
+    _algorithm_name = 'Clauset-Newman-Moore'
 
 
 if __name__ == "__main__":
