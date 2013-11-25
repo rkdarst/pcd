@@ -202,10 +202,10 @@ class Spectrum(object):
 
         If complete_graph is True (default), then re-add extra nodes
         that were removed as part of dangling trees."""
-        if self.q() != 2:
+        if hasattr(self, 'q') and self.q() != 2:
             print "Warning(\"We didn't detect two communities (%s actual)"%self.q()
 
-        signs = self.cmty_classify(-2)
+        signs = self.cmty_classify(self._classification_index(0))
 
         cmtynodes = {0:set(), 1:set()}   # this case (q=2) case limited to two communities
         for node, sum_ in signs.iteritems():
@@ -221,7 +221,7 @@ class Spectrum(object):
         if sum(len(ns) for ns in cmtynodes.itervalues()) != self.N:
             print "We seem to not spanned the graph.  Do all nodes have an incoming edge?"
         # re-add dangling tree nodes:
-        if complete_graph:
+        if complete_graph and hasattr(self, 'readd_nodes'):
             cmtynodes = self.readd_nodes(cmtynodes)
         # Make communities object.
         cmtys = cmty.Communities(cmtynodes=cmtynodes)
