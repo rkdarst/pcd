@@ -1590,6 +1590,80 @@ class LinkCommunities(CDMethod):
         cmtys = pcd.cmty.Communities(cmtynodes)
         return cmtys
 
+
+class Conclude(CDMethod):
+    """CONCLUDE
+
+    http://www.emilio.ferrara.name/conclude/ [Downloaded 2013-11-25]
+    http://arxiv.org/abs/1303.1738
+
+    CONCLUDE (COmplex Network CLUster DEtection) is a fast community
+    detection algorithm.
+
+    The strategy consists of three steps:
+    - (re)weight edges by using a particular random walker;
+    - calculate the distance between each pair of connected nodes;
+    - partition the network into communities so to optimize the
+      weighted network modularity.
+
+    CONCLUDE is computationally efficient since its cost is near
+    linear with respect to the number of edges in the network.
+
+    The adoption of this community detection method has been proved
+    worthy in different contexts, such as for studying online social
+    networks and biological networks.
+
+    References:
+
+    Mixing local and global information for community detection in
+    large networks.  P De Meo, E Ferrara, G Fiumara and A Provetti.
+    Journal of Computer and System Sciences, 80(1):72-87 (2014).
+
+    CONCLUDE is an improved version of the algorithm presented in the
+    following paper, you might cite too:
+
+    Generalized Louvain method for community detection in large
+    networks.  P De Meo, E Ferrara, G Fiumara, and A Provetti.  ISDA
+    ’11: Proceedings of the 11th International Conference on
+    Intelligent Systems Design and Applications, 2011.
+    """
+    _input_format = 'edgelist'
+    _nodemapZeroIndexed = True
+    _binary = 'conclude/CONCLUDE.jar'
+    _mem_limit = None
+    _mem_limit_doc = """\
+    int, Set memory limit for the process.  Not needed necessarily.
+    """
+    def run(self):
+        output = self.graphfile+'.out'
+        args = ['java',
+                #'-Xmx4G',  # suggested from the docs
+                '-jar', _get_file(self._binary),
+                self.graphfile, output,
+                " ",  # delimiter (default \t)
+                # 1=only compute weights, don't cluster.
+                ]
+        if self._mem_limit:
+            # -Xmx4G
+            args.insert(1, '-Xmx%dG'%self._mem_limit)
+        self.call_process(args)
+
+    def read_cmtys(self):
+        output = self.graphfile+'.out'
+        modularity = None
+        cmtynodes = { }
+        for line in open(output):
+            if line.startswith('#'): continue
+            if line.startswith('Q = '):
+                modularity = float(line[4:])
+                continue
+            line = line.split()
+            cmtynodes[len(cmtynodes)] = set(self.vmap_inv[int(x)] for x in line)
+        self.cmtys = pcd.cmty.Communities(cmtynodes)
+        self.cmtys.label = "Conclude"
+        self.results = [ self.cmtys ]
+
+
 if __name__ == "__main__":
     if len(sys.argv) < 2 or '-h' in sys.argv or '--help' in sys.argv:
         print "%s MethodName infile outfile"%os.path.basename(sys.argv[0])
