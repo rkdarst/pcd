@@ -787,7 +787,7 @@ class _CommunitiesBase(object):
             # Write the community names to disk:
             f_names = open(fname+'.names', 'w')
             print >> f_names, '# Community names for file %s'%fname
-            print >> f, '#', repr(self)
+            print >> f_names, '#', repr(self)
             if isinstance(headers, str):
                 print >> f_names, '#', headers
             else:
