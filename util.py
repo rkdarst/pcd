@@ -776,6 +776,141 @@ def mainfunc(ns, defaultmethod='run'):
     getattr(ns[mode], defaultmethod)(**kwargs)
 
 
+def graph_stats(g, prefix='', recurse=1, level=1, _test=False):
+    """Compute graph statistics.
+
+    prefix: str
+        internal use, prefix output lines with this
+    recurse: int
+        if true, recurse and compute stats of largest connected
+        component, too.
+    level: int, default 1
+        0: run only O(n) or O(m) tests
+        1: also run triangle tests
+        2: also calculate diameter
+    _test: bool, default False
+        Run internal assertions to verify this functions's triangle
+        calculations match networkx's.
+
+    Return: list
+        List of strings containing human-readable description of
+        graph.  To print it out, use '\n'.join(lines).
+    """
+    stats = [ ]
+    #print "nodes"
+    stats.append("Nodes: %d"%g.number_of_nodes())
+    #print "edges"
+    stats.append("Edges: %d"%g.number_of_edges())
+    #print "density"
+    stats.append("Density: %f"%networkx.density(g))
+    if not g.is_directed():
+        # Undirected graphs:
+        if level >= 1:
+            ##print "triangles"
+            #stats.append("Triangles: %d"%(sum(networkx.triangles(g).itervalues())//3))
+            ##print "transitivity"
+            #stats.append("Transitivity: %f"%networkx.transitivity(g))
+            ##print "acc"
+            #stats.append("Average-Clustering-Coefficient: %f"%networkx.average_clustering(g))
+
+            # Implement the above three functions myself.  This saves from
+            # extra internal iterations of the
+            # cluster._triangles_and_degree_iter function.
+            import networkx.algorithms.cluster as cluster
+            triangles2 = 0
+            possible_triangles2 = 0
+            clustering_coef_sum = 0.0
+            n_nodes = 0
+            # The following function DOUBLE-COUNTS triangles
+            for node, d, t in cluster._triangles_and_degree_iter(g):
+                # Everywhere here, we have double-counts for t and
+                # possible_triangles.
+                triangles2 += t
+                possible_triangles2 += d*(d-1)
+                count_zeros = True
+                if t > 0:
+                    # exclude nodes with zero triangles from ACC.  This
+                    # includes nodes that have no triangles possible.
+                    n_nodes += 1
+                    clustering_coef_sum += t/float(d*(d-1))
+            if triangles2 == 0:   transitivity = 0.0
+            else:                 transitivity = triangles2/float(possible_triangles2)
+            avg_clustering_coefficient = clustering_coef_sum / float(g.number_of_nodes())
+            avg_clustering_coefficient_nonzero = clustering_coef_sum / float(n_nodes)
+            #print n_nodes, clustering_coef_sum
+            if _test:
+                assert triangles2//6 == sum(networkx.triangles(g).itervalues())//3
+                assert abs(transitivity - networkx.transitivity(g)) < 1e-6
+                assert abs(avg_clustering_coefficient-networkx.average_clustering(g)) < 1e-6
+
+            stats.append("Triangles: %d"%(triangles2//6))
+            #print "transitivity"
+            stats.append("Transitivity: %f"%transitivity)
+            #print "acc"
+            stats.append("Average-Clustering-Coefficient: %f"%avg_clustering_coefficient)
+            stats.append("Average-Clustering-Coefficient-Nonzero: %f"%avg_clustering_coefficient_nonzero)
+
+        if level < 1 or transitivity != 1.0:
+            # This function raises a warning when run on complete
+            # graphs:
+            # networkx/algorithms/assortativity/correlation.py:285:
+            # RuntimeWarning: invalid value encountered in
+            # double_scalars
+            stats.append("Degree-Assortativity-Coefficient: %s"%
+                         networkx.degree_assortativity_coefficient(g))
+
+        comps = networkx.connected_components(g)
+        if len(comps)==1 and level >= 2:
+            #print "diameter"
+            stats.append("Diameter: %d"%networkx.diameter(g))
+            #print "radius"
+            stats.append("Radius: %d"%networkx.radius(g))
+        stats.append("Is-Connected: %d"%(len(comps)==1))
+        if len(comps) > 1:
+            stats.append("Number-Connected-Components: %d"%len(comps))
+            #print "recursing"
+            if len(comps) < 20:
+                stats.append("Component-Sizes: %s"%([len(x) for x in comps]))
+            elif sum(1 for x in comps if len(x)>1) < 20:
+                stats.append("Component-Sizes-Nonsingleton: %s"%([len(x) for x in comps if len(x)>1]))
+            # Fails for directed graphs...
+            if recurse:
+                lcc = g.subgraph(comps[0])
+                stats.extend(graph_stats(lcc, prefix='LCC-', recurse=recurse-1))
+
+    if g.is_directed():
+        #print "ncc: s/w"
+        s_comps = networkx.strongly_connected_components(g)
+        stats.append("Is-Strongly-Connected: %d"%(len(s_comps) == 1))
+        w_comps = networkx.weakly_connected_components(g)
+        stats.append("Is-Weakly-Connected: %d"%(len(w_comps) == 1))
+        #
+        if len(s_comps) > 1:
+            stats.append("Number-Strongly-Connected-Components: %d"%len(s_comps))
+            if len(s_comps) < 20:
+                stats.append("Strong-Component-Sizes: %s"%([len(x) for x in s_comps]))
+            elif sum(1 for x in s_comps if len(x)>1) < 20:
+                stats.append("Strong-Component-Sizes-Nonsingleton: %s"%(
+                    [len(x) for x in s_comps if len(x)>1]))
+            if recurse:
+                lcc = g.subgraph(s_comps[0])
+                stats.extend(graph_stats(lcc, prefix='LSCC-', recurse=recurse-1))
+        if len(w_comps) > 1:
+            stats.append("Number-Weakly-Connected-Components: %d"%len(w_comps))
+            if len(w_comps) < 20:
+                stats.append("Weak-Component-Sizes: %s"%([len(x) for x in w_comps]))
+            elif sum(1 for x in w_comps if len(x)>1) < 20:
+                stats.append("Weak-Component-Sizes-Nonsingleton: %s"%(
+                    [len(x) for x in w_comps if len(x)>1]))
+            if recurse:
+                lcc = g.subgraph(w_comps[0])
+                stats.extend(graph_stats(lcc, prefix='LWCC-', recurse=recurse-1))
+
+    #stats.append(": %d"%networkx.(g))
+    if prefix:
+        stats = [prefix+line for line in stats]
+    return stats
+
 if __name__ == "__main__":
     # tests
     print logTime(-10)
