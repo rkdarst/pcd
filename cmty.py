@@ -109,7 +109,7 @@ from_iter(nodecmtys):  new instance
    they want to be creatable from any of the below constructors.
 from_nodecmtys(nodecmtys):  new instance
    Constructor from mapping node -> community
-from_nodecmtys(nodecmtys):  new instance
+from_nodecmtys_overlap(nodecmtys):  new instance
    Constructor from mapping node -> set(communities)
 from_pcd(G): new instance
    Constructor from pcd object G
@@ -777,6 +777,9 @@ class _CommunitiesBase(object):
         cmtynodes = self.cmtynodes()
         cnames = [cname for cname, cnodes in cmtynodes.iteritems() if len(cnodes) != 0 ]
         #cnames = self.cmtynames()
+        for c in cnames:
+            if isinstance(c, str) and len(c) == 0:
+                raise ValueError("Can not write empty community label '%s'"%c)
 
         f = fname
         if not hasattr(f, 'write'):
@@ -826,6 +829,8 @@ class _CommunitiesBase(object):
 
         # Write all the communities.
         for c in cnames:
+            if len(cmtynodes[c]) == 0:
+                raise ValueError("Can not write empty community %s"%c)
             if mapping:
                 print >> f, ' '.join(str(x) for x in sorted(mapping[n] for n in cmtynodes[c]))
             else:
