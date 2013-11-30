@@ -283,6 +283,31 @@ def zlistdir(dirname, dup_ok=False):
             raise ValueError("File found multiple times: %s"%f)
         files_d.add(f)
     return sorted(files_d)
+import glob
+def zglob(path, dup_ok=False):
+    """glob.glob with compressed file support.
+
+    Returns all filenames normalized with extensions."""
+    files = [ ]
+    files.extend(glob.glob(path))
+    files.extend(glob.glob(path+'.gz'))
+    files.extend(glob.glob(path+'.bz2'))
+    if path.endswith('.gz'):
+        files.extend(glob.glob(path[:-3]))
+    if path.endswith('.bz2'):
+        files.extend(glob.glob(path[:-4]))
+    # Check for duplicates
+    if not dup_ok:
+        files_set = set()
+        for f in files:
+            if f.endswith('.gz'):    files_set.add(f[:-3])
+            elif f.endswith('.bz2'): files_set.add(f[:-4])
+            else: files_set.add(f)
+        if len(files_set) != len(files):
+            raise ValueError("Duplicate (compressed + uncompressed) files found: %s"%path)
+    # sort and return
+    files.sort()
+    return files
 
 
 def write_pajek(fname, g, cmtys):
