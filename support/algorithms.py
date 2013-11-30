@@ -1626,7 +1626,7 @@ class Conclude(CDMethod):
 
     Generalized Louvain method for community detection in large
     networks.  P De Meo, E Ferrara, G Fiumara, and A Provetti.  ISDA
-    ’11: Proceedings of the 11th International Conference on
+    '11: Proceedings of the 11th International Conference on
     Intelligent Systems Design and Applications, 2011.
     """
     _input_format = 'edgelist'
