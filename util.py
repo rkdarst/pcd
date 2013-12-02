@@ -695,23 +695,82 @@ def tmpdir_context(chdir=False, delete=True, suffix='', prefix='tmp', dir=None):
     if delete:
         shutil.rmtree(tmpdir)
 
-def ovIn_LF(cmtys1, cmtys2):
+def ovIn_LF(cmtys1, cmtys2, check=True, use_existing=False):
+    """Compute NMI using the overlap-including definition.
+
+    This uses the external code 'mutual3/mutual' to calculate the
+    overlap-using In.
+
+    If the communities object is a pcd.cmty.CommunityFile, has a fname
+    attribute, and it exists and doesn't end in .gz or .bz2, and the
+    argument use_existing is true, then this file will be used for the
+    input to the NMI code.  The NMI code is very dumb, and does not
+    remove comments, and uses only floating-point or integer node IDs,
+    and does not give any type of error if these conditions are not
+    met.  Thus, only enable use_existing if you can vouch for the.
+
+    check: bool, default True
+        If true, check that all node names are either representable as
+        integers or floating point numbers.  This can either be python
+        integers or floats, or strings of those."""
     from pcd.support.algorithms import _get_file
+    from pcd.cmty import CommunityFile
     binary = _get_file('mutual3/mutual')
 
-    #def write_cmty_file(f, cmtys):
-    #    for c, nodes in cmtys.cmtynodes().iteritems():
-    #        print >> f, " ".join(str(float(n)) for n in nodes)
+    def _is_float_str(x):
+        """Is this a string representation of a float?"""
+        try:
+            float(x)
+            return True
+        except ValueError:
+            return False
+    # check that community files are valid for the program:
+    if check:
+        for nodes in cmtys1.itervalues():
+            assert all(isinstance(x, (int, float)) or _is_float_str(x) for x in nodes )
+        for nodes in cmtys2.itervalues():
+            assert all(isinstance(x, (int, float)) or _is_float_str(x) for x in nodes )
+
+    # We must use os.path.abspath *outside* of the tmpdir_context, or
+    # else the absolute path will be wrong.
+    args = [ binary ]
+    if (use_existing
+        and isinstance(cmtys1, CommunityFile)
+        and hasattr(cmtys1, 'fname')
+        and os.path.exists(cmtys1.fname)
+        and not (cmtys1.fname.endswith('.bz2')
+                 or cmtys1.fname.endswith('.gz'))):
+        args.append(os.path.abspath(cmtys1.fname))
+    else:
+        args.append(None)
+
+    if (use_existing
+        and isinstance(cmtys1, CommunityFile)
+        and hasattr(cmtys2, 'fname')
+        and os.path.exists(cmtys2.fname)
+        and not (cmtys2.fname.endswith('.bz2')
+                 or cmtys2.fname.endswith('.gz'))):
+        args.append(os.path.abspath(cmtys2.fname))
+    else:
+        args.append(None)
+
     with tmpdir_context(chdir=True, dir='.', prefix='tmp-nmi-'):
-        #write_cmty_file(open('cmtys1.txt', 'w'), cmtys1)
-        #write_cmty_file(open('cmtys2.txt', 'w'), cmtys2)
-        cmtys1.write_clusters('cmtys1.txt', raw=True)
-        cmtys2.write_clusters('cmtys2.txt', raw=True)
-        args = [binary, 'cmtys1.txt', 'cmtys2.txt' ]
+        # Write community files, if they do not already exist.  These
+        # must be written inside of the tmpdir_context context because
+        # only in here does it know the right
+        if args[1] is None:
+            cmtys1.write_clusters('cmtys1.txt', raw=True)
+            args[1] = 'cmtys1.txt'
+        if args[2] is None:
+            cmtys2.write_clusters('cmtys2.txt', raw=True)
+            args[2] = 'cmtys2.txt'
         p = subprocess.Popen(args, stdout=subprocess.PIPE)
         ret = p.wait()
         stdout = p.stdout.read()
-        #print stdout
+        if ret != 0:
+            print stdout
+            raise RuntimeError("The program '%s' returned non-zero: %s"%(
+                args[0], ret))
         nmi = float(stdout.split(':', 1)[1])
     return nmi
 
