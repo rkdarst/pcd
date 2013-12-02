@@ -764,11 +764,18 @@ class _CommunitiesBase(object):
 
         mapping: if given, node names are transformed using this
         mapping when writing.  Could be used to translate to integers,
-        for example.  If given and 'int' or `int` (the type), then
-        automatically greate a mapping to integers using
-        self.nodeintmap().
+        for example.  Historical note: It used to be possible to give.
+        Also, the 'raw, option used to also automatically construct a
+        mapping to integer.  Passing 'int' no longer maps to integer
+        (it raises an exception), and raw no longer maps to integer
+        automatically.  Both of these would make a map that wasn't
+        guarenteed to correspond to anything else!  Since the point of
+        the file is to make a permanent record that can be compared
+        with, this is pointless and now raises an error.
 
-        raw: if True, print no header lines or anything.
+        raw: if True, print no header lines or anything.  This no
+        longer automatically maps to integer (see historical node
+        under 'mapping').
 
         write_names: 'separate'(default) or 'inline' or None.
            'separate': write another file with extension .names which has one line per community
@@ -823,9 +830,8 @@ class _CommunitiesBase(object):
             print >> f, '#', time.ctime()
 
         # if mapping='int', then force an integer mapping
-        if (mapping == 'int' or mapping == int or raw) and mapping is None:
-            mapping = self.nodeintmap()
-            assert len(mapping) == self.N
+        if (mapping == 'int' or mapping == int):
+            raise ValueError("Automatically mapping to int doesn't make sense - it isn't reproduciable.")
 
         # Write all the communities.
         for c in cnames:
