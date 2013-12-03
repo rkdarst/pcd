@@ -4,6 +4,7 @@
 
 import sys
 
+import pcd.cmty
 import pcd.util
 import pcd.ioutil
 
@@ -12,8 +13,12 @@ def run():
     for cmd in sys.argv[1:]:
         cmd = pcd.util.leval(cmd)
 
-        if cmd == 'read':
-            pass
+        if cmd == 'open_cmty':
+            cmtys = pcd.cmty.CommunityFile(stack[-1])
+        elif cmd == 'open_graph':
+            g = pcd.ioutil.read_any(stack[-1])
+        elif cmd == 'interact':
+            from fitz import interact ; interact.interact()
         else:
             stack.append(cmd)
 
