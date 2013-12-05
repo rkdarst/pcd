@@ -970,6 +970,20 @@ def graph_stats(g, prefix='', recurse=1, level=1, _test=False):
         stats = [prefix+line for line in stats]
     return stats
 
+class Proxy(object):
+    def __init__(self, gen):
+        self.__gen = gen
+        self.__obj = None
+    def __get(self):
+        if self.__obj is None:
+            self.__obj = self.__gen()
+            print self.__obj
+        return self.__obj
+    def __getattr__(self, name):
+        return getattr(self.__get(), name)
+    def __len__(self):
+        return self.__get().__len__()
+
 if __name__ == "__main__":
     # tests
     print logTime(-10)
