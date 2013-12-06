@@ -2,7 +2,11 @@
 
 # Richard Darst, November 2013
 
+import os
 import sys
+
+import networkx
+import numpy
 
 import pcd.cmty
 import pcd.util
