@@ -695,7 +695,7 @@ def tmpdir_context(chdir=False, delete=True, suffix='', prefix='tmp', dir=None):
     if delete:
         shutil.rmtree(tmpdir)
 
-def ovIn_LF(cmtys1, cmtys2, check=True, use_existing=False):
+def NMI_LF(cmtys1, cmtys2, check=True, use_existing=False):
     """Compute NMI using the overlap-including definition.
 
     This uses the external code 'mutual3/mutual' to calculate the
@@ -773,7 +773,7 @@ def ovIn_LF(cmtys1, cmtys2, check=True, use_existing=False):
                 args[0], ret))
         nmi = float(stdout.split(':', 1)[1])
     return nmi
-
+ovIn_LF = NMI_LF
 
 #
 # The following class WeightedChoice is used for selecting items from
