@@ -838,8 +838,6 @@ def mainfunc(ns, defaultmethod='run'):
 def graph_stats(g, prefix='', recurse=1, level=1, _test=False):
     """Compute graph statistics.
 
-    prefix: str
-        internal use, prefix output lines with this
     recurse: int
         if true, recurse and compute stats of largest connected
         component, too.
@@ -849,9 +847,12 @@ def graph_stats(g, prefix='', recurse=1, level=1, _test=False):
         2: also calculate diameter
     _test: bool, default False
         Run internal assertions to verify this functions's triangle
-        calculations match networkx's.
+        calculations match networkx's. (Some test logic is reproduced
+        for efficiency reasons.)
+    prefix: str
+        internal use, prefix output lines with this.  Do not use.
 
-    Return: list
+    Returns: list
         List of strings containing human-readable description of
         graph.  To print it out, use '\n'.join(lines).
     """
@@ -926,14 +927,18 @@ def graph_stats(g, prefix='', recurse=1, level=1, _test=False):
             stats.append("Radius: %d"%networkx.radius(g))
         stats.append("Is-Connected: %d"%(len(comps)==1))
         if len(comps) > 1:
-            stats.append("Number-Connected-Components: %d"%len(comps))
-            #print "recursing"
-            if len(comps) < 20:
-                stats.append("Component-Sizes: %s"%([len(x) for x in comps]))
-            elif sum(1 for x in comps if len(x)>1) < 20:
-                stats.append("Component-Sizes-Nonsingleton: %s"%([len(x) for x in comps if len(x)>1]))
+            stats.append("Conn-Component-Number: %d"%len(comps))
+            stats.append("Conn-Component-Fraction-Nodes-In-Largest: %f"%(
+                len(comps[0])/len(g)))
+            stats.append("Conn-Component-Sizes-Top-20: %s"%(
+                " ".join(str(len(x)) for x in comps[:20])))
+            stats.append("Conn-Component-Size-Fractions-Top-5: %s"%(
+                " ".join("%g"%(len(x)/float(len(g))) for x in comps[:5])))
+            stats.append("Conn-Components-Number-Singleton: %d"%(
+                             sum(1 for x in comps if len(x)==1)))
             # Fails for directed graphs...
             if recurse:
+                #print "recursing"
                 lcc = g.subgraph(comps[0])
                 stats.extend(graph_stats(lcc, prefix='LCC-', recurse=recurse-1))
 
@@ -945,22 +950,26 @@ def graph_stats(g, prefix='', recurse=1, level=1, _test=False):
         stats.append("Is-Weakly-Connected: %d"%(len(w_comps) == 1))
         #
         if len(s_comps) > 1:
-            stats.append("Number-Strongly-Connected-Components: %d"%len(s_comps))
-            if len(s_comps) < 20:
-                stats.append("Strong-Component-Sizes: %s"%([len(x) for x in s_comps]))
-            elif sum(1 for x in s_comps if len(x)>1) < 20:
-                stats.append("Strong-Component-Sizes-Nonsingleton: %s"%(
-                    [len(x) for x in s_comps if len(x)>1]))
+            stats.append("Strong-Conn-Component-Number: %d"%len(s_comps))
+            stats.append("Strong-Conn-Component-Number: %d"%len(comps))
+            stats.append("Strong-Conn-Component-Fraction-Nodes-In-Largest: %f"%(
+                             len(comps[0])/len(g)))
+            stats.append("Strong-Conn-Component-Sizes-Top-20: %s"%(
+                             " ".join(str(len(x)) for x in comps[:20])))
+            stats.append("Strong-Conn-Component-Size-Fractions-Top-5: %s"%(
+                             " ".join("%g"%(len(x)/float(len(g))) for x in comps[:5])))
             if recurse:
                 lcc = g.subgraph(s_comps[0])
                 stats.extend(graph_stats(lcc, prefix='LSCC-', recurse=recurse-1))
         if len(w_comps) > 1:
-            stats.append("Number-Weakly-Connected-Components: %d"%len(w_comps))
-            if len(w_comps) < 20:
-                stats.append("Weak-Component-Sizes: %s"%([len(x) for x in w_comps]))
-            elif sum(1 for x in w_comps if len(x)>1) < 20:
-                stats.append("Weak-Component-Sizes-Nonsingleton: %s"%(
-                    [len(x) for x in w_comps if len(x)>1]))
+            stats.append("Weak-Conn-Component-Number: %d"%len(w_comps))
+            stats.append("Weak-Conn-Component-Number: %d"%len(w_comps))
+            stats.append("Weak-Conn-Component-Fraction-Nodes-In-Largest: %f"%(
+                             len(w_comps[0])/len(g)))
+            stats.append("Weak-Conn-Component-Sizes-Top-20: %s"%(
+                             " ".join(str(len(x)) for x in w_comps[:20])))
+            stats.append("Weak-Conn-Component-Size-Fractions-Top-5: %s"%(
+                             " ".join("%g"%(len(x)/float(len(g))) for x in w_comps[:5])))
             if recurse:
                 lcc = g.subgraph(w_comps[0])
                 stats.extend(graph_stats(lcc, prefix='LWCC-', recurse=recurse-1))
