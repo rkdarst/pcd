@@ -62,6 +62,8 @@ cmtys.cmtysizes(): dict
     Mapping name->len(nodes)
 cmtys.cmtysizes_sum() : int
     Sum of all community sizes (may be more than N if there are overlaps)
+cmtys.cmtysizes_dist() : dict
+    Distribution of community sizes.  Map of size -> count(sizes)
 cmtys.nodecmtys(): dict
     Mapping node -> set(communities_of_node).  The reverse of
     iteritems() and to_dict()
@@ -264,6 +266,12 @@ class _CommunitiesBase(object):
         """Total number of nodes in communities.  If there are
         overlaps, count the node multiple times."""
         return sum(len(v) for v in self.itervalues())
+    def cmtysizes_dist(self):
+        """Community size distribution.  Map size -> count(size)"""
+        sizes = collections.defaultdict(int)
+        for nodes in self.itervalues():
+            sizes[len(nodes)] += 1
+        return dict(sizes)  # make a non-defaultdict copy.
     def nodecmtys(self):
         """Return mapping node -> cmty set.
 
