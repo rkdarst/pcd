@@ -1764,12 +1764,19 @@ class CommunityUnion(_CommunitiesBase):
     a new Communities object.  The new communities object iterates
     over each community object, and returns every community in every object.
 
-    cmtys: the input Communities objects.  The interface should also
-    work with dicts.
+    cmtys: list of Community objects
+        the input Communities objects.  Only .iteritems() and len()The
+        interface should also work with dicts.
 
-    dup_ok: if false, communities which exist in multiple levels are
-    returned only one. (default false).  If true, the same community
-    of nodes could be returned multiple times from this iterator."""
+    dup_ok: bool, default False
+        If true, communities which exist in multiple inputs are
+        returned only once.  If true, the same community of nodes
+        could be returned multiple times from this iterator.  Setting
+        this to true should increase the speed of this method, as if
+        dups are removed a record of every previous community must be
+        kept.  The first seen community with a certain node set will
+        be returned (with its name), all others will be silently
+        removed."""
     def __init__(self, cmtys, dup_ok=False):
         self._cmtys = cmtys
         self._dup_ok = dup_ok
