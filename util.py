@@ -927,14 +927,14 @@ def graph_stats(g, prefix='', recurse=1, level=1, _test=False):
             stats.append("Radius: %d"%networkx.radius(g))
         stats.append("Is-Connected: %d"%(len(comps)==1))
         if len(comps) > 1:
-            stats.append("Conn-Component-Number: %d"%len(comps))
-            stats.append("Conn-Component-Fraction-Nodes-In-Largest: %f"%(
+            stats.append("Conn-Components-Number-Of: %d"%len(comps))
+            stats.append("Conn-Components-Fraction-Nodes-In-Largest: %g"%(
                 len(comps[0])/len(g)))
-            stats.append("Conn-Component-Sizes-Top-20: %s"%(
+            stats.append("Conn-Components-Sizes-Top-20: %s"%(
                 " ".join(str(len(x)) for x in comps[:20])))
-            stats.append("Conn-Component-Size-Fractions-Top-5: %s"%(
+            stats.append("Conn-Components-Size-Fractions-Top-5: %s"%(
                 " ".join("%g"%(len(x)/float(len(g))) for x in comps[:5])))
-            stats.append("Conn-Components-Number-Singleton: %d"%(
+            stats.append("Conn-Components-Number-Singletons: %d"%(
                              sum(1 for x in comps if len(x)==1)))
             # Fails for directed graphs...
             if recurse:
@@ -950,26 +950,28 @@ def graph_stats(g, prefix='', recurse=1, level=1, _test=False):
         stats.append("Is-Weakly-Connected: %d"%(len(w_comps) == 1))
         #
         if len(s_comps) > 1:
-            stats.append("Strong-Conn-Component-Number: %d"%len(s_comps))
-            stats.append("Strong-Conn-Component-Number: %d"%len(comps))
-            stats.append("Strong-Conn-Component-Fraction-Nodes-In-Largest: %f"%(
-                             len(comps[0])/len(g)))
-            stats.append("Strong-Conn-Component-Sizes-Top-20: %s"%(
-                             " ".join(str(len(x)) for x in comps[:20])))
-            stats.append("Strong-Conn-Component-Size-Fractions-Top-5: %s"%(
-                             " ".join("%g"%(len(x)/float(len(g))) for x in comps[:5])))
+            stats.append("Strong-Conn-Components-Number-Of: %d"%len(s_comps))
+            stats.append("Strong-Conn-Components-Fraction-Nodes-In-Largest: %g"%(
+                             len(s_comps[0])/float(len(g))))
+            stats.append("Strong-Conn-Components-Sizes-Top-20: %s"%(
+                             " ".join(str(len(x)) for x in s_comps[:20])))
+            stats.append("Strong-Conn-Components-Size-Fractions-Top-5: %s"%(
+                             " ".join("%g"%(len(x)/float(len(g))) for x in s_comps[:5])))
+            stats.append("Strong-Conn-Components-Number-Singletons: %d"%(
+                             sum(1 for x in s_comps if len(x)==1)))
             if recurse:
                 lcc = g.subgraph(s_comps[0])
                 stats.extend(graph_stats(lcc, prefix='LSCC-', recurse=recurse-1))
         if len(w_comps) > 1:
-            stats.append("Weak-Conn-Component-Number: %d"%len(w_comps))
-            stats.append("Weak-Conn-Component-Number: %d"%len(w_comps))
-            stats.append("Weak-Conn-Component-Fraction-Nodes-In-Largest: %f"%(
-                             len(w_comps[0])/len(g)))
-            stats.append("Weak-Conn-Component-Sizes-Top-20: %s"%(
+            stats.append("Weak-Conn-Components-Number-Of: %d"%len(w_comps))
+            stats.append("Weak-Conn-Components-Fraction-Nodes-In-Largest: %g"%(
+                             len(w_comps[0])/float(len(g))))
+            stats.append("Weak-Conn-Components-Sizes-Top-20: %s"%(
                              " ".join(str(len(x)) for x in w_comps[:20])))
-            stats.append("Weak-Conn-Component-Size-Fractions-Top-5: %s"%(
+            stats.append("Weak-Conn-Components-Size-Fractions-Top-5: %s"%(
                              " ".join("%g"%(len(x)/float(len(g))) for x in w_comps[:5])))
+            stats.append("Weak-Conn-Components-Number-Singletons: %d"%(
+                             sum(1 for x in w_comps if len(x)==1)))
             if recurse:
                 lcc = g.subgraph(w_comps[0])
                 stats.extend(graph_stats(lcc, prefix='LWCC-', recurse=recurse-1))
