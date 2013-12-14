@@ -1101,6 +1101,20 @@ class Louvain(CDMethod):
 class LouvainWeighted(Louvain):
     weighted = True
 
+class LouvainLowest(Louvain):
+    weighted = True
+    def read_cmtys(self):
+        super(LouvainLowest, self).read_cmtys()
+        self.results = [ self.cmtys ]
+
+class LouvainModMax(Louvain):
+    which_partition = 'modmax'
+    weighted = True
+    def read_cmtys(self):
+        super(LouvainModMax, self).read_cmtys()
+        self.results = [ self.cmtys ]
+
+
 #class ModularitySA(CDMethod):
 #    _input_format = 'edgelist'
 #    binary = '/home/richard/research/cd/code-dl/good_modularity_SA/modularity_sampling_v1.0.0/anneal.py'
