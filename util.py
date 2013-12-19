@@ -804,14 +804,14 @@ class WeightedChoice(object):
     and then each call to .choice() will return 'a' 50% of the time,
     'b' 40% of the time, and 'c' 10% of the time.  Weights can be any
     numbers with satisfy normal addition and comparison operations.
-
     """
     def __init__(self, itemsweights):
         items, weights = zip(*itemsweights)
         self.cumdist = list(_accumulate(weights))
         self.norm = self.cumdist[-1]
-        self.items = items
+        self.items = list(items)
     def choice(self):
+        """Pick one item according to the weights."""
         x = x = random.random() * self.norm
         return self.items[bisect.bisect(self.cumdist, x)]
     def add(self, item, weight):
@@ -819,6 +819,10 @@ class WeightedChoice(object):
         self.cumdist.append(self.cumdist[-1]+weight)
         self.norm = self.cumdist[-1]
         self.items.append(item)
+    def __len__(self):
+        """Number of items in the chooser"""
+        assert len(self.cumdist) == len(self.items)
+        return len(self.cumdist)
 
 
 def mainfunc(ns, defaultmethod='run'):
