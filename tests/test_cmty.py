@@ -22,6 +22,19 @@ assert cmtys.is_non_overlapping() == False
 assert cmtys.is_partition() == False
 cmtys.load_networkx(networkx.complete_graph(10))
 
+
+# Test object with missing some nodes (non-consecutive).  This is
+# mainly a test of the cmtyintmap and nodeintmap.
+cn2 = {
+    0:set((0, 1, 2, 3)),
+    1:set((3, 4, 5, )),
+    5:set((7, 8, )),    #missing 6 and 9
+    }
+cm2 = pcd.cmty.Communities(cn2)
+pcd.cmty._test_interface(cm2)
+
+
+
 # Test iterator
 cmtys = pcd.cmty.CommunityListIterator(fname)
 #print cmtys.__dict__
@@ -29,6 +42,7 @@ assert cmtys.label == 'test-communities'
 assert len(tuple(cmtys.iteritems())) == 2 # Do a full iteration
 assert len(cmtys) == 2
 pcd.cmty._test_interface(cmtys)
+
 
 # Test conversion to full communities.
 cmtys_full = cmtys.to_full()
@@ -38,9 +52,11 @@ assert cmtys_full.cmtynames() == set(('one', 'two'))
 assert len(cmtys_full) == 2
 pcd.cmty._test_interface(cmtys_full)
 
+
 # Test label loading from the .names file
 cmtys = pcd.cmty.CommunityFile(fname2)
 assert cmtys.label == 'test-communities2'
+
 
 # Test some filters
 cmtys = pcd.cmty.Communities(cmtynodes)

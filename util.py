@@ -695,26 +695,85 @@ def tmpdir_context(chdir=False, delete=True, suffix='', prefix='tmp', dir=None):
     if delete:
         shutil.rmtree(tmpdir)
 
-def ovIn_LF(cmtys1, cmtys2):
+def NMI_LF(cmtys1, cmtys2, check=True, use_existing=False):
+    """Compute NMI using the overlap-including definition.
+
+    This uses the external code 'mutual3/mutual' to calculate the
+    overlap-using In.
+
+    If the communities object is a pcd.cmty.CommunityFile, has a fname
+    attribute, and it exists and doesn't end in .gz or .bz2, and the
+    argument use_existing is true, then this file will be used for the
+    input to the NMI code.  The NMI code is very dumb, and does not
+    remove comments, and uses only floating-point or integer node IDs,
+    and does not give any type of error if these conditions are not
+    met.  Thus, only enable use_existing if you can vouch for the.
+
+    check: bool, default True
+        If true, check that all node names are either representable as
+        integers or floating point numbers.  This can either be python
+        integers or floats, or strings of those."""
     from pcd.support.algorithms import _get_file
+    from pcd.cmty import CommunityFile
     binary = _get_file('mutual3/mutual')
 
-    #def write_cmty_file(f, cmtys):
-    #    for c, nodes in cmtys.cmtynodes().iteritems():
-    #        print >> f, " ".join(str(float(n)) for n in nodes)
+    def _is_float_str(x):
+        """Is this a string representation of a float?"""
+        try:
+            float(x)
+            return True
+        except ValueError:
+            return False
+    # check that community files are valid for the program:
+    if check:
+        for nodes in cmtys1.itervalues():
+            assert all(isinstance(x, (int, float)) or _is_float_str(x) for x in nodes )
+        for nodes in cmtys2.itervalues():
+            assert all(isinstance(x, (int, float)) or _is_float_str(x) for x in nodes )
+
+    # We must use os.path.abspath *outside* of the tmpdir_context, or
+    # else the absolute path will be wrong.
+    args = [ binary ]
+    if (use_existing
+        and isinstance(cmtys1, CommunityFile)
+        and hasattr(cmtys1, 'fname')
+        and os.path.exists(cmtys1.fname)
+        and not (cmtys1.fname.endswith('.bz2')
+                 or cmtys1.fname.endswith('.gz'))):
+        args.append(os.path.abspath(cmtys1.fname))
+    else:
+        args.append(None)
+
+    if (use_existing
+        and isinstance(cmtys1, CommunityFile)
+        and hasattr(cmtys2, 'fname')
+        and os.path.exists(cmtys2.fname)
+        and not (cmtys2.fname.endswith('.bz2')
+                 or cmtys2.fname.endswith('.gz'))):
+        args.append(os.path.abspath(cmtys2.fname))
+    else:
+        args.append(None)
+
     with tmpdir_context(chdir=True, dir='.', prefix='tmp-nmi-'):
-        #write_cmty_file(open('cmtys1.txt', 'w'), cmtys1)
-        #write_cmty_file(open('cmtys2.txt', 'w'), cmtys2)
-        cmtys1.write_clusters('cmtys1.txt', raw=True)
-        cmtys2.write_clusters('cmtys2.txt', raw=True)
-        args = [binary, 'cmtys1.txt', 'cmtys2.txt' ]
+        # Write community files, if they do not already exist.  These
+        # must be written inside of the tmpdir_context context because
+        # only in here does it know the right
+        if args[1] is None:
+            cmtys1.write_clusters('cmtys1.txt', raw=True)
+            args[1] = 'cmtys1.txt'
+        if args[2] is None:
+            cmtys2.write_clusters('cmtys2.txt', raw=True)
+            args[2] = 'cmtys2.txt'
         p = subprocess.Popen(args, stdout=subprocess.PIPE)
         ret = p.wait()
         stdout = p.stdout.read()
-        #print stdout
+        if ret != 0:
+            print stdout
+            raise RuntimeError("The program '%s' returned non-zero: %s"%(
+                args[0], ret))
         nmi = float(stdout.split(':', 1)[1])
     return nmi
-
+ovIn_LF = NMI_LF
 
 #
 # The following class WeightedChoice is used for selecting items from
@@ -745,14 +804,14 @@ class WeightedChoice(object):
     and then each call to .choice() will return 'a' 50% of the time,
     'b' 40% of the time, and 'c' 10% of the time.  Weights can be any
     numbers with satisfy normal addition and comparison operations.
-
     """
     def __init__(self, itemsweights):
         items, weights = zip(*itemsweights)
         self.cumdist = list(_accumulate(weights))
         self.norm = self.cumdist[-1]
-        self.items = items
+        self.items = list(items)
     def choice(self):
+        """Pick one item according to the weights."""
         x = x = random.random() * self.norm
         return self.items[bisect.bisect(self.cumdist, x)]
     def add(self, item, weight):
@@ -760,6 +819,10 @@ class WeightedChoice(object):
         self.cumdist.append(self.cumdist[-1]+weight)
         self.norm = self.cumdist[-1]
         self.items.append(item)
+    def __len__(self):
+        """Number of items in the chooser"""
+        assert len(self.cumdist) == len(self.items)
+        return len(self.cumdist)
 
 
 def mainfunc(ns, defaultmethod='run'):
@@ -775,6 +838,166 @@ def mainfunc(ns, defaultmethod='run'):
                 kwargs = args_to_dict(sys.argv[3:])
     getattr(ns[mode], defaultmethod)(**kwargs)
 
+
+def graph_stats(g, prefix='', recurse=1, level=1, _test=False):
+    """Compute graph statistics.
+
+    recurse: int
+        if true, recurse and compute stats of largest connected
+        component, too.
+    level: int, default 1
+        0: run only O(n) or O(m) tests
+        1: also run triangle tests
+        2: also calculate diameter
+    _test: bool, default False
+        Run internal assertions to verify this functions's triangle
+        calculations match networkx's. (Some test logic is reproduced
+        for efficiency reasons.)
+    prefix: str
+        internal use, prefix output lines with this.  Do not use.
+
+    Returns: list
+        List of strings containing human-readable description of
+        graph.  To print it out, use '\n'.join(lines).
+    """
+    stats = [ ]
+    #print "nodes"
+    stats.append("Nodes: %d"%g.number_of_nodes())
+    #print "edges"
+    stats.append("Edges: %d"%g.number_of_edges())
+    #print "density"
+    stats.append("Density: %f"%networkx.density(g))
+    if not g.is_directed():
+        # Undirected graphs:
+        if level >= 1:
+            ##print "triangles"
+            #stats.append("Triangles: %d"%(sum(networkx.triangles(g).itervalues())//3))
+            ##print "transitivity"
+            #stats.append("Transitivity: %f"%networkx.transitivity(g))
+            ##print "acc"
+            #stats.append("Average-Clustering-Coefficient: %f"%networkx.average_clustering(g))
+
+            # Implement the above three functions myself.  This saves from
+            # extra internal iterations of the
+            # cluster._triangles_and_degree_iter function.
+            import networkx.algorithms.cluster as cluster
+            triangles2 = 0
+            possible_triangles2 = 0
+            clustering_coef_sum = 0.0
+            n_nodes = 0
+            # The following function DOUBLE-COUNTS triangles
+            for node, d, t in cluster._triangles_and_degree_iter(g):
+                # Everywhere here, we have double-counts for t and
+                # possible_triangles.
+                triangles2 += t
+                possible_triangles2 += d*(d-1)
+                count_zeros = True
+                if t > 0:
+                    # exclude nodes with zero triangles from ACC.  This
+                    # includes nodes that have no triangles possible.
+                    n_nodes += 1
+                    clustering_coef_sum += t/float(d*(d-1))
+            if triangles2 == 0:   transitivity = 0.0
+            else:                 transitivity = triangles2/float(possible_triangles2)
+            avg_clustering_coefficient = clustering_coef_sum / float(g.number_of_nodes())
+            avg_clustering_coefficient_nonzero = clustering_coef_sum / float(n_nodes)
+            #print n_nodes, clustering_coef_sum
+            if _test:
+                assert triangles2//6 == sum(networkx.triangles(g).itervalues())//3
+                assert abs(transitivity - networkx.transitivity(g)) < 1e-6
+                assert abs(avg_clustering_coefficient-networkx.average_clustering(g)) < 1e-6
+
+            stats.append("Triangles: %d"%(triangles2//6))
+            #print "transitivity"
+            stats.append("Transitivity: %f"%transitivity)
+            #print "acc"
+            stats.append("Average-Clustering-Coefficient: %f"%avg_clustering_coefficient)
+            stats.append("Average-Clustering-Coefficient-Nonzero: %f"%avg_clustering_coefficient_nonzero)
+
+        if level < 1 or transitivity != 1.0:
+            # This function raises a warning when run on complete
+            # graphs:
+            # networkx/algorithms/assortativity/correlation.py:285:
+            # RuntimeWarning: invalid value encountered in
+            # double_scalars
+            stats.append("Degree-Assortativity-Coefficient: %s"%
+                         networkx.degree_assortativity_coefficient(g))
+
+        comps = networkx.connected_components(g)
+        if len(comps)==1 and level >= 2:
+            #print "diameter"
+            stats.append("Diameter: %d"%networkx.diameter(g))
+            #print "radius"
+            stats.append("Radius: %d"%networkx.radius(g))
+        stats.append("Is-Connected: %d"%(len(comps)==1))
+        if len(comps) > 1:
+            stats.append("Conn-Components-Number-Of: %d"%len(comps))
+            stats.append("Conn-Components-Fraction-Nodes-In-Largest: %g"%(
+                len(comps[0])/len(g)))
+            stats.append("Conn-Components-Sizes-Top-20: %s"%(
+                " ".join(str(len(x)) for x in comps[:20])))
+            stats.append("Conn-Components-Size-Fractions-Top-5: %s"%(
+                " ".join("%g"%(len(x)/float(len(g))) for x in comps[:5])))
+            stats.append("Conn-Components-Number-Singletons: %d"%(
+                             sum(1 for x in comps if len(x)==1)))
+            # Fails for directed graphs...
+            if recurse:
+                #print "recursing"
+                lcc = g.subgraph(comps[0])
+                stats.extend(graph_stats(lcc, prefix='LCC-', recurse=recurse-1))
+
+    if g.is_directed():
+        #print "ncc: s/w"
+        s_comps = networkx.strongly_connected_components(g)
+        stats.append("Is-Strongly-Connected: %d"%(len(s_comps) == 1))
+        w_comps = networkx.weakly_connected_components(g)
+        stats.append("Is-Weakly-Connected: %d"%(len(w_comps) == 1))
+        #
+        if len(s_comps) > 1:
+            stats.append("Strong-Conn-Components-Number-Of: %d"%len(s_comps))
+            stats.append("Strong-Conn-Components-Fraction-Nodes-In-Largest: %g"%(
+                             len(s_comps[0])/float(len(g))))
+            stats.append("Strong-Conn-Components-Sizes-Top-20: %s"%(
+                             " ".join(str(len(x)) for x in s_comps[:20])))
+            stats.append("Strong-Conn-Components-Size-Fractions-Top-5: %s"%(
+                             " ".join("%g"%(len(x)/float(len(g))) for x in s_comps[:5])))
+            stats.append("Strong-Conn-Components-Number-Singletons: %d"%(
+                             sum(1 for x in s_comps if len(x)==1)))
+            if recurse:
+                lcc = g.subgraph(s_comps[0])
+                stats.extend(graph_stats(lcc, prefix='LSCC-', recurse=recurse-1))
+        if len(w_comps) > 1:
+            stats.append("Weak-Conn-Components-Number-Of: %d"%len(w_comps))
+            stats.append("Weak-Conn-Components-Fraction-Nodes-In-Largest: %g"%(
+                             len(w_comps[0])/float(len(g))))
+            stats.append("Weak-Conn-Components-Sizes-Top-20: %s"%(
+                             " ".join(str(len(x)) for x in w_comps[:20])))
+            stats.append("Weak-Conn-Components-Size-Fractions-Top-5: %s"%(
+                             " ".join("%g"%(len(x)/float(len(g))) for x in w_comps[:5])))
+            stats.append("Weak-Conn-Components-Number-Singletons: %d"%(
+                             sum(1 for x in w_comps if len(x)==1)))
+            if recurse:
+                lcc = g.subgraph(w_comps[0])
+                stats.extend(graph_stats(lcc, prefix='LWCC-', recurse=recurse-1))
+
+    #stats.append(": %d"%networkx.(g))
+    if prefix:
+        stats = [prefix+line for line in stats]
+    return stats
+
+class Proxy(object):
+    def __init__(self, gen):
+        self.__gen = gen
+        self.__obj = None
+    def __get(self):
+        if self.__obj is None:
+            self.__obj = self.__gen()
+            print self.__obj
+        return self.__obj
+    def __getattr__(self, name):
+        return getattr(self.__get(), name)
+    def __len__(self):
+        return self.__get().__len__()
 
 if __name__ == "__main__":
     # tests

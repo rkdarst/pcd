@@ -283,6 +283,31 @@ def zlistdir(dirname, dup_ok=False):
             raise ValueError("File found multiple times: %s"%f)
         files_d.add(f)
     return sorted(files_d)
+import glob
+def zglob(path, dup_ok=False):
+    """glob.glob with compressed file support.
+
+    Returns all filenames normalized with extensions."""
+    files = [ ]
+    files.extend(glob.glob(path))
+    files.extend(glob.glob(path+'.gz'))
+    files.extend(glob.glob(path+'.bz2'))
+    if path.endswith('.gz'):
+        files.extend(glob.glob(path[:-3]))
+    if path.endswith('.bz2'):
+        files.extend(glob.glob(path[:-4]))
+    # Check for duplicates
+    if not dup_ok:
+        files_set = set()
+        for f in files:
+            if f.endswith('.gz'):    files_set.add(f[:-3])
+            elif f.endswith('.bz2'): files_set.add(f[:-4])
+            else: files_set.add(f)
+        if len(files_set) != len(files):
+            raise ValueError("Duplicate (compressed + uncompressed) files found: %s"%path)
+    # sort and return
+    files.sort()
+    return files
 
 
 def write_pajek(fname, g, cmtys):
@@ -315,6 +340,9 @@ def gen_pajek(g, cmtys):
     nodecmtys = cmtys.nodecmtys()
     colors = cmtys.cmtycolors()
     for n, data in g.nodes_iter(data=True):
+        label = n
+        if 'label' in data:
+            label = data['label']
         nid = node_map[n] + node_reindex
         x = 0.0
         y = 0.0
@@ -334,7 +362,7 @@ def gen_pajek(g, cmtys):
             color = 'RGB%02X%02X%02X'%tuple(x*255 for x in color[:3])
             extra = 'cmty %s'%cmty
         # Can use RGB colors like: 'RGB(1,0.8,0)' (no spaces)
-        lines.append(' %(nid)d "%(n)s" %(x)f %(y)f %(shape)s ic %(color)s %(extra)s'%(
+        lines.append(' %(nid)d "%(label)s" %(x)f %(y)f %(shape)s ic %(color)s %(extra)s'%(
             locals()))
 
     # Edges.  Networkx uses this *arcs vs *edges distinction.

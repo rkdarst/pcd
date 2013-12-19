@@ -246,17 +246,18 @@ class CDMethod(object):
         # There is still one problem here: we don't know test if x's
         # are all ints, or strings representing ints.  I ignore this
         # problem for now.  FIXME.
-        try:
-            node_set = set(int(x) for x in self.g.nodes_iter())
-            int_set = set(range(start_at, len(self.g)+start_at))
-        except ValueError:
-            node_set = 1
-            int_set = 0
-        if node_set == int_set:
-            # This will convert resultant values to Python ints.
-            self.vmap = NullMap()
-            self.vmap_inv = self.vmap.inverse()
-            return
+        if all(isinstance(x, int) for x in self.g.nodes_iter()):
+            try:
+                node_set = set(int(x) for x in self.g.nodes_iter())
+                int_set = set(range(start_at, len(self.g)+start_at))
+            except ValueError:
+                node_set = 1
+                int_set = 0
+            if node_set == int_set:
+                # This will convert resultant values to Python ints.
+                self.vmap = NullMap()
+                self.vmap_inv = self.vmap.inverse()
+                return
         # Otherwise, map all nodes to integers:
         self.vmap = vmap = { }
         self.vmap_inv = vmap_inv = { }
@@ -310,6 +311,8 @@ class CDMethod(object):
             #self.basename = os.path.basename(self.basename)
         self._absdir = os.path.abspath(self.dir)
         self.graphfile = self.basename+getattr(self, 'graphfileExtension', '.net')
+        if hasattr(self, '_filter_graphfilename'):
+            self.graphfile = self._filter_graphfilename(self.graphfile)
         if not os.access(self.dir, os.F_OK): os.mkdir(self.dir)
     def call_process(self, args, binary_name=None):
         """Call a process, saving the standard output to disk.
@@ -820,8 +823,8 @@ class _Copra(CDMethod):
             args += ['-vs', str(self.max_overlap_range[0]), str(self.max_overlap_range[1])]
         self.call_process(args)
 
-    def read_cmtys(self, fname):
-        cmtys = self.read_cmtys('clusters-'+os.path.basename(self.graphfile))
+    def read_cmtys(self):
+        fname = 'clusters-'+os.path.basename(self.graphfile)
         cmtynodes = collections.defaultdict(set)
         for cmty, line in enumerate(open(fname)):
             nodes = [ int(x) for x in line.split() ]
@@ -1097,6 +1100,20 @@ class Louvain(CDMethod):
 
 class LouvainWeighted(Louvain):
     weighted = True
+
+class LouvainLowest(Louvain):
+    weighted = True
+    def read_cmtys(self):
+        super(LouvainLowest, self).read_cmtys()
+        self.results = [ self.cmtys ]
+
+class LouvainModMax(Louvain):
+    which_partition = 'modmax'
+    weighted = True
+    def read_cmtys(self):
+        super(LouvainModMax, self).read_cmtys()
+        self.results = [ self.cmtys ]
+
 
 #class ModularitySA(CDMethod):
 #    _input_format = 'edgelist'
@@ -1491,6 +1508,340 @@ class FlowSpectrum(_2WalkSpectrum):
     from pcd.support.spectral import Flow as SpectralMethod
 
 
+class LinkCommunities(CDMethod):
+    """Link communities
+
+    Link communities in complex networks, Yong-Yeol Ahn, James
+    P. Bagrow, Sune Lehmann
+
+    http://barabasilab.neu.edu/projects/linkcommunities/
+    Link communities reveal multiscale complexity in networks, Nature (doi:10.1038/nature09182)
+    """
+    _input_format = 'edgelist'
+    graphfileExtension = '.pairs'
+    _nodemapZeroIndexed = True
+    _binary_calc = 'linkcommunities/calcJaccards'
+    _binary_cluster = 'linkcommunities/clusterJaccards'
+    threshold = .5, .25, .75
+    _threshold_doc = """\
+    Threshold is edge density cutoff for communities.  May be either a
+    list or single number.  The first value is the 'default'
+    communities returned.
+    """
+    def run(self):
+        """Run link community calculation.
+
+        This only runs the first step and computes the .jaccs files.
+        read_communities processes that file with the thresholds and
+        calculates the actual communities.
+        """
+        jaccs_file = self.graphfile+'.jaccs'
+        args = [_get_file(self._binary_calc),
+                self.graphfile, jaccs_file,
+                ]
+        self.call_process(args)
+
+    def _get_threshold(self, thr):
+        """Compute communities at a threshold.
+
+        Return filename.  If filename already exists, do not
+        re-compute it."""
+        jaccs_file = self.graphfile+'.jaccs'
+        fname = self.graphfile+'.thr=%f'%thr
+        # From the docs:
+        # record all the clusters at THRESHOLD in net.clusters
+        out_clusters = fname+'.clusters'
+        # and the sizes of each cluster (number of edges and number of
+        # induced nodes) to net.mc_nc.
+        out_sizes = fname+'.mc_nc'
+
+        if os.path.exists(out_clusters):
+            return out_clusters
+        # Run it
+        args = [ _get_file(self._binary_cluster),
+                 self.graphfile, jaccs_file, out_clusters, out_sizes,
+                 str(thr),
+                 ]
+        self.call_process(args, binary_name=self._binary_calc+'.thr=%f'%thr)
+        return out_clusters
+
+    def read_cmtys(self):
+        """Read and set all communities"""
+        jaccs_file = self.graphfile+'.jaccs'
+        self.results = [ ]
+        # Ensure threshold is going to be an iterable
+        threshold = self._threshold_doc
+        if isinstance(self.threshold, (int, float)):
+            threshold = (threshold, )
+        # For each threshold, do our calculation.
+        for thr in self.threshold:
+            # Calculate clusters at a threshold.  Do not re-calculate
+            # it if the output files already exist on disk.
+            fname = self._get_threshold(thr)
+            # Read results in, and label it.
+            cmtys = self.read_file(fname)
+            cmtys.label = "Threshold=%f"%thr
+            self.results.append(cmtys)
+        self.cmtys = self.results[0]
+        return self.results
+
+    def read_file(self, fname):
+        """Parse a single link community file and return Communities object."""
+        cmtynodes = { }
+        cname = 0
+        for line in open(fname):
+            if line.startswith('#'): continue
+            line = line.split()
+            if not line: continue
+            if cname not in cmtynodes:
+                cmtynodes[cname] = set()
+            nodes = cmtynodes[cname]
+            for link in line:
+                a, b = link.split(',')
+                a = int(a)
+                b = int(b)
+                nodes.add(self.vmap_inv[a])
+                nodes.add(self.vmap_inv[b])
+            cname += 1
+        cmtys = pcd.cmty.Communities(cmtynodes)
+        return cmtys
+
+
+class Conclude(CDMethod):
+    """CONCLUDE
+
+    http://www.emilio.ferrara.name/conclude/ [Downloaded 2013-11-25]
+    http://arxiv.org/abs/1303.1738
+
+    CONCLUDE (COmplex Network CLUster DEtection) is a fast community
+    detection algorithm.
+
+    The strategy consists of three steps:
+    - (re)weight edges by using a particular random walker;
+    - calculate the distance between each pair of connected nodes;
+    - partition the network into communities so to optimize the
+      weighted network modularity.
+
+    CONCLUDE is computationally efficient since its cost is near
+    linear with respect to the number of edges in the network.
+
+    The adoption of this community detection method has been proved
+    worthy in different contexts, such as for studying online social
+    networks and biological networks.
+
+    References:
+
+    Mixing local and global information for community detection in
+    large networks.  P De Meo, E Ferrara, G Fiumara and A Provetti.
+    Journal of Computer and System Sciences, 80(1):72-87 (2014).
+
+    CONCLUDE is an improved version of the algorithm presented in the
+    following paper, you might cite too:
+
+    Generalized Louvain method for community detection in large
+    networks.  P De Meo, E Ferrara, G Fiumara, and A Provetti.  ISDA
+    '11: Proceedings of the 11th International Conference on
+    Intelligent Systems Design and Applications, 2011.
+    """
+    _input_format = 'edgelist'
+    _nodemapZeroIndexed = True
+    _binary = 'conclude/CONCLUDE.jar'
+    _mem_limit = None
+    _mem_limit_doc = """\
+    int, Set memory limit for the process.  Not needed necessarily.
+    """
+    def run(self):
+        output = self.graphfile+'.out'
+        args = ['java',
+                #'-Xmx4G',  # suggested from the docs
+                '-jar', _get_file(self._binary),
+                self.graphfile, output,
+                " ",  # delimiter (default \t)
+                # 1=only compute weights, don't cluster.
+                ]
+        if self._mem_limit:
+            # -Xmx4G
+            args.insert(1, '-Xmx%dG'%self._mem_limit)
+        self.call_process(args)
+
+    def read_cmtys(self):
+        output = self.graphfile+'.out'
+        modularity = None
+        cmtynodes = { }
+        for line in open(output):
+            if line.startswith('#'): continue
+            if line.startswith('Q = '):
+                modularity = float(line[4:])
+                continue
+            line = line.split()
+            cmtynodes[len(cmtynodes)] = set(self.vmap_inv[int(x)] for x in line)
+        self.cmtys = pcd.cmty.Communities(cmtynodes)
+        self.cmtys.label = "Conclude"
+        self.results = [ self.cmtys ]
+
+
+class _SNAPmethod(CDMethod):
+    _input_format = 'edgelist'
+    graphfileExtension = '.txt'
+    _nodemapZeroIndexed = True
+    def read_cmtys(self):
+        cmtys = pcd.cmty.Communities.from_clustersfile(
+            'cmtyvv.txt',
+            converter=lambda x: self.vmap_inv[int(x)],
+            )
+        #if hasattr(self, 'g'):   # This is NOT true.
+        #    assert cmtys.N == len(self.g)
+        cmtys.label = self.name()
+        self.cmtys = cmtys
+        self.results = [ self.cmtys ]
+
+class SnapBigClam(_SNAPmethod):
+    """BigClam via SNAP library.
+
+    https://snap.stanford.edu/snap/index.html
+    http://dl.acm.org/citation.cfm?id=2433471
+
+    Formulates community detection problems into non-negative matrix
+    factorization and discovers community membership factors of nodes.
+
+    From the abstract:
+
+    Network communities represent basic structures for understanding
+    the organization of real-world networks. A community (also
+    referred to as a module or a cluster) is typically thought of as a
+    group of nodes with more connections amongst its members than
+    between its members and the remainder of the network. Communities
+    in networks also overlap as nodes belong to multiple clusters at
+    once. Due to the difficulties in evaluating the detected
+    communities and the lack of scalable algorithms, the task of
+    overlapping community detection in large networks largely remains
+    an open problem.
+
+    In this paper we present BIGCLAM (Cluster Affiliation Model for
+    Big Networks), an overlapping community detection method that
+    scales to large networks of millions of nodes and edges. We build
+    on a novel observation that overlaps between communities are
+    densely connected. This is in sharp contrast with present
+    community detection methods which implicitly assume that overlaps
+    between communities are sparsely connected and thus cannot
+    properly extract overlapping communities in networks. In this
+    paper, we develop a model-based community detection algorithm that
+    can detect densely overlapping, hierarchically nested as well as
+    non-overlapping communities in massive networks. We evaluate our
+    algorithm on 6 large social, collaboration and information
+    networks with ground-truth community information. Experiments show
+    state of the art performance both in terms of the quality of
+    detected communities as well as in speed and scalability of our
+    algorithm.
+    """
+    #_binary = 'snap/Snap/examples/bigclam/bigclam'
+    _binary = 'snap/bigclam/bigclam'
+    # Note: this binary had to be modified to support edgelists
+    # separated by spaces.
+    _threads = None
+    q = -1   # Auto-detect q
+    _q_doc = """Number of communities to detect (-1 autodetect, but within the given range)"""
+    q_max = None  # default 100
+    q_min = None  # default 5
+    q_trials = None
+    _q_trials_doc = """How many trials for the number of communities"""
+    alpha = None
+    _alpha_doc = "Alpha for backtracking line search"
+    beta = None
+    _beta_doc = "Beta for backtracking line search"
+    def _filter_graphfilename(self, name):
+        # This method special-cases reading of files contains
+        # '.ungraph', so stript that from any input filenames.
+        return name.replace('.ungraph', '')
+    def run(self):
+        #output = self.graphfile+'.out..'
+        args = [_get_file(self._binary),
+                '-i:%s'%self.graphfile,
+                #'-o:%s'%output,
+                #'-l:%s'%label_file,
+                ]
+        if self._threads:          args.append('-nt:%s'%str(self._threads))
+        if self.q is not None:     args.append('-c:%d'%self.q)
+        if self.q_min:             args.append('-mc:%d'%self.q_max)
+        if self.q_max:             args.append('-xc:%d'%self.q_min)
+        if self.q_trials:          args.append('-nc:%d'%self.q_trials)
+        if self.alpha is not None: args.append('-sa:%f'%self.alpha)
+        if self.beta  is not None: args.append('-sb:%f'%self.beta)
+        self.call_process(args)
+
+class SnapAGMfit(_SNAPmethod):
+    """Fitting to an AGM, via SNAP library.
+
+    https://snap.stanford.edu/snap/index.html
+    Reference: http://ieeexplore.ieee.org/xpls/abs_all.jsp?arnumber=6413734&tag=1 (???)
+
+    """
+    _binary = 'snap/agmfit/agmfitmain'
+    # Note: this binary had to be modified to support edgelists
+    # separated by spaces.
+    q = -1   # Auto-detect q
+    _q_doc = """Number of communities to detect (-1 autodetect, but within the given range)"""
+    epsilon = None
+    _epsilon_doc = """Edge probability between the nodes that do not share any community (default (0.0): set it to be 1 / N^2"""
+    def run(self):
+        #output = self.graphfile+'.out..'
+        #label_file = self.graphfile+'.labels'
+        args = [_get_file(self._binary),
+                '-i:%s'%self.graphfile,
+                #'-o:%s'%output,
+                '-l:',
+                '-s:%d'%int(self.randseed),
+                ]
+        if self.q is not None:     args.append('-c:%d'%self.q)
+        if self.epsilon is not None: args.append('-e:%f'%self.epsilon)
+        self.call_process(args)
+
+
+class _SNAPcommunity(_SNAPmethod):
+    """Base class for the 'community' examples in SNAP.
+
+    GN and CNM algorithms derived from this."""
+    _binary = 'snap/Snap/examples/community/community'
+    def run(self):
+        args = [_get_file(self._binary),
+                '-i:%s'%self.graphfile,
+                #'-o:%s'%output,
+                '-a:%d'%self._algorithm,
+                ]
+        self.call_process(args)
+    def read_cmtys(self):
+        f = open('communities.txt')
+        cmtynodes = { }
+        for line in f:
+            if line.startswith('# Communities:'):
+                # It tells us how many communities were found, so we
+                # can pre-create all the community sets.
+                Ncmty = int(line.split(':')[1])
+                for cid in range(Ncmty):
+                    cmtynodes[cid] = set()
+            if line.startswith('#'): continue
+            if not line.strip(): continue
+            a, b = line.split()
+            nid = int(a)
+            cid = int(b)
+            cmtynodes[cid].add(self.vmap_inv[nid])
+        cmtys = pcd.cmty.Communities(cmtynodes)
+        cmtys.label = self._algorithm_name
+        self.cmtys = cmtys
+        self.results = [ self.cmtys ]
+class SnapGN(_SNAPcommunity):
+    """Girvan-Newman algorithm in SNAP library.
+
+    http://dx.doi.org/10.1073/pnas.122653799"""
+    _algorithm = 1
+    _algorithm_name = 'Girvan-Newman'
+class SnapCNM(_SNAPcommunity):
+    """Clauset-Newman-Moore algorithm in SNAP library.
+
+    http://arxiv.org/abs/cond-mat/0408187"""
+    _algorithm = 2
+    _algorithm_name = 'Clauset-Newman-Moore'
+
 
 if __name__ == "__main__":
     if len(sys.argv) < 2 or '-h' in sys.argv or '--help' in sys.argv:
@@ -1521,6 +1872,11 @@ if __name__ == "__main__":
     #r = method(g, initial=initial, **options)
     #import pcd.ioutil
     #pcd.ioutil.write_pajek(input+'.cmtys.net', g, r.cmtys)
+
+    #g2 = g.copy()
+    #r.cmtys.load_networkx_custom(g2, attrname='cmty')
+    #networkx.write_gml(g2, options['basename']+'.gml')
+
     from fitz import interactnow
 
 
