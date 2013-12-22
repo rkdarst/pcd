@@ -97,7 +97,10 @@ is_partition(): bool
     Exactly what they say.
 Q(g): int
     Modularity calculation.  Requires argument of the networkx graph.
-
+subgraph: new networkx graph
+    Subgraph which is focused on one community and its neighbors.
+cmty_graph: new networkx graph
+    New networkx graph of *community* connections.
 
 Input/output
 ~~~~~~~~~~~~
@@ -688,6 +691,8 @@ class _CommunitiesBase(object):
                 data.pop(attrnameset, None)
         nodecmtys = self.nodecmtys()
         for node, cmtys in nodecmtys.iteritems():
+            if node not in g:
+                continue
             if attrname is not None and len(cmtys) == 1:
                 # non-overlapping, attrname is given
                 if type_ is None:
@@ -1275,6 +1280,112 @@ class _CommunitiesBase(object):
         """Return list of ill-defined nodes"""
         return self.illdefined(g, *args, **kwargs)['illnodes']
 
+    def cmty_graph(self, g):
+        """Return the graph of communities: cmty->node, edges=touching cmtys
+
+        This is a graph of all communities that are touching.  Edge
+        weights are number of edges between nodes of the communities.
+        Node weights are number of self-edges.
+
+        This function does not currently support overlaps.
+        """
+        is_directed = g.is_directed()
+        g_new = g.__class__()  # New graph of the same type.
+        nodecmtys = self.nodecmtys_onetoone()   # update if we support overlaps.
+
+        for cname, nodes in self.iteritems():
+            cneigh_edges = collections.defaultdict(int)
+            #neighbors = set()
+            for n in nodes:
+                for neigh in g.neighbors_iter(n):
+                    cneigh_edges[nodecmtys[neigh]] += 1
+
+            # Handle self-edges:
+            if cname in cneigh_edges:
+                self_weight = cneigh_edges.pop(cname)  # remove it
+                if not is_directed:
+                    # Undirected, self-edges are double counted.
+                    assert self_weight % 2 == 0
+                    self_weight /= 2  # directed
+            else:
+                # There are no self-edges!
+                #if len(nodes) > 1:
+                #    print "Community has no self-edges:", cname, len(nodes), nodes
+                self_weight = 0
+
+            g_new.add_node(cname,
+                           size=len(nodes),
+                           weight=self_weight)
+            for cneigh, weight in cneigh_edges.iteritems():
+                if is_directed:
+                    assert not g_new.has_edge(cname, cneigh)
+                else:
+                    if g_new.has_edge(cname, cneigh): # directed
+                        # Exclude edges already added.
+                        assert g_new[cname][cneigh]['weight'] == weight
+                        continue
+                g_new.add_edge(cname, cneigh,
+                               weight=weight)
+        return g_new
+    def subgraph(self, g, cmty, shells_cmty=0, shells_node=0,
+                      initial_nodes=None):
+        """Return a subgraph based on community structure.
+
+        See arguments below for usage.  `g` and `cmty` are required
+        arguments, and used to build the initial subgraph.
+
+        g: networkx graph
+            Graph to use for adjacency.
+        cmty: community name
+            The initial set of nodes is taken from this community.
+        shells_cmty: int
+            Then, for every community reachable directly (by a single
+            edge) from the initial set of nodes (this is the *touching
+            communities*), add that community to the subgraph.  Repeat
+            `shells_cmty` times.
+        shells_node: int
+            Then, from the set of nodes so far, for every node
+            reachable by one edge, add those to the subgraph.  Repeat
+            `shells_node` times.
+        initial_nodes: node set, default None
+            This is taken as the initial set of nodes.  `cmty` can be
+            None in this case.  Not normally used.
+        """
+        #g_new = g.__class__()  # New graph of the same type.
+        #assert self.is_non_overlapping()
+        nodecmtys = self.nodecmtys_onetoone()   # update if we support overlaps.
+        if initial_nodes is not None:
+            nodes = initial_nodes
+        else:
+            nodes = self[cmty]
+        nodes = set(nodes)  # make a copy
+
+        # Shells of neighbor communities:
+        cnames_included = set()
+        if cmty is not None:
+            cnames_included.add(cmty)
+        shell = nodes
+        for _ in range(shells_cmty, 0, -1):
+            neigh_nodes = set()
+            for n in shell:
+                neigh_nodes.update(g.neighbors(n))
+            neigh_cmtys = set(nodecmtys[n] for n in neigh_nodes) # assumes no overlap
+            cnames_included.update(neigh_cmtys)
+            shell = neigh_nodes
+        for cmty in cnames_included:
+            nodes.update(self[cmty])
+
+        # Shells of neighbor nodes:
+        shell = nodes
+        for _ in range(shells_node, 0, -1):
+            next_shell = set()
+            for n in nodes:
+                next_shell.update(g.neighbors(n))
+            nodes.update(next_shell)
+            shell = next_shell
+
+        g_new = g.subgraph(nodes)
+        return g_new
 
     #
     # These all implement partition-comparison measures.  They use
