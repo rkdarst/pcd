@@ -335,7 +335,8 @@ def gen_pajek(g, cmtys):
         if min(node_map.itervalues()) == 1:
             node_reindex = 0
     else:
-        node_map = cmtys.nodeintmap()
+        #node_map = cmtys.nodeintmap()
+        node_map = dict((n, i) for i,n in enumerate(g.nodes_iter()))
     cmtys.load_networkx_custom(g)
     nodecmtys = cmtys.nodecmtys()
     colors = cmtys.cmtycolors()
