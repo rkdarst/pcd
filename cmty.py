@@ -688,6 +688,8 @@ class _CommunitiesBase(object):
                 data.pop(attrnameset, None)
         nodecmtys = self.nodecmtys()
         for node, cmtys in nodecmtys.iteritems():
+            if node not in g:
+                continue
             if attrname is not None and len(cmtys) == 1:
                 # non-overlapping, attrname is given
                 if type_ is None:
