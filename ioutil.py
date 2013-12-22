@@ -310,10 +310,10 @@ def zglob(path, dup_ok=False):
     return files
 
 
-def write_pajek(fname, g, cmtys):
+def write_pajek(fname, g, cmtys, **kwargs):
     """Write graph structure g colored by cmtys in pajek format."""
-    open(fname, 'w').write('\n'.join(gen_pajek(g, cmtys)))
-def gen_pajek(g, cmtys):
+    open(fname, 'w').write('\n'.join(gen_pajek(g, cmtys, **kwargs)))
+def gen_pajek(g, cmtys, black_nodes=None, white_nodes=None):
     """Return a list of strings, represting pajek contents of g and cmtys."""
     # This heavily draws on networkx's generate_pajek
     lines = [ ]
@@ -350,10 +350,10 @@ def gen_pajek(g, cmtys):
         shape = 'ellipse'
         # decide color
         cmtys = nodecmtys.get(n, set())
-        if len(cmtys) > 1:
+        if len(cmtys) > 1 or (black_nodes and n in black_nodes):
             color = 'Black'
             extra = 'cmtys %s'%(','.join(str(x) for x in nodecmtys[n]))
-        elif len(cmtys) == 0:
+        elif len(cmtys) == 0 or (white_nodes and n in white_nodes):
             color = 'White'
             extra = ''
         else:
