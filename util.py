@@ -712,7 +712,14 @@ def NMI_LF(cmtys1, cmtys2, check=True, use_existing=False):
     check: bool, default True
         If true, check that all node names are either representable as
         integers or floating point numbers.  This can either be python
-        integers or floats, or strings of those."""
+        integers or floats, or strings of those.
+    use_existing: bool, default False
+        If true, and community object has a '.fname' attribute, and
+        that file exists, use that as the input filename instead of
+        re-writing the file.  WARNING: if you use this, you must
+        ensure that there are no comments within the file, or anything
+        else which make cause the program to break.
+        """
     from pcd.support.algorithms import _get_file
     from pcd.cmty import CommunityFile
     binary = _get_file('mutual3/mutual')
@@ -761,9 +768,17 @@ def NMI_LF(cmtys1, cmtys2, check=True, use_existing=False):
         if args[1] is None:
             cmtys1.write_clusters('cmtys1.txt', raw=True)
             args[1] = 'cmtys1.txt'
+        #else:
+        #    # Symlink it instead of run in-place (program can fail if
+        #    # filenames are weird!)
+        #    os.symlink(args[1], 'cmtys1.txt')
+        #    args[1] = 'cmtys1.txt'
         if args[2] is None:
             cmtys2.write_clusters('cmtys2.txt', raw=True)
             args[2] = 'cmtys2.txt'
+        #else:
+        #    os.symlink(args[2], 'cmtys2.txt')
+        #    args[1] = 'cmtys2.txt'
         p = subprocess.Popen(args, stdout=subprocess.PIPE)
         ret = p.wait()
         stdout = p.stdout.read()
