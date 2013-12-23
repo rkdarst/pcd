@@ -1064,6 +1064,8 @@ class Louvain(CDMethod):
             # End condition
             if re.match(r'  end computation: ', line):
                 cmtys = pcd.cmty.Communities(dict(cmtynodes))
+                if modularity is None:
+                    raise ValueError("No modularity found for level")
                 cmtys.modularity = modularity
                 cmtys.label = 'level%02d'%level
                 #level += 1
@@ -1072,7 +1074,7 @@ class Louvain(CDMethod):
                 del cmtynodes, modularity, cmtys
                 modularity = None
             # Modularity:
-            r = re.match(r'  modularity increased from [0-9.+-]+ to ([0-9.+-]+)', line)
+            r = re.match(r'  modularity increased from [e0-9.+-]+ to ([e0-9.+-]+)', line)
             if r:
                 modularity = float(r.group(1))
             # Actual node parsing
