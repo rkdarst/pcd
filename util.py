@@ -634,21 +634,28 @@ def fraction_defined(G0, G1, ill=False):
 def hasrealattr(obj, name):
     print obj.name
     return hasattr(obj, name) and not hasattr(getattr(obj,name), '__get__')
-def listAttributes(obj):
+def listAttributes(obj, depth=1, exclude=[], exclude_deep=[]):
     """Return dict of trivial attributes.
 
     Given an object, return a dict attr:value of all int,long,float,string attributes.  If depth>0, allow tuples"""
     attrs = { }
     #excludeNames = set(('__init__',))
     for name in dir(obj):
+        if name in exclude: continue
         value = getattr(obj, name)
+        if value in exclude_deep:
+            if _isTrivialType(value, depth=0):
+                attrs[name] = value
+            else:
+                attrs[name] = value.__class__
         #if name in excludeNames: continue
         if name.startswith('__'): continue
-        if _isTrivialType(value, depth=1):
+        if _isTrivialType(value, depth=depth):
             attrs[name] = value
     return attrs
+_NoneType = type(None)
 def _isTrivialType(t, depth=0):
-    if isinstance(t, (int,long,float,str)):
+    if isinstance(t, (int,long,float,str,bool,_NoneType)):
         return True
     if isinstance(t, (tuple,list)) and depth > 0:
         return all(_isTrivialType(x, depth=depth-1) for x in t)
