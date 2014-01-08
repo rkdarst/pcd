@@ -1280,23 +1280,35 @@ class _CommunitiesBase(object):
         """Return list of ill-defined nodes"""
         return self.illdefined(g, *args, **kwargs)['illnodes']
 
-    def cmty_graph(self, g):
+    def cmty_graph(self, g, nodecmtys=None):
         """Return the graph of communities: cmty->node, edges=touching cmtys
 
         This is a graph of all communities that are touching.  Edge
         weights are number of edges between nodes of the communities.
         Node weights are number of self-edges.
 
-        This function does not currently support overlaps.
+        This function currently has undefined or error-inducing
+        behavior for:
+        - overlapping graphs
+        - multigraphs.
+
+        nodecmtys: dict from .nodecmtys_onetoone(), default None
+            (infrequently needed) This function must calculate
+            nodecmtys_onetoone, which could get expensive.  If it is
+            pre-computed, pass it here to avoid recomputation.
         """
         is_directed = g.is_directed()
+        if isinstance(g, networkx.MultiGraph):
+            raise NotImplementedError("We do not support multigraphs yet.")
         g_new = g.__class__()  # New graph of the same type.
-        nodecmtys = self.nodecmtys_onetoone()   # update if we support overlaps.
+        if nodecmtys is None:
+            nodecmtys = self.nodecmtys_onetoone()   # update if we support overlaps.
 
         for cname, nodes in self.iteritems():
             cneigh_edges = collections.defaultdict(int)
             #neighbors = set()
             for n in nodes:
+                # multigraph: does neighbors_iter do all edges?
                 for neigh in g.neighbors_iter(n):
                     cneigh_edges[nodecmtys[neigh]] += 1
 
@@ -1328,7 +1340,7 @@ class _CommunitiesBase(object):
                                weight=weight)
         return g_new
     def subgraph(self, g, cmty, shells_cmty=0, shells_node=0,
-                      initial_nodes=None):
+                      initial_nodes=None, nodecmtys=None):
         """Return a subgraph based on community structure.
 
         See arguments below for usage.  `g` and `cmty` are required
@@ -1350,10 +1362,13 @@ class _CommunitiesBase(object):
         initial_nodes: node set, default None
             This is taken as the initial set of nodes.  `cmty` can be
             None in this case.  Not normally used.
+        nodecmtys: dict from .nodecmtys_onetoone(), default None
+            (infrequently needed) This function must calculate
+            nodecmtys_onetoone, which could get expensive.  If it is
+            pre-computed, pass it here to avoid recomputation.
         """
-        #g_new = g.__class__()  # New graph of the same type.
-        #assert self.is_non_overlapping()
-        nodecmtys = self.nodecmtys_onetoone()   # update if we support overlaps.
+        if nodecmtys is None:
+            nodecmtys = self.nodecmtys_onetoone()   # update if we support overlaps.
         if initial_nodes is not None:
             nodes = initial_nodes
         else:
