@@ -20,18 +20,21 @@ def write_fig(fig):
 
 
 def get_axes(fname, figsize=(13, 10)):
+    """Interface to matplotlib plotting."""
     if fname:
         import matplotlib.figure
         import matplotlib.backends.backend_agg
-        fig = matplotlib.figure.Figure(figsize=figsize)
+        fig = matplotlib.figure.Figure(figsize=figsize, dpi=100)
         canvas = matplotlib.backends.backend_agg.FigureCanvasAgg(fig)
         ax = fig.add_subplot(111)#, aspect='equal')
-        return canvas, fig, ax
+        return ax, (fname, canvas, fig, ax)
     else:
         raise
-def save_fig(canvas, fig, ax, fname):
-    canvas.print_figure(fname, dpi=fig.get_dpi(),
-                        bbox_inches='tight')
+def save_axes(ax, extra):
+    if extra[0]: # if fname
+        fname, canvas, fig, ax = extra
+        canvas.print_figure(fname, dpi=fig.get_dpi(),
+                            bbox_inches='tight')
 class Figure(object):
     def __init__(self, fname, figsize=None):
         self.fname = fname
