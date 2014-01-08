@@ -1844,24 +1844,39 @@ class SnapCNM(_SNAPcommunity):
     _algorithm = 2
     _algorithm_name = 'Clauset-Newman-Moore'
 
-
 if __name__ == "__main__":
-    if len(sys.argv) < 2 or '-h' in sys.argv or '--help' in sys.argv:
-        print "%s MethodName infile outfile"%os.path.basename(sys.argv[0])
+    if len(sys.argv) < 4 or '-h' in sys.argv or '--help' in sys.argv:
+        print "%s MethodName infile outfile [options-dict]"%os.path.basename(sys.argv[0])
+        print
         print "available methods:", ', '.join(sorted(
             name for name, cda in globals().iteritems()
             if isinstance(cda, type)
             and issubclass(cda, CDMethod)
             and name[0]!='_'))
+        if len(sys.argv) > 1 and sys.argv[1] not in ('-h', '--help'):
+            method = sys.argv[1]
+            method = locals()[method]
+            print
+            print "Available options for %s:"%method.name()
+            print "\n".join(("%s=%s"%(x,getattr(method,x))
+                                      if pcd.util._isTrivialType(getattr(method,x))
+                                      else x)
+                             for x in sorted(dir(method))
+                             if (not x.startswith('_')
+                                 and not hasattr(getattr(method, x), '__call__')))
+        else:
+            print "Method help: %s MethodName -h"%os.path.basename(sys.argv[0])
         sys.exit()
     #import optparse
     method = sys.argv[1]
     input = sys.argv[2]
     output = sys.argv[3]
-    options = sys.argv[4]
-    from pcd.util import leval
-    options = leval(options)
-    print options
+    if len(sys.argv) > 4:
+        options = sys.argv[4]
+        from pcd.util import leval
+        options = leval(options)
+    else:
+        options = {}
 
     import pcd.ioutil
     g = pcd.ioutil.read_any(input)
