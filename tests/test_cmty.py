@@ -101,3 +101,35 @@ assert len(set(cU.iterkeys())) == 4
 assert cU.nodes == set(range(10))
 #print list(cU.iteritems())
 pcd.cmty._test_interface(cU)
+
+
+# Test cmty_graph:
+g = networkx.complete_graph(7)
+g.remove_edge(3, 5)
+g.remove_edge(1, 2)
+cmtys = pcd.cmty.Communities({0:set((0,1,2)), 1:set((3,4)), 'a':set((5,6))})
+cmty_graph = cmtys.cmty_graph(g)
+assert cmty_graph.node[0]['size'] == 3           # number of nodes
+assert cmty_graph.node[0]['weight'] == 2  # edges within cmty
+assert cmty_graph.node['a']['size'] == 2
+assert cmty_graph.node['a']['weight'] == 1
+assert cmty_graph[0][1]['weight'] == 6    # edges between
+assert cmty_graph[1]['a']['weight'] == 3
+assert cmty_graph['a'][0]['weight'] == 6
+
+# Test cmty_graph on directed graph:
+g = networkx.complete_graph(7, create_using=networkx.DiGraph())
+g.remove_edge(3, 5)
+g.remove_edge(1, 2)
+cmtys = pcd.cmty.Communities({0:set((0,1,2)), 1:set((3,4)), 'a':set((5,6))})
+cmty_graph = cmtys.cmty_graph(g)
+assert cmty_graph.node[0]['size'] == 3       # number of nodes
+assert cmty_graph.node[0]['weight'] == 5     # edges within cmty
+assert cmty_graph.node['a']['size'] == 2
+assert cmty_graph.node['a']['weight'] == 2
+assert cmty_graph[0][1]['weight'] == 6     # edges between
+assert cmty_graph[1][0]['weight'] == 6
+assert cmty_graph[1]['a']['weight'] == 3
+assert cmty_graph['a'][1]['weight'] == 4
+assert cmty_graph['a'][0]['weight'] == 6
+assert cmty_graph[0]['a']['weight'] == 6

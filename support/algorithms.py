@@ -116,12 +116,12 @@ class CDMethod(object):
 
     A method is initialized with arguments g, a networkix graph
     """
-    delete_tmpdir = None         # Delete the temporary directory after running?
+    delete_tmpdir = None          # Delete the temporary directory after running?
     _nodemapZeroIndexed = False   # Should edgelist be zero-indexed?  default start at 1.
     _interact_results = False     # If True, after self.run() is called, interact in directory.
     seed = None                   # Seed to override.
     verbosity = 2
-    map_nodes_to_int = True       # Do we need to remap all nodes to ints?
+    _map_nodes_to_int = True      # Do we need to remap all nodes to ints?
     _run_method = True
     _load_results = True
     _recovery_mode = False        # recovery mode - do nothing, user should
@@ -216,7 +216,7 @@ class CDMethod(object):
         """Return CD method name, as a string"""
         return getattr(cls, '_name', cls.__name__)
     @property
-    def randseed(self):
+    def _randseed(self):
         """Random (integer) seed for CD methods.
 
         We always pass the method a seed generated from python
@@ -232,7 +232,7 @@ class CDMethod(object):
         This is conrolled by several things:"""
         # If we want no mapping: have a placeholder that does nothing
         # when mapping, converts to integers when unmapping.
-        if not self.map_nodes_to_int or isinstance(self.g, GraphFile):
+        if not self._map_nodes_to_int or isinstance(self.g, GraphFile):
             self.vmap = NullMap()
             self.vmap_inv = self.vmap.inverse()
             return
@@ -314,7 +314,7 @@ class CDMethod(object):
         if hasattr(self, '_filter_graphfilename'):
             self.graphfile = self._filter_graphfilename(self.graphfile)
         if not os.access(self.dir, os.F_OK): os.mkdir(self.dir)
-    def call_process(self, args, binary_name=None):
+    def call_process(self, args, binary_name=None, stdout_suffix=""):
         """Call a process, saving the standard output to disk.
 
         This handles running a program, while also doing other
@@ -329,11 +329,13 @@ class CDMethod(object):
             binary_name = os.path.basename(args[0])
         binary_name = binary_name.replace('/', '_')
         # Open a stream for the standard output
-        self._stdout_fname = binary_name+'.stdout'
-        disk_stdout = open(binary_name+'.stdout', 'w')
+        self._stdout_fname = binary_name+'.stdout'+stdout_suffix
+        disk_stdout = open(self._stdout_fname, 'w')
         # Write the command lines we are running
         disk_stdout.write(repr(list(args))+'\n')
-        disk_stdout.write("self attributes: %s\n"%(pcd.util.listAttributes(self),))
+        disk_stdout.write("self attributes: %s\n"%(
+            pcd.util.listAttributes(self, exclude='_randseed',
+                                    exclude_deep=['initial', 'vmap', 'vmap_inv']),))
         disk_stdout.write("Process times: %s\n"%(os.times(),))
         disk_stdout.write("Beginning run at %s\n\n\n"%time.ctime())
         disk_stdout.flush()
@@ -445,8 +447,8 @@ class _InfomapOld_(CDMethod):
     _input_format = 'pajek'
     def run(self):
         args = (#'/usr/bin/gdb', '--args',
-                _get_file(self.binary),
-                str(self.randseed),
+                _get_file(self._binary),
+                str(self._randseed),
                 self.graphfile,
                 str(self.trials))
         self.call_process(args)
@@ -481,10 +483,10 @@ class _InfomapOld_(CDMethod):
 
 
 class _InfomapOld(_InfomapOld_):
-    binary = 'infomap/infomap_undir/infomap'
+    _binary = 'infomap/infomap_undir/infomap'
 
 class _InfomapOld_dir(_InfomapOld_):
-    binary = 'infomap/infomap_dir/infomap'
+    _binary = 'infomap/infomap_dir/infomap'
     _is_directed = True
 
 class Infomap(CDMethod):
@@ -508,7 +510,7 @@ class Infomap(CDMethod):
 
     initial: initial configuration.
     """
-    binary = 'infomap/Infomap-0.11.5/Infomap'
+    _binary = 'infomap/Infomap-0.11.5/Infomap'
     _input_format = 'edgelist'
     _nodemapZeroIndexed = True
     directed = False
@@ -519,10 +521,10 @@ class Infomap(CDMethod):
     include_self_links = False
     args = [ ]
     def run(self):
-        args = [_get_file(self.binary),
+        args = [_get_file(self._binary),
                 '--num-trials=%d'%self.trials,
                 '--input-format=link-list', '--zero-based-numbering',
-                '--seed=%d'%self.randseed,
+                '--seed=%d'%self._randseed,
                 self.graphfile,
                 '.',
                 ]
@@ -668,7 +670,7 @@ class _Oslom(CDMethod):
     coverage_parameter: submodule merging criteria.  default .5, range
     0 to 1.  Larger leads to bigger clusters.
     """
-    #binary = 'oslom/OSLOM2/oslom_undir'
+    #_binary = 'oslom/OSLOM2/oslom_undir'
     _input_format = 'edgelist'
     trials = 10
     trials_hier = 50
@@ -695,8 +697,8 @@ class _Oslom(CDMethod):
             for f in files:
                 os.unlink(os.path.join(self.outdir, f))
 
-        args = (_get_file(self.binary),
-                "-seed", str(self.randseed),
+        args = (_get_file(self._binary),
+                "-seed", str(self._randseed),
                 "-w" if self.weighted else '-uw', #unweighted or weighted
                 "-f", self.graphfile,
                 '-r', str(self.trials),
@@ -788,11 +790,11 @@ class _Oslom(CDMethod):
                                     )
 
 class Oslom(_Oslom):
-    binary = 'oslom/OSLOM2/oslom_undir'
+    _binary = 'oslom/OSLOM2/oslom_undir'
 class OslomWeighted(Oslom):
     weighted = True
 class Oslom_dir(_Oslom):
-    binary = 'oslom/OSLOM2/oslom_dir'
+    _binary = 'oslom/OSLOM2/oslom_dir'
     _is_directed = True
 
 
@@ -800,14 +802,14 @@ class _Copra(CDMethod):
     # http://www.cs.bris.ac.uk/~steve/networks/software/copra-guide.pdf
     _input_format = 'edgelist'
     trials = 10
-    binary = 'copra.jar'
+    _binary = 'copra.jar'
     weighted = False
     max_overlap = 1   # default in COPRA code is 1.
     max_overlap_range = None
 
     def run(self):
         args = ["/usr/bin/java",
-                "-cp", _get_file(self.binary),
+                "-cp", _get_file(self._binary),
                 "COPRA",
                 os.path.abspath(self.graphfile),
                 "-repeat", str(self.trials),
@@ -850,7 +852,7 @@ class APM(CDMethod):
     options = { }  # All options for the pcd.auto.Auto object.
     preferred_order = 'In', 'VI'
     initial = None
-    map_nodes_to_int = False
+    _map_nodes_to_int = False
 
     def run(self):
         import pcd.multiresolution
@@ -969,8 +971,8 @@ class Louvain(CDMethod):
 
     """
     _input_format = 'edgelist'
-    binary_convert = 'louvain/Community_latest/convert'
-    binary_community = 'louvain/Community_latest/community'
+    _binary_convert = 'louvain/Community_latest/convert'
+    _binary_community = 'louvain/Community_latest/community'
     weighted = False
     stop_dQ = None
     _nodemapZeroIndexed = True
@@ -987,12 +989,47 @@ class Louvain(CDMethod):
 
     def run(self):
         """Run a number of Louvain trials, and use the best of them."""
+        # Do set up, creating initial binary file
+        self.graphfilebin = self.graphfile+'.bin'
+        #Remove old files.
+        for fname in (self.graphfilebin, self.graphfilebin+'.weights'):
+            if os.access(fname, os.F_OK):
+                os.unlink(fname)
+        args = (_get_file(self._binary_convert),
+                '-i', self.graphfile, '-o', self.graphfilebin,
+                )
+        if self.weighted:
+            args = args + ('-w', self.graphfilebin+'.weights', )
+        self.call_process(args)
+        # run louvain self.trials times.
+        for i in range(self.trials):
+            self.run_louvain(trial=i)
+
+    def run_louvain(self, trial):
+        """Run one louvian process"""
+        args = (_get_file(self._binary_community),
+                self.graphfilebin,
+                '-l', '-1',
+                '-v', )
+        if self.weighted:
+            args = args + ('-w', self.graphfilebin+'.weights', )
+        if self.stop_dQ:
+            args = args + ('-q', str(self.stop_dQ),)
+        if self.initial:
+            raise NotImplementedError("Check this before using.")
+            # FIXME: write it
+            args = args + ('-p', 'initial.txt')
+        self.call_process(args, stdout_suffix='.%03d'%trial)
+
+    def read_cmtys(self):
+        """Read all of the communities"""
         best_cmtys = None
         best_Q = -1e6
         self.avg_num_levels = []
         for i in range(self.trials):
-            self.run_louvain()
-            results = self.read_cmtys_and_return()
+            results = self.read_cmtys_and_return(trial=i)
+            #print [x.modularity for x in results]
+            #print [x.q for x in results]
             assert len(results) > 0
             self.avg_num_levels.append(len(results))
             # Pick which partition to use
@@ -1009,43 +1046,14 @@ class Louvain(CDMethod):
                 self.cmtys = best_of_results #self.results[0]
                 self.modularity = best_Q = results[0].modularity
             #print best_Q
+        # Finalize
         self.num_levels = len(self.results)
         self.avg_num_levels = numpy.mean(self.avg_num_levels)
 
-    def run_louvain(self):
-        self.graphfilebin = self.graphfile+'.bin'
-        #Remove old files.
-        for fname in (self.graphfilebin, self.graphfilebin+'.weights'):
-            if os.access(fname, os.F_OK):
-                os.unlink(fname)
-        args = (_get_file(self.binary_convert),
-                '-i', self.graphfile, '-o', self.graphfilebin,
-                )
-        if self.weighted:
-            args = args + ('-w', self.graphfilebin+'.weights', )
-        self.call_process(args)
-
-        args = (_get_file(self.binary_community),
-                self.graphfilebin,
-                '-l', '-1',
-                '-v', )
-        if self.weighted:
-            args = args + ('-w', self.graphfilebin+'.weights', )
-        if self.stop_dQ:
-            args = args + ('-q', str(self.stop_dQ),)
-        if self.initial:
-            raise NotImplementedError("Check this before using.")
-            # FIXME: write it
-            args = args + ('-p', 'initial.txt')
-
-        self.call_process(args)
-
-    def read_cmtys(self):
-        self.results = self.read_cmtys_and_return()
-        self.cmtys = self.results[0]
-        return self.results
-    def read_cmtys_and_return(self):
-        stdout = open(self._stdout_fname).read()
+    def read_cmtys_and_return(self, trial):
+        """Read one output file (of a specific trial) and parse."""
+        fname = os.path.basename(self._binary_community)+'.stdout'+'.%03d'%trial
+        stdout = open(fname).read()
 
         results = [ ]
         level = None
@@ -1088,6 +1096,11 @@ class Louvain(CDMethod):
                         return set((self.vmap_inv[node],) )
                     assert node in results[level-1]._cmtynodes
                     lower_nodes = results[level-1]._cmtynodes[node]
+                    # If you adjust this function for hierarchical
+                    # community names, fix the duplicate-last-layer
+                    # detection above.  In particular, .cmtysizes()
+                    # will no longer be equal for the last two
+                    # communities.
                     return lower_nodes
                 nodes = find_real_node(node, level)
                 #print 'z', nodes
@@ -1096,22 +1109,35 @@ class Louvain(CDMethod):
 
         #from fitz import interactnow
         # Check that all have the same total size:
-        if len(results) > 0:
-            assert all(results[0].N == r.N  for r in results[1:])
+        #if len(results) > 0:
+        #    assert all(results[0].N == r.N  for r in results[1:])
+        # Is the last level duplicated?
+        if results[-1].q == results[-2].q \
+           and results[-1].cmtysizes() == results[-2].cmtysizes():
+            # Our two communities should be equal.
+            # A final test for equality (not used):
+            #assert self.results[-1]._cmtynodes = self.results[-2]._cmtynodes
+            del results[-1]
+        else:
+            # From my current understanding, the only time the two
+            # final levels aren't identical is when stop_dQ is
+            # nonzero.  So, insert a check for that, and if it turns
+            # out to be not true, figure out what went wrong.
+            assert self.stop_dQ
         return results
 
 class LouvainWeighted(Louvain):
     weighted = True
 
 class LouvainLowest(Louvain):
-    weighted = True
+    #weighted = True
     def read_cmtys(self):
         super(LouvainLowest, self).read_cmtys()
         self.results = [ self.cmtys ]
 
 class LouvainModMax(Louvain):
     which_partition = 'modmax'
-    weighted = True
+    #weighted = True
     def read_cmtys(self):
         super(LouvainModMax, self).read_cmtys()
         self.results = [ self.cmtys ]
@@ -1119,7 +1145,7 @@ class LouvainModMax(Louvain):
 
 #class ModularitySA(CDMethod):
 #    _input_format = 'edgelist'
-#    binary = '/home/richard/research/cd/code-dl/good_modularity_SA/modularity_sampling_v1.0.0/anneal.py'
+#    _binary = '/home/richard/research/cd/code-dl/good_modularity_SA/modularity_sampling_v1.0.0/anneal.py'
 #    weighted = False
 #    quiet = True
 #    trials = 1
@@ -1128,7 +1154,7 @@ class LouvainModMax(Louvain):
 #
 #    def run_sa(self):
 #        args = ('python',
-#                self.binary,
+#                self._binary,
 #                #'-o', # store local optima only
 #                self.graphfile,
 #                )
@@ -1203,8 +1229,8 @@ class LouvainModMax(Louvain):
 #        self.cmtys = self.results[0]
 class ModularitySA(CDMethod):
     _input_format = 'edgelist'
-    #binary = 'lancichinetti_codes/clustering_programs_5_1/bin/modopt'
-    binary = 'lancichinetti_modSA/modopt/modopt'
+    #_binary = 'lancichinetti_codes/clustering_programs_5_1/bin/modopt'
+    _binary = 'lancichinetti_modSA/modopt/modopt'
     _nodemapZeroIndexed = True
     trials = 5
     resolution = 1
@@ -1213,7 +1239,7 @@ class ModularitySA(CDMethod):
     initial = None
 
     def run(self):
-        binary = _get_file(self.binary)
+        binary = _get_file(self._binary)
         if os.path.exists('community.dat'):
             # This file will be read regardless of if it is requested
             # or not.  Move it to another name if it alreday exists, I
@@ -1228,7 +1254,7 @@ class ModularitySA(CDMethod):
                 print >> f, self.vmap[node], cmty_map[cmty]
         args = (binary,
                 self.graphfile,
-                str(self.randseed),  # seed
+                str(self._randseed),  # seed
                 str(self.resolution), # resolution parameter (lambda)
                 str(self.trials),   # number of runs
                 str(self.temp_init),    # initial temperature
@@ -1258,7 +1284,7 @@ class _PCD_single(CDMethod):
     minargs = { }
     initial = None # initial state for each minimization attempt.  Default is 'random'.
                    # Same as Graph.trials(initial=)
-    map_nodes_to_int = False
+    _map_nodes_to_int = False
     def _initG(self, G):  # for subclassing
         pass
     def run(self):
@@ -1385,9 +1411,9 @@ class BeliefPropogationZ(CDMethod):
     epsilon = None   # Initial c_out/c_in ratio.  c_in+c_out = avg degree of graph.
     p_in = None
     p_out = None
-    binary = 'BP_z__sbm/sbm'
+    _binary = 'BP_z__sbm/sbm'
     def run(self):
-        binary = _get_file(self.binary)
+        binary = _get_file(self._binary)
         args = [binary, 'learn', '-l', self.graphfile, '-q', str(self.q),
                 '-w', self.graphfile+'.out',
                 #'-W', self.graphfile+'.spm.out',
@@ -1407,7 +1433,7 @@ class BeliefPropogationZ(CDMethod):
         #if self.verbosity<= 0:  args.extend(('-v', '-1'))
         args.extend(('-v', str(self.verbosity)))
         #if self.seed: args.extend(('-D', str(self.seed)))
-        args.extend(('-D', str(self.randseed)))
+        args.extend(('-D', str(self._randseed)))
         args.extend(self.get_params())
 
         self.call_process(args)
@@ -1482,7 +1508,7 @@ class _2WalkSpectrum(CDMethod):
     q_hint = None  # calculate q_hint+1 eigenvalues.
     q = None  # Specify the number of eigenvalues.
     kwargs = { }
-    map_nodes_to_int = False
+    _map_nodes_to_int = False
     def run(self):
         if self.q:
             # Add one to self.q, so that we have enough information to
@@ -1792,7 +1818,7 @@ class SnapAGMfit(_SNAPmethod):
                 '-i:%s'%self.graphfile,
                 #'-o:%s'%output,
                 '-l:',
-                '-s:%d'%int(self.randseed),
+                '-s:%d'%int(self._randseed),
                 ]
         if self.q is not None:     args.append('-c:%d'%self.q)
         if self.epsilon is not None: args.append('-e:%f'%self.epsilon)
@@ -1844,24 +1870,39 @@ class SnapCNM(_SNAPcommunity):
     _algorithm = 2
     _algorithm_name = 'Clauset-Newman-Moore'
 
-
 if __name__ == "__main__":
-    if len(sys.argv) < 2 or '-h' in sys.argv or '--help' in sys.argv:
-        print "%s MethodName infile outfile"%os.path.basename(sys.argv[0])
+    if len(sys.argv) < 4 or '-h' in sys.argv or '--help' in sys.argv:
+        print "%s MethodName infile outfile [options-dict]"%os.path.basename(sys.argv[0])
+        print
         print "available methods:", ', '.join(sorted(
             name for name, cda in globals().iteritems()
             if isinstance(cda, type)
             and issubclass(cda, CDMethod)
             and name[0]!='_'))
+        if len(sys.argv) > 1 and sys.argv[1] not in ('-h', '--help'):
+            method = sys.argv[1]
+            method = locals()[method]
+            print
+            print "Available options for %s:"%method.name()
+            print "\n".join(("%s=%s"%(x,getattr(method,x))
+                                      if pcd.util._isTrivialType(getattr(method,x))
+                                      else x)
+                             for x in sorted(dir(method))
+                             if (not x.startswith('_')
+                                 and not hasattr(getattr(method, x), '__call__')))
+        else:
+            print "Method help: %s MethodName -h"%os.path.basename(sys.argv[0])
         sys.exit()
     #import optparse
     method = sys.argv[1]
     input = sys.argv[2]
     output = sys.argv[3]
-    options = sys.argv[4]
-    from pcd.util import leval
-    options = leval(options)
-    print options
+    if len(sys.argv) > 4:
+        options = sys.argv[4]
+        from pcd.util import leval
+        options = leval(options)
+    else:
+        options = {}
 
     import pcd.ioutil
     g = pcd.ioutil.read_any(input)
