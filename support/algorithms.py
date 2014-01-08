@@ -314,7 +314,7 @@ class CDMethod(object):
         if hasattr(self, '_filter_graphfilename'):
             self.graphfile = self._filter_graphfilename(self.graphfile)
         if not os.access(self.dir, os.F_OK): os.mkdir(self.dir)
-    def call_process(self, args, binary_name=None):
+    def call_process(self, args, binary_name=None, stdout_suffix=""):
         """Call a process, saving the standard output to disk.
 
         This handles running a program, while also doing other
@@ -329,11 +329,13 @@ class CDMethod(object):
             binary_name = os.path.basename(args[0])
         binary_name = binary_name.replace('/', '_')
         # Open a stream for the standard output
-        self._stdout_fname = binary_name+'.stdout'
-        disk_stdout = open(binary_name+'.stdout', 'w')
+        self._stdout_fname = binary_name+'.stdout'+stdout_suffix
+        disk_stdout = open(self._stdout_fname, 'w')
         # Write the command lines we are running
         disk_stdout.write(repr(list(args))+'\n')
-        disk_stdout.write("self attributes: %s\n"%(pcd.util.listAttributes(self),))
+        disk_stdout.write("self attributes: %s\n"%(
+            pcd.util.listAttributes(self, exclude='_randseed',
+                                    exclude_deep=['initial', 'vmap', 'vmap_inv']),))
         disk_stdout.write("Process times: %s\n"%(os.times(),))
         disk_stdout.write("Beginning run at %s\n\n\n"%time.ctime())
         disk_stdout.flush()
@@ -969,8 +971,8 @@ class Louvain(CDMethod):
 
     """
     _input_format = 'edgelist'
-    binary_convert = 'louvain/Community_latest/convert'
-    binary_community = 'louvain/Community_latest/community'
+    _binary_convert = 'louvain/Community_latest/convert'
+    _binary_community = 'louvain/Community_latest/community'
     weighted = False
     stop_dQ = None
     _nodemapZeroIndexed = True
@@ -987,12 +989,47 @@ class Louvain(CDMethod):
 
     def run(self):
         """Run a number of Louvain trials, and use the best of them."""
+        # Do set up, creating initial binary file
+        self.graphfilebin = self.graphfile+'.bin'
+        #Remove old files.
+        for fname in (self.graphfilebin, self.graphfilebin+'.weights'):
+            if os.access(fname, os.F_OK):
+                os.unlink(fname)
+        args = (_get_file(self._binary_convert),
+                '-i', self.graphfile, '-o', self.graphfilebin,
+                )
+        if self.weighted:
+            args = args + ('-w', self.graphfilebin+'.weights', )
+        self.call_process(args)
+        # run louvain self.trials times.
+        for i in range(self.trials):
+            self.run_louvain(trial=i)
+
+    def run_louvain(self, trial):
+        """Run one louvian process"""
+        args = (_get_file(self._binary_community),
+                self.graphfilebin,
+                '-l', '-1',
+                '-v', )
+        if self.weighted:
+            args = args + ('-w', self.graphfilebin+'.weights', )
+        if self.stop_dQ:
+            args = args + ('-q', str(self.stop_dQ),)
+        if self.initial:
+            raise NotImplementedError("Check this before using.")
+            # FIXME: write it
+            args = args + ('-p', 'initial.txt')
+        self.call_process(args, stdout_suffix='.%03d'%trial)
+
+    def read_cmtys(self):
+        """Read all of the communities"""
         best_cmtys = None
         best_Q = -1e6
         self.avg_num_levels = []
         for i in range(self.trials):
-            self.run_louvain()
-            results = self.read_cmtys_and_return()
+            results = self.read_cmtys_and_return(trial=i)
+            #print [x.modularity for x in results]
+            #print [x.q for x in results]
             assert len(results) > 0
             self.avg_num_levels.append(len(results))
             # Pick which partition to use
@@ -1009,43 +1046,14 @@ class Louvain(CDMethod):
                 self.cmtys = best_of_results #self.results[0]
                 self.modularity = best_Q = results[0].modularity
             #print best_Q
+        # Finalize
         self.num_levels = len(self.results)
         self.avg_num_levels = numpy.mean(self.avg_num_levels)
 
-    def run_louvain(self):
-        self.graphfilebin = self.graphfile+'.bin'
-        #Remove old files.
-        for fname in (self.graphfilebin, self.graphfilebin+'.weights'):
-            if os.access(fname, os.F_OK):
-                os.unlink(fname)
-        args = (_get_file(self.binary_convert),
-                '-i', self.graphfile, '-o', self.graphfilebin,
-                )
-        if self.weighted:
-            args = args + ('-w', self.graphfilebin+'.weights', )
-        self.call_process(args)
-
-        args = (_get_file(self.binary_community),
-                self.graphfilebin,
-                '-l', '-1',
-                '-v', )
-        if self.weighted:
-            args = args + ('-w', self.graphfilebin+'.weights', )
-        if self.stop_dQ:
-            args = args + ('-q', str(self.stop_dQ),)
-        if self.initial:
-            raise NotImplementedError("Check this before using.")
-            # FIXME: write it
-            args = args + ('-p', 'initial.txt')
-
-        self.call_process(args)
-
-    def read_cmtys(self):
-        self.results = self.read_cmtys_and_return()
-        self.cmtys = self.results[0]
-        return self.results
-    def read_cmtys_and_return(self):
-        stdout = open(self._stdout_fname).read()
+    def read_cmtys_and_return(self, trial):
+        """Read one output file (of a specific trial) and parse."""
+        fname = os.path.basename(self._binary_community)+'.stdout'+'.%03d'%trial
+        stdout = open(fname).read()
 
         results = [ ]
         level = None
@@ -1088,6 +1096,11 @@ class Louvain(CDMethod):
                         return set((self.vmap_inv[node],) )
                     assert node in results[level-1]._cmtynodes
                     lower_nodes = results[level-1]._cmtynodes[node]
+                    # If you adjust this function for hierarchical
+                    # community names, fix the duplicate-last-layer
+                    # detection above.  In particular, .cmtysizes()
+                    # will no longer be equal for the last two
+                    # communities.
                     return lower_nodes
                 nodes = find_real_node(node, level)
                 #print 'z', nodes
@@ -1096,22 +1109,35 @@ class Louvain(CDMethod):
 
         #from fitz import interactnow
         # Check that all have the same total size:
-        if len(results) > 0:
-            assert all(results[0].N == r.N  for r in results[1:])
+        #if len(results) > 0:
+        #    assert all(results[0].N == r.N  for r in results[1:])
+        # Is the last level duplicated?
+        if results[-1].q == results[-2].q \
+           and results[-1].cmtysizes() == results[-2].cmtysizes():
+            # Our two communities should be equal.
+            # A final test for equality (not used):
+            #assert self.results[-1]._cmtynodes = self.results[-2]._cmtynodes
+            del results[-1]
+        else:
+            # From my current understanding, the only time the two
+            # final levels aren't identical is when stop_dQ is
+            # nonzero.  So, insert a check for that, and if it turns
+            # out to be not true, figure out what went wrong.
+            assert self.stop_dQ
         return results
 
 class LouvainWeighted(Louvain):
     weighted = True
 
 class LouvainLowest(Louvain):
-    weighted = True
+    #weighted = True
     def read_cmtys(self):
         super(LouvainLowest, self).read_cmtys()
         self.results = [ self.cmtys ]
 
 class LouvainModMax(Louvain):
     which_partition = 'modmax'
-    weighted = True
+    #weighted = True
     def read_cmtys(self):
         super(LouvainModMax, self).read_cmtys()
         self.results = [ self.cmtys ]
