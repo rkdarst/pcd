@@ -116,12 +116,12 @@ class CDMethod(object):
 
     A method is initialized with arguments g, a networkix graph
     """
-    delete_tmpdir = None         # Delete the temporary directory after running?
+    delete_tmpdir = None          # Delete the temporary directory after running?
     _nodemapZeroIndexed = False   # Should edgelist be zero-indexed?  default start at 1.
     _interact_results = False     # If True, after self.run() is called, interact in directory.
     seed = None                   # Seed to override.
     verbosity = 2
-    map_nodes_to_int = True       # Do we need to remap all nodes to ints?
+    _map_nodes_to_int = True      # Do we need to remap all nodes to ints?
     _run_method = True
     _load_results = True
     _recovery_mode = False        # recovery mode - do nothing, user should
@@ -216,7 +216,7 @@ class CDMethod(object):
         """Return CD method name, as a string"""
         return getattr(cls, '_name', cls.__name__)
     @property
-    def randseed(self):
+    def _randseed(self):
         """Random (integer) seed for CD methods.
 
         We always pass the method a seed generated from python
@@ -232,7 +232,7 @@ class CDMethod(object):
         This is conrolled by several things:"""
         # If we want no mapping: have a placeholder that does nothing
         # when mapping, converts to integers when unmapping.
-        if not self.map_nodes_to_int or isinstance(self.g, GraphFile):
+        if not self._map_nodes_to_int or isinstance(self.g, GraphFile):
             self.vmap = NullMap()
             self.vmap_inv = self.vmap.inverse()
             return
@@ -447,8 +447,8 @@ class _InfomapOld_(CDMethod):
     _input_format = 'pajek'
     def run(self):
         args = (#'/usr/bin/gdb', '--args',
-                _get_file(self.binary),
-                str(self.randseed),
+                _get_file(self._binary),
+                str(self._randseed),
                 self.graphfile,
                 str(self.trials))
         self.call_process(args)
@@ -483,10 +483,10 @@ class _InfomapOld_(CDMethod):
 
 
 class _InfomapOld(_InfomapOld_):
-    binary = 'infomap/infomap_undir/infomap'
+    _binary = 'infomap/infomap_undir/infomap'
 
 class _InfomapOld_dir(_InfomapOld_):
-    binary = 'infomap/infomap_dir/infomap'
+    _binary = 'infomap/infomap_dir/infomap'
     _is_directed = True
 
 class Infomap(CDMethod):
@@ -510,7 +510,7 @@ class Infomap(CDMethod):
 
     initial: initial configuration.
     """
-    binary = 'infomap/Infomap-0.11.5/Infomap'
+    _binary = 'infomap/Infomap-0.11.5/Infomap'
     _input_format = 'edgelist'
     _nodemapZeroIndexed = True
     directed = False
@@ -521,10 +521,10 @@ class Infomap(CDMethod):
     include_self_links = False
     args = [ ]
     def run(self):
-        args = [_get_file(self.binary),
+        args = [_get_file(self._binary),
                 '--num-trials=%d'%self.trials,
                 '--input-format=link-list', '--zero-based-numbering',
-                '--seed=%d'%self.randseed,
+                '--seed=%d'%self._randseed,
                 self.graphfile,
                 '.',
                 ]
@@ -670,7 +670,7 @@ class _Oslom(CDMethod):
     coverage_parameter: submodule merging criteria.  default .5, range
     0 to 1.  Larger leads to bigger clusters.
     """
-    #binary = 'oslom/OSLOM2/oslom_undir'
+    #_binary = 'oslom/OSLOM2/oslom_undir'
     _input_format = 'edgelist'
     trials = 10
     trials_hier = 50
@@ -697,8 +697,8 @@ class _Oslom(CDMethod):
             for f in files:
                 os.unlink(os.path.join(self.outdir, f))
 
-        args = (_get_file(self.binary),
-                "-seed", str(self.randseed),
+        args = (_get_file(self._binary),
+                "-seed", str(self._randseed),
                 "-w" if self.weighted else '-uw', #unweighted or weighted
                 "-f", self.graphfile,
                 '-r', str(self.trials),
@@ -790,11 +790,11 @@ class _Oslom(CDMethod):
                                     )
 
 class Oslom(_Oslom):
-    binary = 'oslom/OSLOM2/oslom_undir'
+    _binary = 'oslom/OSLOM2/oslom_undir'
 class OslomWeighted(Oslom):
     weighted = True
 class Oslom_dir(_Oslom):
-    binary = 'oslom/OSLOM2/oslom_dir'
+    _binary = 'oslom/OSLOM2/oslom_dir'
     _is_directed = True
 
 
@@ -802,14 +802,14 @@ class _Copra(CDMethod):
     # http://www.cs.bris.ac.uk/~steve/networks/software/copra-guide.pdf
     _input_format = 'edgelist'
     trials = 10
-    binary = 'copra.jar'
+    _binary = 'copra.jar'
     weighted = False
     max_overlap = 1   # default in COPRA code is 1.
     max_overlap_range = None
 
     def run(self):
         args = ["/usr/bin/java",
-                "-cp", _get_file(self.binary),
+                "-cp", _get_file(self._binary),
                 "COPRA",
                 os.path.abspath(self.graphfile),
                 "-repeat", str(self.trials),
@@ -852,7 +852,7 @@ class APM(CDMethod):
     options = { }  # All options for the pcd.auto.Auto object.
     preferred_order = 'In', 'VI'
     initial = None
-    map_nodes_to_int = False
+    _map_nodes_to_int = False
 
     def run(self):
         import pcd.multiresolution
@@ -1145,7 +1145,7 @@ class LouvainModMax(Louvain):
 
 #class ModularitySA(CDMethod):
 #    _input_format = 'edgelist'
-#    binary = '/home/richard/research/cd/code-dl/good_modularity_SA/modularity_sampling_v1.0.0/anneal.py'
+#    _binary = '/home/richard/research/cd/code-dl/good_modularity_SA/modularity_sampling_v1.0.0/anneal.py'
 #    weighted = False
 #    quiet = True
 #    trials = 1
@@ -1154,7 +1154,7 @@ class LouvainModMax(Louvain):
 #
 #    def run_sa(self):
 #        args = ('python',
-#                self.binary,
+#                self._binary,
 #                #'-o', # store local optima only
 #                self.graphfile,
 #                )
@@ -1229,8 +1229,8 @@ class LouvainModMax(Louvain):
 #        self.cmtys = self.results[0]
 class ModularitySA(CDMethod):
     _input_format = 'edgelist'
-    #binary = 'lancichinetti_codes/clustering_programs_5_1/bin/modopt'
-    binary = 'lancichinetti_modSA/modopt/modopt'
+    #_binary = 'lancichinetti_codes/clustering_programs_5_1/bin/modopt'
+    _binary = 'lancichinetti_modSA/modopt/modopt'
     _nodemapZeroIndexed = True
     trials = 5
     resolution = 1
@@ -1239,7 +1239,7 @@ class ModularitySA(CDMethod):
     initial = None
 
     def run(self):
-        binary = _get_file(self.binary)
+        binary = _get_file(self._binary)
         if os.path.exists('community.dat'):
             # This file will be read regardless of if it is requested
             # or not.  Move it to another name if it alreday exists, I
@@ -1254,7 +1254,7 @@ class ModularitySA(CDMethod):
                 print >> f, self.vmap[node], cmty_map[cmty]
         args = (binary,
                 self.graphfile,
-                str(self.randseed),  # seed
+                str(self._randseed),  # seed
                 str(self.resolution), # resolution parameter (lambda)
                 str(self.trials),   # number of runs
                 str(self.temp_init),    # initial temperature
@@ -1284,7 +1284,7 @@ class _PCD_single(CDMethod):
     minargs = { }
     initial = None # initial state for each minimization attempt.  Default is 'random'.
                    # Same as Graph.trials(initial=)
-    map_nodes_to_int = False
+    _map_nodes_to_int = False
     def _initG(self, G):  # for subclassing
         pass
     def run(self):
@@ -1411,9 +1411,9 @@ class BeliefPropogationZ(CDMethod):
     epsilon = None   # Initial c_out/c_in ratio.  c_in+c_out = avg degree of graph.
     p_in = None
     p_out = None
-    binary = 'BP_z__sbm/sbm'
+    _binary = 'BP_z__sbm/sbm'
     def run(self):
-        binary = _get_file(self.binary)
+        binary = _get_file(self._binary)
         args = [binary, 'learn', '-l', self.graphfile, '-q', str(self.q),
                 '-w', self.graphfile+'.out',
                 #'-W', self.graphfile+'.spm.out',
@@ -1433,7 +1433,7 @@ class BeliefPropogationZ(CDMethod):
         #if self.verbosity<= 0:  args.extend(('-v', '-1'))
         args.extend(('-v', str(self.verbosity)))
         #if self.seed: args.extend(('-D', str(self.seed)))
-        args.extend(('-D', str(self.randseed)))
+        args.extend(('-D', str(self._randseed)))
         args.extend(self.get_params())
 
         self.call_process(args)
@@ -1508,7 +1508,7 @@ class _2WalkSpectrum(CDMethod):
     q_hint = None  # calculate q_hint+1 eigenvalues.
     q = None  # Specify the number of eigenvalues.
     kwargs = { }
-    map_nodes_to_int = False
+    _map_nodes_to_int = False
     def run(self):
         if self.q:
             # Add one to self.q, so that we have enough information to
@@ -1818,7 +1818,7 @@ class SnapAGMfit(_SNAPmethod):
                 '-i:%s'%self.graphfile,
                 #'-o:%s'%output,
                 '-l:',
-                '-s:%d'%int(self.randseed),
+                '-s:%d'%int(self._randseed),
                 ]
         if self.q is not None:     args.append('-c:%d'%self.q)
         if self.epsilon is not None: args.append('-e:%f'%self.epsilon)
