@@ -1028,9 +1028,10 @@ class Louvain(CDMethod):
         self.avg_num_levels = []
         for i in range(self.trials):
             results = self.read_cmtys_and_return(trial=i)
-            #print [x.modularity for x in results]
-            #print [x.q for x in results]
+            #print [x.modularity for x in results], [x.q for x in results]
+            #print [ x.modularity-x.Q(self.g) for x in results ]
             assert len(results) > 0
+            assert not any(x.modularity is None for x in results)
             self.avg_num_levels.append(len(results))
             # Pick which partition to use
             if self.which_partition == 'modmax':
@@ -1038,14 +1039,12 @@ class Louvain(CDMethod):
             else:
                 best_of_results = results[self.which_partition]
             #print results
-            if best_of_results.modularity > best_Q or (
-                  best_of_results.modularity is None and not hasattr(self, 'cmtys')
-                ):
+            if best_of_results.modularity > best_Q:
                 self.results = results
                 self.results_modularity = [r.modularity for r in results]
                 self.cmtys = best_of_results #self.results[0]
-                self.modularity = best_Q = results[0].modularity
-            #print best_Q
+                self.modularity = best_Q = best_of_results.modularity
+            #print best_of_results.modularity, best_Q
         # Finalize
         self.num_levels = len(self.results)
         self.avg_num_levels = numpy.mean(self.avg_num_levels)
