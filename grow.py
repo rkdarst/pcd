@@ -37,9 +37,9 @@ class GrowFitness(object):
         g.add_edge(0, 1)
         g.add_edge(1, 2)
         g.add_edge(2, 0)
-        g.node[0]['fitness'] = exp(-self.beta*pow(self.rng.uniform(0, 1),1/(self.kappa+1)))
-        g.node[1]['fitness'] = exp(-self.beta*pow(self.rng.uniform(0, 1),1/(self.kappa+1)))
-        g.node[2]['fitness'] = exp(-self.beta*pow(self.rng.uniform(0, 1),1/(self.kappa+1)))
+        g.node[0]['fitness'] = exp(-self.beta*pow(self.rng.uniform(0, 1),1./(self.kappa+1)))
+        g.node[1]['fitness'] = exp(-self.beta*pow(self.rng.uniform(0, 1),1./(self.kappa+1)))
+        g.node[2]['fitness'] = exp(-self.beta*pow(self.rng.uniform(0, 1),1./(self.kappa+1)))
 
     def add(self, n0=None):
         g = self.g
@@ -49,7 +49,7 @@ class GrowFitness(object):
         g.add_node(n0)
 
         # Generate and set fitnesses
-        fitness = exp(-self.beta*pow(self.rng.uniform(0, 1), 1/(self.kappa+1)))
+        fitness = exp(-self.beta*pow(self.rng.uniform(0, 1), 1./(self.kappa+1)))
         self.fitnesses[n0] = fitness
         g.node[n0]['fitness'] = fitness
 
