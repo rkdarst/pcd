@@ -56,7 +56,7 @@ class Auto(object):
                 d['weight'] = -d['weight']
 
 
-        noedgeweight = 1
+        noedgeweight = -1
         if self.VT is not None:
             noedgeweight = 0
         G = Graph.fromNetworkX(g, noedgeweight=noedgeweight)
