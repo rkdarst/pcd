@@ -877,7 +877,8 @@ class APM(CDMethod):
                               threads=6,
                               gammas=dict(low=.01, high=10, density=20),
                               initial=initial,
-                              quiet=(self.verbosity <= 0))
+                              verbosity=self.verbosity,
+                              )
         defaultOptions.update(self.options)
         options = defaultOptions
         options.update(dict(basename='graph',
@@ -1288,8 +1289,7 @@ class _PCD_single(CDMethod):
         pass
     def run(self):
         G = pcd.Graph.fromNetworkX(self.g)
-        if self.verbosity <= 0:
-            G.verbosity = -1
+        G.verbosity = self.verbosity
         if self.const_q:
             G.const_q = self.const_q
         kwargs = self.minargs_default.copy()

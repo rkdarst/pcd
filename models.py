@@ -1272,7 +1272,7 @@ class Graph(anneal._GraphAnneal, cmodels._cobj, object):
         - once
         - loop
         """
-        if self.verbosity >= 0:
+        if self.verbosity > 0:
             print "beginning alternating", " ".join(f.func_name for f in funcs)
         if mode not in ('restart', 'once', 'loop'):
             raise ValueError("Unknown mode: %s"%mode)
