@@ -922,7 +922,10 @@ def graph_stats(g, prefix='', recurse=1, level=1, _test=False):
             if triangles2 == 0:   transitivity = 0.0
             else:                 transitivity = triangles2/float(possible_triangles2)
             avg_clustering_coefficient = clustering_coef_sum / float(g.number_of_nodes())
-            avg_clustering_coefficient_nonzero = clustering_coef_sum / float(n_nodes)
+            if n_nodes == 0:
+                avg_clustering_coefficient_nonzero = float('nan')
+            else:
+                avg_clustering_coefficient_nonzero = clustering_coef_sum / float(n_nodes)
             #print n_nodes, clustering_coef_sum
             if _test:
                 assert triangles2//6 == sum(networkx.triangles(g).itervalues())//3
@@ -955,7 +958,7 @@ def graph_stats(g, prefix='', recurse=1, level=1, _test=False):
         if len(comps) > 1:
             stats.append("Conn-Components-Number-Of: %d"%len(comps))
             stats.append("Conn-Components-Fraction-Nodes-In-Largest: %g"%(
-                len(comps[0])/len(g)))
+                len(comps[0])/float(len(g))))
             stats.append("Conn-Components-Sizes-Top-20: %s"%(
                 " ".join(str(len(x)) for x in comps[:20])))
             stats.append("Conn-Components-Size-Fractions-Top-5: %s"%(
