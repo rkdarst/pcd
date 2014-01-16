@@ -24,6 +24,21 @@ def edges_between(g, nbunch1, nbunch2):
             if neighbor in nbunch2:
                 edges.add((n1, neighbor))
     return edges
+def n_edges_between(g, nbunch1, nbunch2):
+    """Number of edges between two node sets.
+
+    nbunches should be SETS for efficiency.
+
+    If nbunch1==nbunch2, return double the number of edges."""
+    n = 0
+    #nbunch2 = set(nbunch2)
+    if len(nbunch1) > len(nbunch2):
+        nbunch1, nbunch2 = nbunch2, nbunch1
+    for n1 in nbunch1:
+        for neighbor in g.adj[n1]:
+            if neighbor in nbunch2:
+                n += 1
+    return n
 
 def _iterCmtys(d):
     """Iterate over the communities in a node' data dict.
