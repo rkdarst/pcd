@@ -1133,7 +1133,7 @@ class _CommunitiesBase(object):
             Otherwise just return fraction_detected.
         """
         if isinstance(cmtyMapping, str):
-            cmtyMapping = self.cmty_mapping(cmtyMapping)
+            cmtyMapping = self.cmty_mapping(detected, cmtyMapping)
         if isinstance(cmtyMapping, tuple):
             cmtyMapping = self.cmty_mapping(cmtyMapping[0], **cmtyMapping[1])
         n_detected = 0
