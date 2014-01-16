@@ -350,6 +350,14 @@ def sbm(U, q, n, p, weighted=None, edges_constructor=add_edges_exact_sparse, pOu
                       edges_constructor=edges_constructor)
     return g
 
+def sbm2(pin, pout, n, q):
+    """Better interface to sbm"""
+    N = n * q
+    g = sbm(range(N), q, n, pin, pOut=pout)
+    import pcd.cmty
+    cmtys = pcd.cmty.Communities.from_networkx(g)
+    return g, cmtys
+
 def compose_graphs(gs, weighted=None):
     g = networkx.Graph()
     for g_ in gs: g.add_nodes_from(g_.nodes_iter())
