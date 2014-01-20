@@ -834,7 +834,7 @@ class WeightedChoice(object):
         self.items = list(items)
     def choice(self):
         """Pick one item according to the weights."""
-        x = x = random.random() * self.norm
+        x = random.random() * self.norm
         return self.items[bisect.bisect(self.cumdist, x)]
     def add(self, item, weight):
         """Add a given item, with """
