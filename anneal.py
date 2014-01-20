@@ -29,7 +29,8 @@ class _GraphAnneal(object):
                const_q_SA=False, constqEcoupling=1.,
                min_n_SA=False, minnEcoupling=.1,
                mode=None,
-               maxrounds=None):
+               maxrounds=None,
+               stop_best_E_changes=None):
         """An annealing round
 
         Escale: initial energy scale.  Set this high enough for your
@@ -61,8 +62,9 @@ class _GraphAnneal(object):
 
         best_E = float('inf')
         best_state = None
+        best_state_round = -1
 
-        if self.verbosity >= 2:
+        if self.verbosity >= 1:
             E = self.energy(gamma)
             print "  (a------) %9.5fb %7.2fE ------ %4dq"%(
                 beta, E, self.q)
@@ -93,18 +95,32 @@ class _GraphAnneal(object):
             beta *= betafactor
             if E < best_E:
                 best_state = self.getcmtystate()
+                best_state_round = nRounds
 
             running_changes.append((changes, E))
             del running_changes[0]
             if nRounds >= stablelength-1:
                 # If no more changes
                 #if all(x[0]==0 for x in running_changes):
+                #    if self.verbosity > 0:
+                #        print "Done: no moves for %d rounds"%len(running_changes)
                 #    break
                 # if E doesn't change for the last stable_length rounds.
                 if all(approxeq(x[1],running_changes[0][1]) for x in running_changes):
+                    if self.verbosity > 0:
+                        print "Done: energy stable for %d rounds"%len(running_changes)
                     break
             if maxrounds and nRounds > maxrounds:
+                if self.verbosity > 0:
+                    print "Done: maximum rounds: %d"%nRounds
                 break
+            if stop_best_E_changes and nRounds - best_state_round > stop_best_E_changes:
+                if self.verbosity > 0:
+                    print "Done: energy not decreased for %d rounds"%(nRounds - best_state_round)
+                break
+        if self.verbosity > 0:
+            print "  (a%6d) %9.5fb %7.2fE ------ %4dq:  bs@%d"%(
+                nRounds, beta, E, self.q, best_state_round)
         self.setcmtystate(best_state)
         return (nRounds, totChanges)
 
