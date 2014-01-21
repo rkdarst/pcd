@@ -1468,6 +1468,7 @@ class BeliefPropogationZ(CDMethod):
         line = f.readline()
         cmtylist = [ int(c) for c in line.split() ]
         cmtynodes = dict()
+        self.node_order = [self.vmap[i] for i in range(len(self.g))]
         for node, c in zip(self.node_order, cmtylist):
             if c not in cmtynodes: cmtynodes[c] = set()
             #cmtynodes[c].add(node)
