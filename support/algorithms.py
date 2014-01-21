@@ -339,6 +339,7 @@ class CDMethod(object):
         disk_stdout.write("Process times: %s\n"%(os.times(),))
         disk_stdout.write("Beginning run at %s\n\n\n"%time.ctime())
         disk_stdout.flush()
+        #time_start = time.time()
 
         if self.verbosity >= 2:
             # In order to split the subprocess output between two
@@ -361,6 +362,7 @@ class CDMethod(object):
                 splitter.close()
                 splitter.wait()
 
+            #print "call_process time elapsed (s):", time.time() - time_start
             disk_stdout.write('\n\n\n')
             disk_stdout.write("Ending run at %s\n"%time.ctime())
             disk_stdout.write("Process times: %s\n"%(os.times(),))
