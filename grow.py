@@ -119,3 +119,59 @@ def growsf_gb(N, p, beta, kappa):
     assert len(grower.g) == N
     assert grower.g.number_of_edges() == 2*N - 3
     return grower.g
+
+
+class GrowBA(object):
+    def __init__(self, m=1, g=None):
+        self.m = m
+        if g is None:
+            g = networkx.Graph()
+        self.g = g
+        assert set(g.nodes()) == set(range(len(g)))
+        #self.chooser = chooser = pcd.util.WeightedChoice((n, g.degree(n)) for
+        #                                                 n in range(len(g)))
+    def add(self, n0=None):
+        g = self.g
+        if n0 is None:
+            n0 = len(self.g)  # one greater than greatest node
+        assert n0 not in self.g.node
+
+        if len(g) == 0:
+            g.add_node(n0)
+            return
+        elif len(g) == 1:
+            g.add_edge(n0, next(iter(g.nodes())))
+            g.add_node(n0)
+            return
+
+        #chooser = self.chooser
+        links = set()
+        chooser = pcd.util.WeightedChoice((n, g.degree(n)**2)
+                                          for n in g.nodes())
+
+        g.add_node(n0)
+
+        for i in range(min(self.m, len(g))):
+            while True:
+                n1 = chooser.choice()
+                if n1 not in links:
+                    break
+            g.add_edge(n0, n1)
+            links.add(n1)
+        ## Add to chooser
+        #chooser.add(n0, m)
+        #for n1 in links:
+        #    chooser[n1] += 1
+        #chooser.norm += m
+        #chooser.check()
+
+    @classmethod
+    def create(cls, N, m=1):
+        grower = cls(m=m)
+        for _ in range(N):
+            grower.add()
+        return grower.g
+
+if __name__ == "__main__":
+    print len(GrowBA.create(10000, m=2))
+    #print len(networkx.barabasi_albert_graph(n=10000, m=2))
