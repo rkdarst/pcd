@@ -90,6 +90,9 @@ class GrowFitness(object):
                 links_exclude.add(n_next)
 
             else:
+                if neighs - links_exclude == 0:
+                    print "assertion neigh - links_exclude == 0 false"
+                    assert neighs - links_exclude != 0
                 # 1-p chance of next link to a neighbor of node n1
                 neigh_fitnesses = [ (n, self.fitnesses[n]) for n in neighs ]
                 neighbor_chooser = pcd.util.WeightedChoice(neigh_fitnesses)
