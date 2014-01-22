@@ -23,13 +23,15 @@ def quantile(sorted_list, p):
     d1 = sorted_list[int(c)] * (k-f)
     return d0+d1
 
-def log_bin(k, base=10, decadesize=10, minlog=10):
+def log_bin(k, base=10, decadesize=10, minlog=1):
     decadesize = float(decadesize)
     if k < minlog:  return k
     i = log(k)/log(base)*decadesize
     i = round(i)
     k = exp((i/decadesize) * log(base))
     return k
+#def log_bin(k, base=10, decadesize=10, minlog=10):
+#    return k
 
 class Statter(object):
     minsize = 2
@@ -244,7 +246,7 @@ class NodeEmbeddedness(Statter):
 #            yield n_cmty, ext_ratio
 
 
-class NeighborFraction(Statter):
+class CmtySelfNeighborFraction(Statter):
     def calc(self, g, cmtys):
         nodecmtys = cmtys.nodecmtys_onetoone()
         cmtygraph = cmtys.cmty_graph(g)
@@ -261,7 +263,7 @@ class NeighborFraction(Statter):
             for n in cnodes:
                 neighbors.update(g.neighbors_iter(n))
             neighbor_ratio = float(n_cmty)/len(neighbors)
-            neighbor_ratio = (len(neighbors)-n_cmty)/float(n_cmty)
+            #neighbor_ratio = (len(neighbors)-n_cmty)/float(n_cmty)
 
             n_cmty = log_bin(n_cmty)
             yield n_cmty, neighbor_ratio
