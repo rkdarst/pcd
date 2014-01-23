@@ -1187,6 +1187,11 @@ class LouvainModMax(Louvain):
         super(LouvainModMax, self).read_cmtys()
         self.results = [ self.cmtys ]
 
+# This does not currently work:
+#class _LouvainOriginal(Louvain):
+#    _binary_convert = 'louvain_original/Community_BGLL_CPP/convert'
+#    _binary_community = 'louvain_original/Community_BGLL_CPP/community'
+#    which_partition = 'modmax'
 
 #class ModularitySA(CDMethod):
 #    _input_format = 'edgelist'
