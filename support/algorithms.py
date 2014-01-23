@@ -648,36 +648,54 @@ class InfomapSingle_dir(Infomap):
 class _Oslom(CDMethod):
     """Oslom.
 
-    merge_singletons: default False.  If true, return the partitions
-    which have singletons (homeless nodes) merged into their best
-    community.
+    merge_singletons: bool, default False.
+        If true, return the partitions which have singletons (homeless
+        nodes) merged into their best community.
 
-    strip_singletons: if there are singletons in the result, do not
-    return those in the detected structure (and thus the result will
-    not be a cover).  This is a custom option, not from the core oslom
-    code.  If the merge_singletons option is true, this option will do
-    nothing.
+    strip_singletons: bool, default False
+        If there are singletons in the result, do not return those in
+        the detected structure (and thus the result will not be a
+        cover).  This is a custom option, not from the core oslom
+        code.  If the merge_singletons option is true, this option
+        will do nothing.
 
-    initial: initial configuration, Communities object.
+    initial: Communities object
+        Initial configuration.  Used with -hint option.  Cleans up and
+        only returns statistically significant communities.
 
-    weighted: use -w option (floating point weights, instead of
-    integer weights transforming into multiple edges).
+    weighted: bool, default False.
+        Use -w option, which specifies floating point weights.  If
+        False, integer weights are transformed into multiple edges and
+        non-integer weights are an error.
 
-    trials: number of trials to run for first hierarchical level, '-r'
-    option.  For fastest execution, set this option and trials_hier to
-    1.
+    trials: int, default 10
+        Number of trials to run for first hierarchical level, '-r'
+        option.  For fastest execution, set this option and
+        trials_hier to 1.
 
-    trials_hier: number of trials for each hierarchical level.
+    trials_hier: int, default 50
+        Number of trials for each hierarchical level.
 
-    p_value: significance level of modules, default 0.1
+    fast: bool or int, default False
+        Specify 'fast mode', trials=1 and trials_hier=1.  If fast is
+        an integer greater than one, then set trials=fast and
+        trials_hier=fast.  Thus, fast=2 can be used for 'fast, but not
+        quiet as fast as fast=True'.  'fast' is incompatible with
+        'trials' and 'trials_hier'.
 
-    coverage_parameter: submodule merging criteria.  default .5, range
-    0 to 1.  Larger leads to bigger clusters.
+    p_value: float, default None
+        Significance level of modules, default to default in code
+        (0.1)
+
+    coverage_parameter: float, default None
+        Submodule merging criteria.  Default in Oslom code .5, range 0
+        to 1.  Larger leads to bigger clusters.
     """
     #_binary = 'oslom/OSLOM2/oslom_undir'
     _input_format = 'edgelist'
     trials = 10
     trials_hier = 50
+    fast = None
 
     merge_singletons = False
     initial = None
@@ -705,7 +723,21 @@ class _Oslom(CDMethod):
                 "-seed", str(self._randseed),
                 "-w" if self.weighted else '-uw', #unweighted or weighted
                 "-f", self.graphfile,
-                '-r', str(self.trials),
+                )
+        # Specification of how many trials to run.
+        # fast mode.  trials and trials_hier must not be specified.
+        if self.fast:
+            if ('trials' in self.__dict__
+                or 'trials_hier' in self.__dict__):
+                raise ValueError("`fast` incompatible with `trials` or `trials_hier`")
+            if self.fast == 1:
+                args = args + ('-fast', )
+            else:
+                args = args + ('-r', '%d'%self.fast, '-hr', '%d'%self.fast, )
+        # Use trials and trials_hier
+        else:
+            args = args + (
+                '-r', '%d'%self.trials,
                 '-hr', '%d'%self.trials_hier,
                 )
         #if not self.merge_singletons:
