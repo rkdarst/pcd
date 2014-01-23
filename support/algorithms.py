@@ -1063,6 +1063,7 @@ class Louvain(CDMethod):
         level = None
         modularity = None
         #print self.stdout
+        #f_tmp = open('tmp.txt', 'w')
         for line in stdout.split('\n'):
             #print 'line:', line
             # Find 'level' starting lines
@@ -1092,8 +1093,8 @@ class Louvain(CDMethod):
             # Actual node parsing
             r = re.match(r'([\d]+) ([\d]+)', line)
             if r:
+                #print >> f_tmp, line
                 node, c = int(r.group(1)), int(r.group(2))
-
                 def find_real_node(node, level):
                     #print 'x', repr(node), repr(level)
                     if level == 0:
@@ -1110,6 +1111,7 @@ class Louvain(CDMethod):
                 #print 'z', nodes
                 cmtynodes[c].update(nodes)
                 #print cmtynodes[c]
+        #f_tmp.flush()
 
         #from fitz import interactnow
         # Check that all have the same total size:
@@ -1128,6 +1130,45 @@ class Louvain(CDMethod):
             # nonzero.  So, insert a check for that, and if it turns
             # out to be not true, figure out what went wrong.
             assert self.stop_dQ
+
+        ## Test the Louvain results against the hierarchy binary.
+        #for layer, cmtynodes in enumerate(results):
+        #    #print layer
+        #    args = (_get_file('louvain/Community_latest/hierarchy'),
+        #            #fname.rsplit('.', 1)[0],
+        #            'tmp.txt',
+        #            '-l', str(layer+1), )
+        #    #print args
+        #    self.call_process(args)
+        #    _new_cmtynodes = dict()
+        #    for line in open('hierarchy.stdout'):
+        #        #print line
+        #        try:
+        #            line = line.split()
+        #            node, cmty = int(line[0]), int(line[1])
+        #            #print 'n,c:', node, cmty
+        #            node = self.vmap_inv[node]
+        #        except (ValueError, IndexError):
+        #            continue
+        #        _new_cmtynodes.setdefault(cmty, set()).add(node)
+        #    cmtynodes = results[layer]._cmtynodes
+        #    _new_cmtynodes = dict(_new_cmtynodes)
+        #    assert cmtynodes == _new_cmtynodes
+        #    if cmtynodes != _new_cmtynodes:
+        #        print len(cmtynodes), len(_new_cmtynodes)
+        #        #print sorted(cmtynodes.keys()), sorted(_new_cmtynodes.keys())
+        #        print type(cmtynodes), type(_new_cmtynodes)
+        #        for cname in _new_cmtynodes:
+        #            if cmtynodes[cname] != _new_cmtynodes[cname]:
+        #                print type(cmtynodes[cname]), type(_new_cmtynodes[cname])
+        #                print cmtynodes[cname] in _new_cmtynodes.values(), \
+        #                      _new_cmtynodes[cname] in cmtynodes.values()
+        #                print cmtynodes[cname], _new_cmtynodes[cname]
+        #                #print cname
+        #                from fitz import interactnow
+        #                #raise
+        #        raise
+
         return results
 
 class LouvainWeighted(Louvain):
