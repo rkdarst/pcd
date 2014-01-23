@@ -24,6 +24,8 @@ global_code_path = ["/home/richard/research/cd/cd-code/",
 if os.uname()[1] == 'amor':
     pass
 
+tmpdir_base = '.'
+
 def _get_file(name):
     """File opener, using different search paths.
 
@@ -298,7 +300,7 @@ class CDMethod(object):
             self.basename = 'graph'
             self.dir = tempfile.mkdtemp(
                 prefix=''.join(('tmp-', self.basename, '.', self.name(),'-')),
-                dir='.', )
+                dir=tmpdir_base, )
             if self.delete_tmpdir is None:
                 self.delete_tmpdir = True
         if not self.basename:
