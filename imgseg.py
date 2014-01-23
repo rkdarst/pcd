@@ -109,12 +109,14 @@ class Image(object):
                     return Image((self.L, self.L, self.L))
         if self.mode == 'RGB':
             return Image((self.R.copy(), self.G.copy(), self.B.copy()))
+        if self.mode == 'RGBA':
+            return Image((self.R.copy(), self.G.copy(), self.B.copy(), self.A.copy()))
         elif self.mode == 'L':
             return Image(self.L.copy())
         else:
             raise ValueError("Unknown mode.")
     def RGBchannels(self):
-        if self.mode == 'RGB':
+        if self.mode == 'RGB' or self.mode == 'RGBA':
             return numpy.asarray((self.R, self.G, self.B))
         elif self.mode == 'L':
             return numpy.asarray((self.L, self.L, self.L))
@@ -173,10 +175,12 @@ class Image(object):
     def read(cls, fname):
         return cls(imread(fname))
     def get(self):
-        if self.mode == 'RGB':
+        if self.mode =='RGB' or self.mode == 'RGBA':
             return self.HSV[2]
         elif self.mode == 'L':
             return self.L
+        else:
+            raise RuntimeError('self.mode is unkwown: %s'%self.mode)
 
     @property
     def HSV(self):
@@ -187,7 +191,7 @@ class Image(object):
     def avg(self):
         if self.mode == 'L':
             return self.L
-        elif self.mode == 'RGB':
+        elif self.mode == 'RGB' or self.mode == 'RGBA':
             return (self.R + self.G + self.B) / 3.
 
 
@@ -213,7 +217,7 @@ class Image(object):
             S = I._newarr() ; S[:] = 1
             V = I._newarr() ; V[:] = 1
             return Image(vhsv_to_rgb(cmtys, S, V))
-        elif self.mode == 'RGB':
+        elif self.mode == 'RGB' or self.mode == 'RGBA':
             R,G,B = replace_hue(self.R, self.G, self.B, cmtys)
             return Image((R,G,B))
         elif self.mode == 'L':
@@ -333,9 +337,9 @@ class ImgSeg(object):
 
         if dist is None:
             pass
-        elif dist is 'cutoff':
+        elif dist == 'cutoff':
             self.dist_func  = self.dist_cutoff
-        elif dist is 'exp':
+        elif dist == 'exp':
             self.dist_func  = self.dist_expdecay
         elif dist == 'exp-rweights':
             self.rweights = True
