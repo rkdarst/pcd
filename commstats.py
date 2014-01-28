@@ -24,6 +24,7 @@ def quantile(sorted_list, p):
     return d0+d1
 
 def log_bin(k, base=10, decadesize=10, minlog=1):
+    """Given a point, return its bin center"""
     decadesize = float(decadesize)
     if k < minlog:  return k
     i = log(k)/log(base)*decadesize
@@ -32,6 +33,15 @@ def log_bin(k, base=10, decadesize=10, minlog=1):
     return k
 #def log_bin(k, base=10, decadesize=10, minlog=10):
 #    return k
+def log_bin_width(k, base=10, decadesize=10, minlog=1):
+    """Given a bin center, return its bin width"""
+    if k < minlog: return 1
+    i = log(k)/log(base)*decadesize
+    i = round(i)
+    max_ = exp((i+.5)/decadesize * log(base))
+    min_ = max(minlog, exp((i-.5)/decadesize * log(base)))
+    width = max_ - min_
+    return float(width)
 
 class Statter(object):
     minsize = 2
