@@ -31,7 +31,7 @@ class GrowFitness(object):
         # Set up fitness lists
         self.fitnesses = dict((n, g.node[n]['fitness']) for n in g.nodes_iter() )
 
-        self.chooser = pcd.util.WeightedChoice(self.fitnesses.iteritems())
+        self.chooser = pcd.util.WeightedChoice(self.fitnesses.iteritems(), rng=self.rng)
 
     def add_three_nodes(self, g):
         g.add_edge(0, 1)
@@ -95,7 +95,7 @@ class GrowFitness(object):
                     assert neighs - links_exclude != 0
                 # 1-p chance of next link to a neighbor of node n1
                 neigh_fitnesses = [ (n, self.fitnesses[n]) for n in neighs ]
-                neighbor_chooser = pcd.util.WeightedChoice(neigh_fitnesses)
+                neighbor_chooser = pcd.util.WeightedChoice(neigh_fitnesses, rng=self.rng)
                 # Choose the next node
                 while True:
                     n_next = neighbor_chooser.choice()
