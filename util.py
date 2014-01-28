@@ -826,15 +826,21 @@ class WeightedChoice(object):
     and then each call to .choice() will return 'a' 50% of the time,
     'b' 40% of the time, and 'c' 10% of the time.  Weights can be any
     numbers with satisfy normal addition and comparison operations.
+
+    rng: instance of random.Random, default built-in RNG
+        Use this as the random number generator, instead of the
+        automatically created random.Random instance (found via
+        random.random.__self__).
     """
-    def __init__(self, itemsweights):
+    def __init__(self, itemsweights, rng=random.random.__self__):
+        self.rng = rng
         items, weights = zip(*itemsweights)
         self.cumdist = list(_accumulate(weights))
         self.norm = self.cumdist[-1]
         self.items = list(items)
     def choice(self):
         """Pick one item according to the weights."""
-        x = random.random() * self.norm
+        x = self.rng.random() * self.norm
         return self.items[bisect.bisect(self.cumdist, x)]
     def add(self, item, weight):
         """Add a given item, with """
