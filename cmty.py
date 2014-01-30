@@ -1545,6 +1545,8 @@ class Communities(_CommunitiesBase):
     def __len__(self):
         """Number of communities"""
         return len(self._cmtynodes)
+    def __contains__(self, c):
+        return c in self._cmtynodes
     # Other instance management
     def copy(self):
         """Copy of self, with a new cmtynodes dictionary.
