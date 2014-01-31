@@ -23,6 +23,12 @@ def quantile(sorted_list, p):
     d1 = sorted_list[int(c)] * (k-f)
     return d0+d1
 
+def lin_bin(k, range=1, bins=10):
+    #print k, floor(k*bins/float(range)) * range/bins
+    return floor(k*bins/float(range)) * range/bins
+def lin_bin_width(k, range=1, bins=10):
+    return range/float(bins)
+
 def log_bin(k, base=10, decadesize=10, minlog=1):
     """Given a point, return its bin center"""
     decadesize = float(decadesize)
