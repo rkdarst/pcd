@@ -6,8 +6,23 @@
 class Lazy(object):
     """Wrapper class providing __x__ magic methods.
 
-    that provides lazy access to an instance of some
-    internal instance.
+    This class provides lazy access to an instance of some internal
+    instance.  It is created with an argument of a function which
+    returns an instance of cls.  The function is not called until some
+    property of the object is called.  Then, we load the function and
+    proxy all attribute lookups to that instance.  Most complexity
+    comes from having to proxy the __x__ methods, which do not use
+    __getattr__.
+
+    You must make an explicit subclass and set __wraps__ to the type
+    of object wrapped.  This is needed so that __metaclass__ can make
+    explicit proxy functions for the magic methods.
+
+    Usage:
+
+    gen = lambda: networkx.complete_graph(100)
+    p = NxGraphInstance(gen)    # does not call `gen` yet
+    len(p)                      # calls `gen` now and returns len
 
     self._lazy_func: None or callable
         callable used to create the object.  None otherwise.
@@ -27,7 +42,7 @@ class Lazy(object):
                       "dict",
                       "str", "repr", # printing doesn't create object.
                       "reduce_ex", "reduce",  # allow pickle support
-                      "getstate", "slots",
+                      "getstate", "slots",    # further pickle support.
                       ))
     #__ignore__ = "class mro new init setattr getattr getattribute dict obj func"
     _lazy_obj      = None
@@ -37,17 +52,24 @@ class Lazy(object):
         """Initialization
 
         func: callable
-            func"""
+            Function called to initialize object."""
         if self.__wraps__ is None:
             raise TypeError("base class Wrapper may not be instantiated")
         if not hasattr(func, '__call__'):
             raise TypeError('func %s is not callable'%func)
         self._lazy_func = func
     def _lazy_make(self):
+        """Make the internal object unconditionally."""
         self._lazy_obj = self._lazy_func()
+        if not isinstance(self._lazy_obj, self.__wraps__):
+            raise ValueError("obj must be instance of %s, not %s"%(
+                self.__wraps__.__name__, self._lazy_obj.__class__.__name__))
     def _lazy_clear(self):
         """Clear the saved object"""
         self._lazy_obj = None
+    def _lazy_is_loaded(self):
+        """True if internal object is created."""
+        return self._lazy_obj is not None
 
     # provide lazy access to regular attributes of wrapped object
     def __getattr__(self, name):
@@ -87,6 +109,9 @@ class Lazy(object):
     def __getstate__(self):
         """Pickle support, must be defined."""
         return self.__dict__
+    def __str__(self):
+        return '<%s object at %#x (%s)>'%(self.__class__.__name__,
+                          id(self), 'loaded' if self._lazy_is_loaded() else 'not loaded')
 
 
 # These proxies must be explicitly defined in a globally importable
@@ -106,6 +131,8 @@ def _test_creator():
 def _test():
     from functools import partial
     p = NxGraphLazy(_test_creator)
+    print str(p)
+    print repr(p)
 
     assert p._lazy_obj is None
     assert len(p) == 10
@@ -125,6 +152,7 @@ def _test():
     print "unpickling..."
     p2 = pickle.loads(pkl)
     print type(p2)
+    assert isinstance(p2, NxGraphLazy)
     #print len(p2)
     assert p2._lazy_obj is None
     print [x for x in p2]
@@ -132,6 +160,9 @@ def _test():
 
     p2._lazy_clear()
     assert p2._lazy_obj is None
+
+    p = NxGraphLazy(lambda: 1)
+    #print len(p)  # should fail.
 
 if __name__ == '__main__':
     _test()
