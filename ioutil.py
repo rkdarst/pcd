@@ -310,6 +310,47 @@ def zglob(path, dup_ok=False):
     return files
 
 
+def ensure_pajek_file(path, index=0):
+    """Given filename, convert to pajek if not already.
+
+    This function is designed to be used as a wrapper for inputs to CD
+    algorithms which require pajek format.  It takes a filename,
+    either in pajak or in zero-indexed edgelist format.  If it's not
+    in the write format, convert it and return converted filename.
+
+    FIXME: this is unfinished.  Also, there may be a better way to do
+    this.
+
+    index: int, default 0
+        Assume edgelist is indexed by this number (lowest value)"""
+    raise NotImplementedError("Test before using")
+    if _test_pajek(path):
+        return path
+    def _iter_edges(path):
+        for line in open(path):
+            if not line.strip() or line.strip().startswith('#'): continue
+            a, b = line.split()  # errors on weights - not handled yet
+            a, b = int(a), int(b)
+            yield a, b
+    nodes = set()
+    for a, b in _iter_edges(path):
+        nodes.add(a), nodes.add(b)
+    N = len(nodes)
+    # ensure that nodes are numbered 0 to N-1
+    assert nodes == set(range(inde, N+index)), "Nodes not numbered [0,N-1]"
+    new_path = path+'.pajek.net'
+    raise NotImplementedError("Shourd test if new_path already exists before doing the rest.")
+    f = open(new_path, 'w')
+    print >> f, '*vertices %s'%N
+    for i in range(N):
+        print >> f, i+1, i+index
+    print >> f, '*edges'
+    offset = 1-index
+    for a, b in _iter_edges(path):
+        print >> f, a+offset, b+offset  # No weight!
+
+
+
 def write_pajek(fname, g, cmtys, **kwargs):
     """Write graph structure g colored by cmtys in pajek format."""
     open(fname, 'w').write('\n'.join(gen_pajek(g, cmtys, **kwargs)))
