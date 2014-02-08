@@ -93,14 +93,23 @@ class GrowFitness(object):
                 if neighs - links_exclude == 0:
                     print "assertion neigh - links_exclude == 0 false"
                     assert neighs - links_exclude != 0
+                #print n0, len(g), len(neighs), len(links_exclude)
                 # 1-p chance of next link to a neighbor of node n1
-                neigh_fitnesses = [ (n, self.fitnesses[n]) for n in neighs ]
-                neighbor_chooser = pcd.util.WeightedChoice(neigh_fitnesses, rng=self.rng)
-                # Choose the next node
-                while True:
-                    n_next = neighbor_chooser.choice()
-                    if n_next not in links_exclude:
-                        break
+                #if len(neighs) < .05 * len(g):
+                if len(neighs) < 100:
+                    neigh_fitnesses = [ (n, self.fitnesses[n]) for n in neighs ]
+                    neighbor_chooser = pcd.util.WeightedChoice(neigh_fitnesses, rng=self.rng)
+                    # Choose the next node
+                    while True:
+                        n_next = neighbor_chooser.choice()
+                        if n_next not in links_exclude:
+                            break
+                else:
+                    print 'global'
+                    while True:
+                        n_next = self.chooser.choice()
+                        if n_next in neighs and n_next not in links_exclude:
+                            break
                 assert not g.has_edge(n0, n_next)
                 g.add_edge(n0, n_next)
                 neighs.update(g.neighbors(n_next))
