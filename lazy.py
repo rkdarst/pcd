@@ -47,8 +47,10 @@ class Lazy(object):
     #__ignore__ = "class mro new init setattr getattr getattribute dict obj func"
     _lazy_obj      = None
     _lazy_func     = None
+    _lazy_func_args = ()
+    _lazy_func_kwargs = {}
 
-    def __init__(self, func):
+    def __init__(self, func, *args, **kwargs):
         """Initialization
 
         func: callable
@@ -58,9 +60,14 @@ class Lazy(object):
         if not hasattr(func, '__call__'):
             raise TypeError('func %s is not callable'%func)
         self._lazy_func = func
+        self._lazy_func_args = args
+        self._lazy_func_kwargs = kwargs
+        #print 'init', func, args, kwargs
     def _lazy_make(self):
         """Make the internal object unconditionally."""
-        self._lazy_obj = self._lazy_func()
+        #print self._lazy_func_args, self._lazy_func_kwargs
+        self._lazy_obj = self._lazy_func(*self._lazy_func_args,
+                                         **self._lazy_func_kwargs)
         if not isinstance(self._lazy_obj, self.__wraps__):
             raise ValueError("obj must be instance of %s, not %s"%(
                 self.__wraps__.__name__, self._lazy_obj.__class__.__name__))
@@ -78,10 +85,22 @@ class Lazy(object):
             # unpickling, '__func' may not yet be set on the
             # dictionary.
             return
+        #print "getattr: %s"%name
         if self._lazy_obj is None:
             self._lazy_make()
-        #print "getattr: %s"%name
         return getattr(self._lazy_obj, name)
+    def __setattr__(self, name, value):
+        #print "setattr: %s %s"%(name, value)
+        #print Lazy.__dict__.keys()
+        #print dir(self)
+        #print Lazy.__dict__
+        if name in Lazy.__dict__:
+            self.__dict__[name] = value
+            return
+        if self._lazy_obj is None:
+            self._lazy_make()
+        return setattr(self._lazy_obj, name, value)
+
 
     # create proxies for wrapped object's double-underscore
     # attributes, except those in __ignore__
@@ -118,8 +137,11 @@ class Lazy(object):
 # way.  So any class you might want to proxy, put it here.
 
 import networkx
-class NxGraphLazy(Lazy):
+class LazyNxGraph(Lazy):
     __wraps__ = networkx.Graph
+import pcd.cmty
+class LazyCommunities(Lazy):
+    __wraps__ = pcd.cmty.Communities
 
 
 
