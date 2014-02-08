@@ -449,7 +449,7 @@ class _InfomapOld_(CDMethod):
     """Old non-hierarchical infomap code."""
     trials = 50
     _input_format = 'pajek'
-    def run(self):
+    def run_infomap(self):
         args = (#'/usr/bin/gdb', '--args',
                 _get_file(self._binary),
                 str(self._randseed),
@@ -479,6 +479,7 @@ class _InfomapOld_(CDMethod):
             cmtynodes[cmty].add(self.vmap_inv[nodeID])
 
         self.cmtys = pcd.cmty.Communities(dict(cmtynodes))
+        self.cmtys.label = "InfomapOld"
         self.results = [ self.cmtys ]
         return self.results
 
