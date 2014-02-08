@@ -1759,7 +1759,7 @@ class Conclude(CDMethod):
     _binary = 'conclude/CONCLUDE.jar'
     _mem_limit = None
     _mem_limit_doc = """\
-    int, Set memory limit for the process.  Not needed necessarily.
+    int (GiB), Set memory limit for the process.  Not needed necessarily.
     """
     def run(self):
         output = self.graphfile+'.out'
