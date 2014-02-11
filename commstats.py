@@ -109,6 +109,7 @@ class Statter(object):
             ax.plot(xvals, y, color=colormap(normmap(i)),
                     label=label)
 
+        ylims = ax.get_ylim()
         if self.log_x:
             ax.set_xscale('log')
         #ax.set_xlim(min(ns), max(ns))
@@ -348,7 +349,7 @@ class ScaledLinkDensity(Statter):
         if isinstance(self, DistStatter):
             return
         ax = lcls['ax']
-        ns = lcls['ns']
+        ns = lcls['xvals']
         # plot bounds
         ax.plot(ns, [2]*len(ns), ls='--', color='green')
         ax.plot(ns, ns, ls='--', color='green')
