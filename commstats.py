@@ -549,6 +549,42 @@ class MaxDegNodeJaccard(Statter):
             n_cmty = log_bin(n_cmty)
             yield n_cmty, jacc
 
+class CmtyEmbeddednessVsSLD(Statter):
+    xlabel = "SLD"
+    ylabel = "cmty embeddedness"
+    log_x = False
+    legend_loc = "upper left"
+    def calc(self, g, cmtys):
+        nodecmtys = cmtys.nodecmtys_onetoone()
+        cmtygraph = cmtys.cmty_graph(g)
+        for cname, cnodes in cmtys.iteritems():
+            n_cmty = len(cnodes)
+            if n_cmty < self.minsize:
+                continue
+
+            n_edges_subgraph = 0
+            for n in cnodes:
+                for nbr in g.adj[n]:
+                    if nbr in cnodes:
+                        n_edges_subgraph += 1
+            assert n_edges_subgraph % 2 == 0
+            n_edges_subgraph /= 2
+
+            # compute sld.
+            sld = 2 * n_edges_subgraph / float(n_cmty-1)
+
+            # compute embeddedness:
+
+            k_in = cmtygraph.node[cname]['weight'] * 2
+            k_outs = [ dat['weight']
+                       for neigh,dat in cmtygraph[cname].iteritems() ]
+            cmtyembeddedness = k_in/float(k_in+sum(k_outs))
+
+            assert abs(sld - (k_in/float(n_cmty-1))) < 1e-6,  (sld, k_in/float(n_cmty-1))
+
+            yield lin_bin(sld), cmtyembeddedness
+
+
 
 
 #class MaxDegNodeFocusednessLabel(MaxDegNodeFocusedness,Statter):
