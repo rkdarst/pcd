@@ -83,7 +83,7 @@ class Statter(object):
         for n, sld in data:
             self._data[label][n].append(sld)
     def add(self, g, cmtys, label):
-        self.accumulate(self.calc(g, cmtys, label=label))
+        self.accumulate(self.calc(g, cmtys), label=label)
 
     def write(self, fname, axopts={}):
         from pcd.support import matplotlibutil
@@ -383,7 +383,6 @@ class CmtyEmbeddedness(Statter):
     ylabel = 'community embeddedness'
     legend_loc = 'lower right'
     def calc(self, g, cmtys):
-        nodecmtys = cmtys.nodecmtys_onetoone()
         cmtygraph = cmtys.cmty_graph(g)
         for cname, cnodes in cmtys.iteritems():
             n_cmty = len(cnodes)
@@ -404,7 +403,6 @@ class NodeEmbeddedness(Statter):
     ylabel = 'node embeddedness'
     legend_loc = 'lower right'
     def calc(self, g, cmtys):
-        nodecmtys = cmtys.nodecmtys_onetoone()
         cmtygraph = cmtys.cmty_graph(g)
         for cname, cnodes in cmtys.iteritems():
             n_cmty = len(cnodes)
@@ -459,7 +457,6 @@ class CmtySelfNeighborFraction(Statter):
     """n_cmty / count(union(neighbors(node) for node in cmty)"""
     ylabel = "neighbor fraction"
     def calc(self, g, cmtys):
-        nodecmtys = cmtys.nodecmtys_onetoone()
         cmtygraph = cmtys.cmty_graph(g)
         for cname, cnodes in cmtys.iteritems():
             n_cmty = len(cnodes)
@@ -485,8 +482,6 @@ class CmtyHubness(Statter):
     ylabel = "cmty max hubness"
     legend_loc = 'lower right'
     def calc(self, g, cmtys):
-        nodecmtys = cmtys.nodecmtys_onetoone()
-        cmtygraph = cmtys.cmty_graph(g)
         for cname, cnodes in cmtys.iteritems():
             n_cmty = len(cnodes)
             # Skip communities below some minimum size.  We must have
@@ -505,8 +500,6 @@ class CmtyAvgDegree(Statter):
     """sum(degree) / n_cmty.  Average total degree (internal + external)"""
     ylabel = "cmty average degree"
     def calc(self, g, cmtys):
-        nodecmtys = cmtys.nodecmtys_onetoone()
-        cmtygraph = cmtys.cmty_graph(g)
         for cname, cnodes in cmtys.iteritems():
             n_cmty = len(cnodes)
             # Skip communities below some minimum size.  We must have
@@ -527,8 +520,6 @@ class MaxDegNodeJaccard(Statter):
     n = 1
     legend_loc = 'lower right'
     def calc(self, g, cmtys):
-        nodecmtys = cmtys.nodecmtys_onetoone()
-        cmtygraph = cmtys.cmty_graph(g)
         for cname, cnodes in cmtys.iteritems():
             n_cmty = len(cnodes)
             # Skip communities below some minimum size.  We must have
