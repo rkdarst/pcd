@@ -398,6 +398,40 @@ class CmtyEmbeddedness(Statter):
             x = k_in/float(k_in+sum(k_outs))
             n_cmty = log_bin(n_cmty)
             yield n_cmty, x
+class CmtyEmbeddedness2(Statter):
+    log_y = False
+    ylabel = 'community embeddedness'
+    legend_loc = 'lower right'
+    def calc(self, g, cmtys):
+        #cmtygraph = cmtys.cmty_graph(g)
+        adj = g.adj
+        for cname, cnodes in cmtys.iteritems():
+            n_cmty = len(cnodes)
+            # Skip communities below some minimum size.  We must have
+            # minsize at least 2, since edge density is not defined
+            # for size=1.
+            if n_cmty < self.minsize:
+                continue
+
+
+            #_k_in2 = cmtygraph.node[cname]['weight'] * 2
+            #_k_outs = [ dat['weight']
+            #           for neigh,dat in cmtygraph[cname].iteritems() ]
+            ##x = _k_in2/float(_k_in2+sum(_k_outs))
+
+
+            k_tot = sum(len(adj[n]) for n in cnodes )
+            k_in2 = sum(sum(1 for n1 in adj[n] if n1 in cnodes)
+                       for n in cnodes)
+            k_out = k_tot - k_in2
+
+            #assert k_in2 == _k_in
+            #assert k_out == sum(_k_outs)
+            x = k_in2 / float(k_in2 + k_out)
+
+            n_cmty = log_bin(n_cmty)
+            yield n_cmty, x
+
 class NodeEmbeddedness(Statter):
     log_y = False
     ylabel = 'node embeddedness'
