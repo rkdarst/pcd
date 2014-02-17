@@ -1315,7 +1315,10 @@ class _CommunitiesBase(object):
         is_directed = g.is_directed()
         if isinstance(g, networkx.MultiGraph):
             raise NotImplementedError("We do not support multigraphs yet.")
-        g_new = g.__class__()  # New graph of the same type.
+        if isinstance(g, networkx.Graph):
+            g_new = g.__class__()  # New graph of the same type.
+        else:
+            g_new = networkx.Graph()
         if nodecmtys is None:
             nodecmtys = self.nodecmtys_onetoone()   # update if we support overlaps.
 
