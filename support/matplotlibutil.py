@@ -1,5 +1,7 @@
 # Richard Darst, May 2012
 
+import os
+import re
 
 import matplotlib.figure
 import matplotlib.backends.backend_agg
@@ -20,7 +22,13 @@ def write_fig(fig):
 
 
 def get_axes(fname, figsize=(13, 10)):
-    """Interface to matplotlib plotting."""
+    """Interface to matplotlib plotting.
+
+    fname: str:
+        fname is the string to save to.  It can also have an extension
+        of something like FILE.[pdf,png,ps] and it will save a file of
+        ALL of these extensions.
+    """
     if fname:
         import matplotlib.figure
         import matplotlib.backends.backend_agg
@@ -33,8 +41,20 @@ def get_axes(fname, figsize=(13, 10)):
 def save_axes(ax, extra):
     if extra[0]: # if fname
         fname, canvas, fig, ax = extra
-        canvas.print_figure(fname, dpi=fig.get_dpi(),
-                            bbox_inches='tight')
+        multi_ext_match = re.match(r'(.*\.)\[([A-Za-z,]+?)\]$', fname)
+        if multi_ext_match:
+            # Support for multi-extension matching.  If fname matches
+            # FILE.[ext1,ext2], then write the figure to ALL of these
+            # files.
+            base = multi_ext_match.group(1)
+            for ext in multi_ext_match.group(2).split(','):
+                canvas.print_figure(base+ext, dpi=fig.get_dpi(),
+                                    bbox_inches='tight')
+        else:
+            canvas.print_figure(fname, dpi=fig.get_dpi(),
+                                bbox_inches='tight')
+
+
 class Figure(object):
     def __init__(self, fname, figsize=None):
         self.fname = fname
