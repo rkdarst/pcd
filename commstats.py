@@ -86,7 +86,7 @@ class Statter(object):
         self.accumulate(self.calc(g, cmtys), label=label)
 
     quantiles = None
-    def write(self, fname, axopts={}):
+    def write(self, fname, axopts={}, title=None):
         from pcd.support import matplotlibutil
         ax, extra = matplotlibutil.get_axes(fname, **axopts)
 
@@ -142,7 +142,8 @@ class Statter(object):
         #ax.set_ylim(*ylims)
         if self.xlabel: ax.set_xlabel(self.xlabel)
         if self.ylabel: ax.set_ylabel(self.ylabel)
-        if self.title: ax.set_title(self.title)
+        if   title:      ax.set_title(self.title)
+        elif self.title: ax.set_title(self.title)
         #ax.set_ylim(floor(min_v), ceil(max_v))
         #ax.set_yticks(range(2, int(ceil(max_v))))
         if self.log_y:
@@ -240,7 +241,7 @@ class QuantileStatter(Statter):
 
 class DistStatter(Statter):
     bin = True
-    def write(self, fname, axopts={}):
+    def write(self, fname, axopts={}, title=None):
         from pcd.support import matplotlibutil
         ax, extra = matplotlibutil.get_axes(fname, **axopts)
 
@@ -290,7 +291,8 @@ class DistStatter(Statter):
         #ax.set_ylim(*ylims)
         if self.xlabel: ax.set_xlabel(self.ylabel)
         if self.ylabel: ax.set_ylabel("P(%s)"%self.ylabel)
-        if self.title: ax.set_title(self.title)
+        if   title:      ax.set_title(self.title)
+        elif self.title: ax.set_title(self.title)
         #ax.set_ylim(floor(min_v), ceil(max_v))
         #ax.set_yticks(range(2, int(ceil(max_v))))
         if self.log_p:
