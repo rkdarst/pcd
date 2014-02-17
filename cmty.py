@@ -860,26 +860,39 @@ class _CommunitiesBase(object):
     #
     # Human-readable statistics on the structure.
     #
-    def stats(self, width=120):
+    def stats(self, width=120, level=1, nodes=None):
         """Human-readable statistics on the overall community sturucture."""
         cmtynodes = self.cmtynodes()
+        cmtys_total_nonempty = len(cmtynodes)
+        # exclude empty communities
         cmtynodes = dict((k,v) for (k,v) in self.iteritems() if v)
         cmtynodes_nonsingle = dict((k,v) for (k,v) in self.iteritems()
                                    if len(v)>1)
+        nodecmtys = self.nodecmtys()
+        if nodes is not None:
+            N = len(nodes)
+        else:
+            N = len(nodecmtys)
         def iter_nonsingle():
             return ((k,v) for (k,v) in self.iteritems()
                     if len(v)>1)
 
         stats = [ ]
-        stats.append("number of nodes: %d"%self.N)
+        stats.append("number of nodes: %d"%N)
         if hasattr(self, 'g'):
             stats.append("number of edges: %d"%self.g.number_of_edges())
         # Regular stats
-        stats.append("number of communities: %d"%self.q)
+        stats.append("number of communities: %d"%len(cmtynodes))
+        stats.append("number of communities (including empty): %d"%(cmtys_total_nonempty))
+        stats.append("number of empty communities: %d"%(cmtys_total_nonempty-len(cmtynodes)))
         stats.append("mean community size: %f"%numpy.mean(
-            [len(c) for c in self.itervalues()]))
+            [len(c) for c in cmtynodes.itervalues()]))
         stats.append("std community size: %f"%numpy.std(
-            [len(c) for c in self.itervalues()]))
+            [len(c) for c in cmtynodes.itervalues()]))
+        stats.append("sum of community size: %s"%
+                     sum(len(ns) for ns in cmtynodes.itervalues()))
+        stats.append("normalized sum of community size (sum/N): %s"%
+                     (sum(len(ns) for ns in cmtynodes.itervalues())/float(N)))
         # Stats excluding singletons
         stats.append("number of non-singleton communities: %d"%(
             len(cmtynodes_nonsingle)))
@@ -887,22 +900,24 @@ class _CommunitiesBase(object):
             [len(c) for c in cmtynodes_nonsingle.values()]))
         stats.append("std community size (no singletons): %f"%numpy.std(
             [len(c) for c in cmtynodes_nonsingle.values()]))
-        cmtys_by_rev_size = [c for (c,ns) in sorted(cmtynodes.iteritems(),
-                                                    reverse=True,
-                                                    key=lambda (c,ns):len(ns))]
-        stats.append(textwrap.fill(("community sizes: %s"%' '.join(
-                         str(len(cmtynodes[c])) for c in cmtys_by_rev_size)),
-                     width=width,
-                     initial_indent="", subsequent_indent="     ",
-                     ))
+        if level > 0:
+            cmtys_by_rev_size = [c for (c,ns) in sorted(cmtynodes.iteritems(),
+                                                        reverse=True,
+                                                        key=lambda (c,ns):len(ns))]
+            stats.append(textwrap.fill(("community sizes: %s"%' '.join(
+                             str(len(cmtynodes[c])) for c in cmtys_by_rev_size)),
+                         width=width,
+                         initial_indent="", subsequent_indent="     ",
+                         ))
+        stats.append("largest community size: %d"%(
+            max(len(c) for c in cmtynodes.values())))
         stats.append("fraction of nodes in largest community: %f"%(
-            max(len(c) for c in cmtynodes.values())/float(self.N)))
-        nodecmtys = self.nodecmtys()
-        stats.append("fraction of network covered: %f"%self.fraction_covered())
+            max(len(c) for c in cmtynodes.values())/float(N)))
+        stats.append("fraction of network covered: %f"%(len(nodecmtys)/float(N)))
         stats.append("fraction of network covered (non-singleton): %f"%(
             sum(1 for (n, cs) in nodecmtys.iteritems()
                 if any((len(cmtynodes[c])>1) for c in cs))
-            /float(self.N)))
+            /float(N)))
         return stats
     def list_communities(self, width=120):
         """Human-readable list of community contents."""
