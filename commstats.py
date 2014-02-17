@@ -390,6 +390,23 @@ class ScaledLinkDensity(Statter):
         ymin, ymax = lcls['ylims']
         ax.set_ylim(min(ymin, 1.9), max(ymax, 5))
 
+class AvgClusteringCoef(Statter):
+    """Average clustering coefficient within community"""
+    def calc(self, g, cmtys):
+        for cname, cnodes in cmtys.iteritems():
+            n_cmty = len(cnodes)
+            # Skip communities below some minimum size.  We must have
+            # minsize at least 2, since edge density is not defined
+            # for size=1.
+            if n_cmty < self.minsize:
+                continue
+
+            cc = networkx.average_clustering(g, cnodes)
+
+            n_cmty = log_bin(n_cmty)
+            yield n_cmty, cc
+
+
 
 class CmtyMinEmbeddednessOne(Statter):
     log_y = False
@@ -566,6 +583,7 @@ class CmtyHubness(Statter):
 class CmtyAvgDegree(Statter):
     """sum(degree) / n_cmty.  Average total degree (internal + external)"""
     ylabel = "cmty average degree"
+    log_y = True
     def calc(self, g, cmtys):
         for cname, cnodes in cmtys.iteritems():
             n_cmty = len(cnodes)
