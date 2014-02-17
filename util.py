@@ -890,11 +890,14 @@ def graph_stats(g, prefix='', recurse=1, level=1, _test=False):
     """
     stats = [ ]
     #print "nodes"
-    stats.append("Nodes: %d"%g.number_of_nodes())
+    N = g.number_of_nodes()
+    stats.append("Nodes: %d"%N)
     #print "edges"
-    stats.append("Edges: %d"%g.number_of_edges())
+    E = g.number_of_edges()
+    stats.append("Edges: %d"%E)
     #print "density"
-    stats.append("Density: %f"%networkx.density(g))
+    stats.append("Density: %f"%(E/float(N*(N-1))))
+    stats.append("Mean-Degree: %f"%(2*E/float(N)))
     if not g.is_directed():
         # Undirected graphs:
         if level >= 1:
