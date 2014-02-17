@@ -85,6 +85,7 @@ class Statter(object):
     def add(self, g, cmtys, label):
         self.accumulate(self.calc(g, cmtys), label=label)
 
+    quantiles = None
     def write(self, fname, axopts={}):
         from pcd.support import matplotlibutil
         ax, extra = matplotlibutil.get_axes(fname, **axopts)
@@ -101,13 +102,38 @@ class Statter(object):
         if not label_order:
             label_order = sorted(data.keys())
         for i, label in enumerate(label_order):
+            color = colormap(normmap(i))
             points = data[label]
         #for i, (label, points) in enumerate(data.iteritems()):
             #print label, points.keys()
             xy = sorted((a, numpy.mean(b)) for a,b in points.iteritems())
             xvals, y = zip(*xy)
-            ax.plot(xvals, y, color=colormap(normmap(i)),
-                    label=label)
+
+            # Plot the mean:
+            ax.plot(xvals, y, '-o', lw=2, color=color, label=label)
+
+            # Plot quantiles if we want.
+            if self.quantiles is not None and len(self.quantiles):
+                quantiles = [ ]
+                for x in xvals:
+                    values = sorted(points[x])
+                    quantiles.append(tuple(quantile(values, p)
+                                           for p in self.quantiles))
+                p_quantiles = zip(*quantiles)
+                # This does a little bit of "offset" to make the
+                # quantiles more visible.
+                #min_v = min(p_quantiles[0])
+                #max_v = max(p_quantiles[-1])
+                #epsilon = (max_v - min_v)*.001
+                #def adjust(i):
+                #    return epsilon * (i-len(p_quantiles)/2.)
+                adjust = lambda i: 0
+                # Do the actual plotting
+                for i, qtl in enumerate(p_quantiles):
+                    #print colormap(normmap(i))
+                    qtl = numpy.asarray(qtl) + adjust(i)
+                    ax.plot(xvals, qtl, color=color,
+                            lw=.5)
 
         ylims = ax.get_ylim()
         if self.log_x:
@@ -205,6 +231,11 @@ class QuantileStatter(Statter):
 
         self._hook_write_setup_plot(locals())
         matplotlibutil.save_axes(ax, extra)
+
+        raise NotImplemented
+
+class QuantileStatter(Statter):
+    quantiles = numpy.arange(0.0, 1.1, .1)
 
 
 class DistStatter(Statter):
