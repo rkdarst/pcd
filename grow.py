@@ -123,9 +123,9 @@ class GrowFitness(object):
             self.add()
 
 
-def growsf_gb(N, p, beta, kappa):
+def growsf_gb(N, p, beta, kappa, m=2):
     """Make a gb grown graph."""
-    grower = GrowFitness(p=p, beta=beta, kappa=kappa, m=2, g=None)
+    grower = GrowFitness(p=p, beta=beta, kappa=kappa, m=m, g=None)
 
     grower.grow(N)
     assert len(grower.g) == N
