@@ -632,7 +632,6 @@ class CmtyEmbeddednessVsSLD(Statter):
     log_x = False
     legend_loc = "upper left"
     def calc(self, g, cmtys):
-        nodecmtys = cmtys.nodecmtys_onetoone()
         cmtygraph = cmtys.cmty_graph(g)
         for cname, cnodes in cmtys.iteritems():
             n_cmty = len(cnodes)
