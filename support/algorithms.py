@@ -833,6 +833,11 @@ class OslomWeighted(Oslom):
 class Oslom_dir(_Oslom):
     _binary = 'oslom/OSLOM2/oslom_dir'
     _is_directed = True
+class OslomMerge(Oslom):
+    """Oslom with merge_singletons=True.
+
+    Singletons are merged into the communities they best connect to."""
+    merge_singletons = True
 
 
 class _Copra(CDMethod):
