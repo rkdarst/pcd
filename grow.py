@@ -24,8 +24,8 @@ class GrowFitness(object):
 
         # Set up initial graph
         if g is None:
-            g = networkx.Graph()
-            self.add_three_nodes(g)
+            g = networkx.complete_graph(self.m+1)
+            self.assign_initial_fitnesses(g)
         self.g = g
 
         # Set up fitness lists
@@ -33,13 +33,10 @@ class GrowFitness(object):
 
         self.chooser = pcd.util.WeightedChoice(self.fitnesses.iteritems(), rng=self.rng)
 
-    def add_three_nodes(self, g):
-        g.add_edge(0, 1)
-        g.add_edge(1, 2)
-        g.add_edge(2, 0)
-        g.node[0]['fitness'] = exp(-self.beta*pow(self.rng.uniform(0, 1),1./(self.kappa+1)))
-        g.node[1]['fitness'] = exp(-self.beta*pow(self.rng.uniform(0, 1),1./(self.kappa+1)))
-        g.node[2]['fitness'] = exp(-self.beta*pow(self.rng.uniform(0, 1),1./(self.kappa+1)))
+    def assign_initial_fitnesses(self, g):
+        for n in g.nodes_iter():
+            g.node[n]['fitness'] = \
+                  exp(-self.beta*pow(self.rng.uniform(0, 1),1./(self.kappa+1)))
 
     def add(self, n0=None):
         g = self.g
@@ -129,7 +126,7 @@ def growsf_gb(N, p, beta, kappa, m=2):
 
     grower.grow(N)
     assert len(grower.g) == N
-    assert grower.g.number_of_edges() == 2*N - 3
+    assert grower.g.number_of_edges() == (N*m - ((m+1)**2 -(m+1))/2)
     return grower.g
 
 
