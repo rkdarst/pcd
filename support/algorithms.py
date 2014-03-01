@@ -1958,6 +1958,32 @@ class SnapCNM(_SNAPcommunity):
     _algorithm = 2
     _algorithm_name = 'Clauset-Newman-Moore'
 
+
+def get(name, search=()):
+    """Get an algorithm, optionally searching different namespaces.
+
+    This is a convenience function to get an algorithm of a certain
+    name.  It will first search all namespaces given in the `search`
+    argument, and then this module itself.  The purpose of this is to
+    provide a convenience method of getting algorithms when you have
+    made some custom subclasses in your own module.
+
+    name: string
+        Algorithm name to get
+    search: dict or iterable:
+        Dict of other namespace to search.  Can also be an iterable of
+        dicts.
+    """
+    cda = None
+    if isinstance(search, dict):
+        search = [search]
+    for ns in search:
+        if name in ns:
+            cda = ns[name]
+    if cda is None:
+        cda = globals()[name]
+    return cda
+
 if __name__ == "__main__":
     if len(sys.argv) < 4 or '-h' in sys.argv or '--help' in sys.argv:
         print "%s MethodName infile outfile [options-dict]"%os.path.basename(sys.argv[0])
