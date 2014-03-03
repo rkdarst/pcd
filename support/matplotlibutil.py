@@ -41,6 +41,8 @@ def get_axes(fname, figsize=(13, 10)):
 def save_axes(ax, extra):
     if extra[0]: # if fname
         fname, canvas, fig, ax = extra
+        if not os.path.exists(os.path.dirname(fname)):
+            os.mkdir(os.path.dirname(fname))
         multi_ext_match = re.match(r'(.*\.)\[([A-Za-z,]+?)\]$', fname)
         if multi_ext_match:
             # Support for multi-extension matching.  If fname matches
