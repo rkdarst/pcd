@@ -64,6 +64,13 @@ cmtys.cmtysizes_sum() : int
     Sum of all community sizes (may be more than N if there are overlaps)
 cmtys.cmtysizes_dist() : dict
     Distribution of community sizes.  Map of size -> count(sizes)
+cmtys.cmty_calc(): dict
+    Evaluate any function across communities.
+cmtys.cmty_densities(): dict
+cmtys.cmty_scaledlinkdensities(): dict
+cmtys.cmty_embeddedness(): dict
+cmtys.cmty_transitivities(): dict
+
 cmtys.nodecmtys(): dict
     Mapping node -> set(communities_of_node).  The reverse of
     iteritems() and to_dict()
@@ -265,6 +272,53 @@ class _CommunitiesBase(object):
     def cmtysizes(self):
         """Mapping of cmty -> len(cmty_nodes)"""
         return dict((c, len(ns)) for c,ns in self.iteritems())
+    def cmty_densities(self, g):
+        """Dictionary of all community densities.
+
+        Density = internal_edges / (.5 *n*(n-1))."""
+        nedges2 = pcd.nxutil.n_edges_between  # double the number of edges
+        return dict((c,   nedges2(g, ns, ns) / float(len(ns)*(len(ns)-1)))
+                    for c,ns in self.iteritems())
+    def cmty_scaledlinkdensities(self, g):
+        """Dictionary of all community scaled link densities.
+
+        Scaled link densities is average internal degree =
+        internal_degree / (n-1)."""
+        nedges2 = pcd.nxutil.n_edges_between  # double the number of edges
+        return dict((c,   nedges2(g, ns, ns) / float(len(ns)-1))
+                    for c,ns in self.iteritems())
+    def cmty_embeddedness(self, g):
+        """Dictionary of all community embeddednesses.
+
+        Embeddedness = internal_degree / total_degree over all nodes
+        in the community."""
+        results = { }
+        nedges2 = pcd.nxutil.n_edges_between  # double the number of edges
+        for cname, cnodes in self.iteritems():
+            k_in = nedges2(g, cnodes, cnodes)
+            k_tot = sum(g.degree(n) for n in cnodes)
+            results[cname] = k_in / float(k_tot)
+        return results
+    def cmty_calc(self, g, func):
+        """Dictonary of arbitrary calculation on communities.
+
+        g: networkx graph
+        func: a function of one argument (nx graph)
+            this function is evaluated across all communities and
+            the result put in the return dict.
+        """
+        results = { }
+        nedges2 = pcd.nxutil.n_edges_between  # double the number of edges
+        for cname, cnodes in self.iteritems():
+            sg = g.subgraph(cnodes)
+            results[cname] = func(sg)
+        return results
+    def cmty_transitivity(self, g):
+        """Dictionary of all community transitivities.
+
+        Transitivities = number of triangles / possible number of
+        triangles."""
+        return self.cmty_calc(g, networkx.transitivity)
     def cmtysizes_sum(self):
         """Total number of nodes in communities.  If there are
         overlaps, count the node multiple times."""
@@ -854,6 +908,11 @@ class _CommunitiesBase(object):
                 print >> f, ' '.join(str(x) for x in sorted(mapping[n] for n in cmtynodes[c]))
             else:
                 print >> f, ' '.join(str(x) for x in sorted(cmtynodes[c]))
+    def write_clu(self, fname):
+        """Write pajek .clu file (one line per node)"""
+        nodecmtys = self.nodecmtys()
+        N = len(nodecmtys)
+        assert set(nodecmtys) == set(range(len(nodecmtys)))
 
 
 
