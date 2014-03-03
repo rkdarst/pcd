@@ -11,8 +11,19 @@ import random
 import pcd.util
 
 class GrowFitness(object):
-    """Growing graph model, with power-law attachment"""
-    def __init__(self, g, p, beta, kappa, m=2, seed=None):
+    """Growing graph model, with power-law attachment
+
+    neighbor_mode: how to add edges beyond the second
+        all: neighbors of all previous nodes attached to
+        last: neighbors of last node attached to
+        first: neighbors of first node attached to.
+        all_nonrandom: like all, but exclude random nodes (from p)
+        last_nonrandom: like last, but exclude random nodes (from p)
+    """
+    neighbor_mode = 'all'
+    track_edges = False
+    def __init__(self, g, p, beta, kappa, m=2, seed=None,
+                 **kwargs):
         # In each growing step, prob. to attach to a random node in
         # the network.  Prob 1-p to attach to a neighbor of one of the
         # previous nodes in the addition sequence.
@@ -21,6 +32,9 @@ class GrowFitness(object):
         self.kappa = kappa
         self.m = m
         self.rng = random.Random(seed) # seed not given: random seed.
+        for k, v in kwargs.iteritems():
+            assert hasattr(self, k), "GrowFitness doesn't have attr %s"%k
+            setattr(self, k, v)
 
         # Set up initial graph
         if g is None:
@@ -68,30 +82,29 @@ class GrowFitness(object):
         # Update neighbors:
         neighs.update(g.neighbors(n1))
         links_exclude.add(n1)
+        # Track edge creation, if requested.
+        if self.track_edges:
+            g.node[n0]['edge_order'] = [n1]
 
         for _ in range(self.m - 1):
 
             # NOTE: the Communities.c file seems to be backwards here,
             # with a probability of 1-p instead of p.  The real
             # situation needs to be worked out...
+            random_last = False
             if self.rng.uniform(0, 1) < self.p:
                 # p chance of making second link to a completly random node:
+                random_last = True
                 assert len(self.chooser) == len(g)
                 while True:
                     n_next = self.chooser.choice()
                     if n_next not in links_exclude:
                         break
-                assert not g.has_edge(n0, n_next)
-                g.add_edge(n0, n_next)
-                neighs.update(g.neighbors(n_next))
-                links_exclude.add(n_next)
 
             else:
-                if neighs - links_exclude == 0:
-                    print "assertion neigh - links_exclude == 0 false"
-                    assert neighs - links_exclude != 0
-                #print n0, len(g), len(neighs), len(links_exclude)
                 # 1-p chance of next link to a neighbor of node n1
+                assert neighs - links_exclude != 0, "We have no remaining neighoring nodes to connect to"
+                #print n0, len(g), len(neighs), len(links_exclude)
                 #if len(neighs) < .05 * len(g):
                 if len(neighs) < 100:
                     neigh_fitnesses = [ (n, self.fitnesses[n]) for n in neighs ]
@@ -102,15 +115,34 @@ class GrowFitness(object):
                         if n_next not in links_exclude:
                             break
                 else:
-                    print 'global'
+                    #print 'global'
                     while True:
                         n_next = self.chooser.choice()
                         if n_next in neighs and n_next not in links_exclude:
                             break
-                assert not g.has_edge(n0, n_next)
-                g.add_edge(n0, n_next)
+
+            assert not g.has_edge(n0, n_next)
+            g.add_edge(n0, n_next)
+            links_exclude.add(n_next)
+            # Update our neighbor lists depending on how we do the
+            # addition:
+            if self.neighbor_mode == 'all':
                 neighs.update(g.neighbors(n_next))
-                links_exclude.add(n_next)
+            elif self.neighbor_mode == 'all_nonrandom':
+                if not random_last:
+                    neighs.update(g.neighbors(n_next))
+            elif self.neighbor_mode == 'last':
+                neighs = set(g.neighbors(n_next))
+            elif self.neighbor_mode == 'last_nonrandom':
+                if not random_last:
+                    neighs = set(g.neighbors(n_next))
+            elif self.neighbor_mode == 'first':
+                pass
+            else:
+                raise ValueError('Unknown neighbor_mode %s'%self.neighbor_mode)
+            # Track edge growth if desired:
+            if self.track_edges:
+                g.node[n0]['edge_order'].append(n_next)
 
 
     def grow(self, N):
@@ -120,9 +152,10 @@ class GrowFitness(object):
             self.add()
 
 
-def growsf_gb(N, p, beta, kappa, m=2):
+def growsf_gb(N, p, beta, kappa, m=2, **kwargs):
     """Make a gb grown graph."""
-    grower = GrowFitness(p=p, beta=beta, kappa=kappa, m=m, g=None)
+    grower = GrowFitness(p=p, beta=beta, kappa=kappa, m=m, g=None,
+                         **kwargs)
 
     grower.grow(N)
     assert len(grower.g) == N
