@@ -307,6 +307,13 @@ class DistStatter(Statter):
 
 
 
+class Null(Statter):
+    def calc(self, g, cmtys):
+        # Force generation of possible lazy communites, don't do an
+        # iteration.
+        cmtys.iteritems()
+        return ()
+
 
 class CmtySize(Statter):
     """Community sizes"""
