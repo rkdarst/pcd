@@ -2,6 +2,7 @@
 
 import collections
 import itertools
+import math
 import numpy
 import os
 import random
@@ -336,8 +337,8 @@ class CDMethod(object):
         # Write the command lines we are running
         disk_stdout.write(repr(list(args))+'\n')
         disk_stdout.write("self attributes: %s\n"%(
-            pcd.util.listAttributes(self, exclude='_randseed',
-                                    exclude_deep=['initial', 'vmap', 'vmap_inv']),))
+            pcd.util.listAttributes(self, exclude=['_randseed', 'vmap', 'vmap_inv'],
+                                    exclude_deep=['initial', ]),))
         disk_stdout.write("Process times: %s\n"%(os.times(),))
         disk_stdout.write("Beginning run at %s\n\n\n"%time.ctime())
         disk_stdout.flush()
@@ -393,17 +394,19 @@ class CDMethod(object):
         f.flush()
         f.close()
 
-    def write_edgelist(self, g, fname):
+    def write_edgelist(self, g, fname, weighted=False):
         f = open(fname, 'w')
         vmap = self.vmap
         for u, v, d in g.edges_iter(data=True):
             #if getattr(self, 'weighted', True):
-            if 'weight' in d:
+            if 'weight' in d or weighted:
                 # weighted
                 print >> f, vmap[u], vmap[v], float(d.get('weight', 1.0))
             else:
                 # unweighted
                 print >> f, vmap[u], vmap[v]
+    def write_edgelistWeighted(self, g, fname):
+        self.write_edgelist(g, fname, weighted=True)
     def write_gml(self, g, fname):
         # networkx writes nodes in order of g.nodes()
         #self.node_order = g.nodes()
@@ -1957,6 +1960,316 @@ class SnapCNM(_SNAPcommunity):
     http://arxiv.org/abs/cond-mat/0408187"""
     _algorithm = 2
     _algorithm_name = 'Clauset-Newman-Moore'
+
+
+class CliquePerc(CDMethod):
+    """Clique percolation
+
+    Source code from https://github.com/aaronmcdaid/MaximalCliques
+
+    There is one parameter, k.  By default it is scanned from 3 to the
+    highest value possible, but
+
+    Parameters:
+    min_k: int, default 3
+        minimum clique size
+    max_k: int, default None
+        maximum clique size, or None or zero, in which case the method
+        will self-terminate.
+    k: int, default None
+        As a shortcut, if k is set, this min_k and max_k are both set
+        to this value.  Only this clique size is used for percolation
+        then.
+
+    Returns one layer per clique size.  The default layer is the
+    lowest, or the min_k.
+    """
+    _binary = 'cliquepercolation/MaximalCliques/cp5'
+    _input_format = 'edgelist'
+    _nodemapZeroIndexed = True
+    k = None
+    min_k = 3
+    max_k = None
+    def run(self):
+        args = [_get_file(self._binary),
+                self.graphfile,
+                '--comments',
+                ".",   # output directory
+                ]
+        if self.k:
+            args.extend(['-k', str(self.k), '-K', str(self.k)])
+        else:
+            if self.min_k != 3:  args.extend(['-k', str(self.min_k)])
+            if self.max_k:  args.extend(['-K', str(self.max_k)])
+        self.call_process(args)
+
+    def read_cmtys(self):
+        self.results = results = [ ]
+        i_values = [ ]
+        for i in itertools.count(self.min_k):
+            fname = 'comm%d'%i
+            if not os.path.exists(fname):
+                break
+            unmap = lambda x: self.vmap_inv[int(x)]
+            cmtys = pcd.cmty.Communities.from_clustersfile(fname, converter=unmap)
+            results.append(cmtys)
+            i_values.append(i)
+        # Set the labels.  k%d, with enough leading zeros so they sort properly.
+        max_i = i
+        label_format = "k%%%dd"%math.ceil(math.log(max_i)/math.log(10))
+        for i, cmtys in zip(i_values, results):
+            cmtys.label = label_format%i
+        # Set default
+        self.cmtys = results[0]
+        return results
+
+class SeqCliquePerc(CDMethod):
+    """Sequential clique percolation
+
+    Kumpula, Jussi M., et al. 'Sequential algorithm for fast clique
+    percolation.' Physical Review E 78.2 (2008): 026109.
+
+    Source code from https://git.becs.aalto.fi/complex-networks/scp
+    """
+    # This method has different limits: self-loops must be removed,
+    # and graph must not have multiedges.
+    _binary = 'sequentialcliquepercolation/scp/k_clique'
+    _input_format = 'edgelistWeighted'
+    _nodemapZeroIndexed = True
+    k = 4
+    def run(self):
+        args = [_get_file(self._binary),
+                self.graphfile,
+                '-o=output%03d.txt'%self.k,
+                '-v',
+                ]
+        if self.k:
+            args.extend(['-k=%d'%self.k])
+        self.call_process(args)
+
+    def read_cmtys(self):
+        self.results = results = [ ]
+        k_values = [ ]
+        for k in [self.k]:
+            fname = 'output%03d.txt'%k
+            unmap = lambda x: self.vmap_inv[int(x)]
+            cmtys = pcd.cmty.Communities.from_clustersfile(fname, converter=unmap)
+            results.append(cmtys)
+            k_values.append(k)
+        # Set the labels.  k%d, with enough leading zeros so they sort properly.
+        max_k = k
+        label_format = "k%%%dd"%math.ceil(math.log(max_k)/math.log(10))
+        for k, cmtys in zip(k_values, results):
+            cmtys.label = label_format%k
+        # Set default
+        self.cmtys = results[0]
+        return results
+
+
+class Ganxis(CDMethod):
+    """GANXiS (formerly SLPA) method
+
+    Source code from https://sites.google.com/site/communitydetectionslpa/ and
+    https://sites.google.com/site/communitydetectionslpa/GANXiS_v3.0.2____.zip
+
+    J. Xie and B. Szymanski, 'Towards Linear Time Overlapping
+    Community Detection in Social Networks', PAKDD
+    2012.  http://arxiv.org/abs/1202.2465/
+
+    Parameters:
+
+    directed: bool, default False
+        True indicates that all links should be symmetric.  If you use
+        an undirected network, this must be true to set the '-Sym 1'
+        option, otherwise you might have un-recipriocated edges.
+
+    weighted: bool, default True
+        If true, use weights if present, and default to one.  If
+        False, strip all weights so that all weights are equal to one.
+
+    There are various other currently undocumented parameters.
+    """
+    _binary = 'GANXiS/GANXiS_v3.0.2/GANXiSw.jar'
+    _input_format = 'edgelist'
+    _nodemapZeroIndexed = True
+    directed = False
+    weighted = True
+    overlaps = True
+    threshold = None
+    maxiter = None # default 100
+    trials = 1
+    loopfactor = 1.0
+    # Other options: maxC, minC, ev (speaker and listerner rule of embedding)
+
+    def run(self):
+        args = ['java', '-jar', _get_file(self._binary),
+                '-i', self.graphfile,
+                '-seed', str(self._randseed),
+                #'-d', ".",   # output directory
+                #'-L', '1',  # Use only largest connected component.
+                ]
+        if not self.directed:
+            args.extend(('-Sym', '1'))
+        if not self.weighted:
+            args.exted(('-W', '0'))
+        if not self.overlaps:
+            args.extend(('-ov', '0'))
+        if self.threshold:
+            args.extend(('-r', str(self.threshold)))
+        if self.trials:
+            args.extend(('-run', str(self.trials)))
+        if self.maxiter:
+            args.extend(('-t', str(self.maxiter)))
+        if self.loopfactor != 1.0:
+            args.extend(('-loopfactor', str(self.loopfactor)))
+
+        self.call_process(args)
+
+    def read_cmtys(self):
+        results = [ ]
+        sort_keys = [ ]
+        for fname in sorted(os.listdir('output/')):
+            m = re.search(r'_run[0-9]+_r([0-9.]+)_v([0-9]+)_T([0-9]+).icpm$', fname)
+            thresh = float(m.group(1))
+            unmap = lambda x: self.vmap_inv[int(x)]
+            cmtys = pcd.cmty.Communities.from_clustersfile('output/'+fname, converter=unmap)
+            cmtys.label = 'r%3.3f'%thresh
+            sort_keys.append(thresh)
+            results.append(cmtys)
+        # Set the labels.  k%d, with enough leading zeros so they sort properly.
+        sort_keys, results = zip(*sorted(zip(sort_keys, results)))
+        # Set values
+        self.cmtys = results[0]
+        self.results = results
+        return results
+
+class Demon(CDMethod):
+    """DEMON: a local-first discovery method for overlapping communities
+
+    http://www.michelecoscia.com/?page_id=42
+    http://dl.acm.org/citation.cfm?id=2339630
+
+    This uses a parameter of epsilon=0.25 and does not use any
+    weights.
+    """
+    _binary = 'demon/launch.py'
+    _input_format = 'edgelist'
+    _nodemapZeroIndexed = True
+
+    def run(self):
+        args = ['python', _get_file(self._binary),
+                self.graphfile,
+                ]
+        self.call_process(args)
+
+    def read_cmtys(self):
+        fname = 'communities'
+        cmtynodes = { }
+        for line in open(fname):
+            cid, cnodes = line.split('\t')
+            cnodes = set(self.vmap_inv[int(x)] for x in cnodes.split(','))
+            cmtynodes[int(cid)] = cnodes
+        cmtys = pcd.cmty.Communities(cmtynodes)
+        cmtys.label = 'Demon'
+        self.results = [ cmtys ]
+        self.cmtys = cmtys
+        return self.results
+
+class GreedyCliqueExp(CDMethod):
+    """Greedy Clique Expansion
+
+    Lee, Conrad, et al. 'Detecting highly overlapping community
+    structure by greedy clique expansion.' arXiv preprint
+    arXiv:1002.1827 (2010).
+    Conrad Lee, Fergal Reid, Aaron McDaid, Neil Hurley
+    http://arxiv.org/abs/1002.1827
+
+    https://sites.google.com/site/greedycliqueexpansion/
+    https://sites.google.com/site/greedycliqueexpansion/benchmarking---datasets-and-tools/GCEimpl_r2011-11-06.tgz
+
+    Parameters (taken from the command help):
+
+    minsize: int, default 4
+        The minimum size of cliques to use as seeds. Recommend 4 as
+        default, unless particularly small communities are required
+        (in which case use 3).
+
+    eta: float, default 0.6
+        The minimum value for one seed to overlap with another seed
+        before it is considered sufficiently overlapping to be
+        discarded (eta). 1 is complete overlap. However smaller values
+        may be used to prune seeds more aggressively. A value of 0.6
+        is recommended.
+
+    alpha: float, default 1.0
+        The alpha value to use in the fitness function greedily
+        expanding the seeds. 1.0 is recommended default. Values
+        between .8 and 1.5 may be useful. As the density of edges
+        increases, alpha may need to be increased to stop communities
+        expanding to engulf the whole graph. If this occurs, a warning
+        message advising that a higher value of alpha be used, will be
+        printed.
+
+    phi: float, default 0.75
+        The proportion of nodes (phi) within a core clique that must
+        have already been covered by other cliques, for the clique to
+        be 'sufficiently covered' in the Clique Coveage Heuristic
+    """
+    _binary = 'greedycliqueexpansion/GCECommunityFinder/build/GCECommunityFinder'
+    _input_format = 'edgelist'
+    _nodemapZeroIndexed = True
+    # Other options: maxC, minC, ev (speaker and listerner rule of embedding)
+    minsize = 4
+    eta = 0.6
+    alpha = 1.0
+    phi = 0.75
+
+    def run(self):
+        args = [_get_file(self._binary),
+                self.graphfile,
+                # Other parameters, all must be specified:
+                # clique minsize 4
+                # eta, overlap for joining ()  0.6
+                # alpha, used in expanding seeds. 1.0
+                # phi, propoortion of nodes already covered .75
+                str(self.minsize),
+                str(self.eta),
+                str(self.alpha),
+                str(self.phi),
+                ]
+        self.call_process(args)
+
+    def read_cmtys(self):
+        results = [ ]
+        sort_keys = [ ]
+        fname = 'GCECommunityFinder.stdout'
+        found_cmtys = False
+        cname = 0
+        cmtynodes = { }
+        for line in open(fname):
+            if line == 'Finished\n':
+                found_cmtys = True
+                continue
+            if not found_cmtys:
+                continue
+            if found_cmtys and len(line) == 1:
+                # Done reading cmtys
+                break
+            cnodes = set(self.vmap_inv[int(x)] for x in line.split())
+            cmtynodes[cname] = cnodes
+            cname += 1
+            continue
+
+        cmtys = pcd.cmty.Communities(cmtynodes)
+        cmtys.label = 'GCE'
+        self.results = [ cmtys ]
+        self.cmtys = self.results[0]
+        return self.results
+
+
+
+
+
 
 
 def get(name, search=()):
