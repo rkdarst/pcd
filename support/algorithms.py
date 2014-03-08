@@ -2335,6 +2335,12 @@ if __name__ == "__main__":
 
     import pcd.ioutil
     g = pcd.ioutil.read_any(input)
+    print type(g)
+    # This is needed for SequentialCliquePerc
+    if g.__class__ != networkx.Graph:
+        g = networkx.Graph(g)
+    g.remove_edges_from((n,n) for n in g.nodes_with_selfloops())
+    print type(g)
 
     options['basename'] = os.path.basename(input)
 
