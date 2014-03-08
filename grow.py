@@ -66,12 +66,6 @@ class GrowFitness(object):
 
         self.chooser.add(n0, fitness)
 
-        # Current neighbors of linked nodes
-        neighs = set()
-        # Existing links.  Do *not* make new links to these.
-        links_exclude = set((n0,))
-
-
         # Choose the first node to link to.
         #chooser = pcd.util.WeightedChoice(self.fitnesses.iteritems())
         while True:
@@ -79,9 +73,12 @@ class GrowFitness(object):
             if n1 != n0:
                 break
         g.add_edge(n0, n1)
-        # Update neighbors:
-        neighs.update(g.neighbors(n1))
+        # Current neighbors of linked nodes
+        neighs = set(g.adj[n1])
+        # Existing links.  Do *not* make new links to these.
+        links_exclude = set((n0,))
         links_exclude.add(n1)
+
         # Track edge creation, if requested.
         if self.track_edges:
             g.node[n0]['edge_order'] = [n1]
@@ -127,15 +124,15 @@ class GrowFitness(object):
             # Update our neighbor lists depending on how we do the
             # addition:
             if self.neighbor_mode == 'all':
-                neighs.update(g.neighbors(n_next))
+                neighs.update(g.adj[n_next])
             elif self.neighbor_mode == 'all_nonrandom':
                 if not random_last:
-                    neighs.update(g.neighbors(n_next))
+                    neighs.update(g.adj[n_next])
             elif self.neighbor_mode == 'last':
-                neighs = set(g.neighbors(n_next))
+                neighs = set(g.adj[n_next])
             elif self.neighbor_mode == 'last_nonrandom':
                 if not random_last:
-                    neighs = set(g.neighbors(n_next))
+                    neighs = set(g.adj[n_next])
             elif self.neighbor_mode == 'first':
                 pass
             else:
@@ -215,5 +212,6 @@ class GrowBA(object):
         return grower.g
 
 if __name__ == "__main__":
-    print len(GrowBA.create(10000, m=2))
+    #print len(GrowBA.create(10000, m=2))
     #print len(networkx.barabasi_albert_graph(n=10000, m=2))
+    growsf_gb(N=100000, p=0, beta=20, kappa=6, m=5)
