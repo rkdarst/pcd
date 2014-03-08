@@ -663,8 +663,7 @@ def _isTrivialType(t, depth=0):
         return all(_isTrivialType(x, depth=depth-1) for x in t.iterkeys()) \
                and \
                all(_isTrivialType(x, depth=depth-1) for x in t.itervalues())
-    else:
-        return False
+    return False
 
 import contextlib
 import shutil
