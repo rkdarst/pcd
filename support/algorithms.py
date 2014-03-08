@@ -187,6 +187,8 @@ class CDMethod(object):
                 setattr(self, k, v)
             else:
                 raise ValueError("Unknown option %s"%k)
+        if g is None:
+            return
 
         # Make mapping of nodes to integers, if g is a GraphFile
         # (already existing file), it won't make a map.
