@@ -1416,17 +1416,26 @@ class _CommunitiesBase(object):
                 g_new.add_edge(cname, cneigh,
                                weight=weight)
         return g_new
-    def subgraph(self, g, cmty, shells_cmty=0, shells_node=0,
+    def subgraph(self, g, cmty, shells_cmty=0, shells_node=0, shells_overlap=0,
                       initial_nodes=None, nodecmtys=None):
         """Return a subgraph based on community structure.
 
-        See arguments below for usage.  `g` and `cmty` are required
-        arguments, and used to build the initial subgraph.
+        This method induces a subgraph of g using a set of nodes
+        centered around a community.  You can use only the community
+        (default), or community+neighbors, or community+neighboring
+        communities.  This is specified in terms of how many `shells`
+        to take - one shell is just neighbors, two shells is neighbors
+        of neighbors, etc.
 
         g: networkx graph
             Graph to use for adjacency.
         cmty: community name
             The initial set of nodes is taken from this community.
+
+        shells_overlap: int
+            Then, for every community, find all overlapping
+            communities.  Add all nodes in all overlapping communities
+            to the set of nodes.
         shells_cmty: int
             Then, for every community reachable directly (by a single
             edge) from the initial set of nodes (this is the *touching
@@ -1436,44 +1445,77 @@ class _CommunitiesBase(object):
             Then, from the set of nodes so far, for every node
             reachable by one edge, add those to the subgraph.  Repeat
             `shells_node` times.
+
         initial_nodes: node set, default None
             This is taken as the initial set of nodes.  `cmty` can be
             None in this case.  Not normally used.
-        nodecmtys: dict from .nodecmtys_onetoone(), default None
+        nodecmtys: dict from .nodecmtys(), default None
             (infrequently needed) This function must calculate
-            nodecmtys_onetoone, which could get expensive.  If it is
+            nodecmtys, which could get expensive.  If it is
             pre-computed, pass it here to avoid recomputation.
         """
         if nodecmtys is None:
-            nodecmtys = self.nodecmtys_onetoone()   # update if we support overlaps.
+            nodecmtys = self.nodecmtys()   # update if we support overlaps.
         if initial_nodes is not None:
             nodes = initial_nodes
         else:
             nodes = self[cmty]
         nodes = set(nodes)  # make a copy
 
-        # Shells of neighbor communities:
+        # Overlapping communities: For every node in the initial set,
+        # look for all communities of those nodes.  Add those communities to 
+        shell = nodes
+        for _ in range(shells_overlap, 0, -1):
+            overlap_cmtys = set()
+            # For every node, find overlapping communities
+            for n in shell:
+                overlap_cmtys.update(nodecmtys.get(n, set()))
+            # For every overlapping community, find all nodes
+            neigh_nodes = set(n
+                              for cname in overlap_cmtys
+                              for n in self[cname])
+            # update seed for next shell with this shell
+            shell = neigh_nodes
+            # Update nodes (set of all nodes in subgraph) with this shell contents
+            nodes.update(shell)
+        # Shells of neighbor communities: Start with a set of nodes.
+        # Find all neighbors of that set.  Find all communities in
+        # those neighbors.  Create a new set of all nodes in those
+        # communities.
         cnames_included = set()
         if cmty is not None:
             cnames_included.add(cmty)
         shell = nodes
         for _ in range(shells_cmty, 0, -1):
             neigh_nodes = set()
+            # For each node in shell, find all neighbors
             for n in shell:
                 neigh_nodes.update(g.neighbors(n))
-            neigh_cmtys = set(nodecmtys[n] for n in neigh_nodes) # assumes no overlap
-            cnames_included.update(neigh_cmtys)
+            # Find all communities in those neighbors
+            neigh_cmtys = set(c
+                              for n in neigh_nodes
+                              for c in nodecmtys.get(n, set()) if c not in cnames_included
+                              ) # assumes no overlap
+            # Find all nodes in all of those neighboring communities
+            neigh_nodes = set(n
+                              for c in neigh_cmtys
+                              for n in self[c]
+                              )
+            # Update nodes (set of all nodes in subgraph) with this shell contents
+            nodes.update(neigh_nodes)
+            # Then set shell n+1 to neighbors of shell n.  Repeat.
             shell = neigh_nodes
-        for cmty in cnames_included:
-            nodes.update(self[cmty])
 
         # Shells of neighbor nodes:
         shell = nodes
         for _ in range(shells_node, 0, -1):
             next_shell = set()
-            for n in nodes:
+            # Find all neighbors of the shell
+            for n in shell:
                 next_shell.update(g.neighbors(n))
+            # Update all nodes with found neighbors
             nodes.update(next_shell)
+            # shell n+1 is shell n now.
             shell = next_shell
 
         g_new = g.subgraph(nodes)
