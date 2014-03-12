@@ -104,6 +104,9 @@ class Statter(object):
         for i, label in enumerate(label_order):
             color = colormap(normmap(i))
             points = data[label]
+            if len(points) == 0:
+                print "skipping %s with no data"%label
+                continue
         #for i, (label, points) in enumerate(data.iteritems()):
             #print label, points.keys()
             xy = sorted((a, numpy.mean(b)) for a,b in points.iteritems())
