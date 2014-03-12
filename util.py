@@ -1,8 +1,6 @@
 # Richard Darst, July 2011
 
 import ast
-#from taco.mathutil.stats import Averager
-from fitz.mathutil import Averager
 import math
 from math import log, exp, floor, ceil
 import numpy
