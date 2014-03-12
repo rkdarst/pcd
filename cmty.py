@@ -1029,13 +1029,13 @@ class _CommunitiesBase(object):
         adjacency.extend(neighbor for n,neighbor in g.edges(n))
         nodecmtys = self.nodecmtys()
 
-        print "Node %s in communities %s"%(n, nodecmtys[n])
+        print "Node %s in communities %s"%(n, nodecmtys.get(n))
         #print "Edges connect to %s"%sorted(adjacency)
         cmtys = collections.defaultdict(list)
         #print "Connected communities for each adjacent node:"
         for n2 in sorted(adjacency):
             #print "  %10s: cmtys %s"%(n2, sorted(nodecmtys[n2]))
-            for c in nodecmtys[n2]:
+            for c in nodecmtys.get(n2,()):
                 cmtys[c].append(n2)
         print "Connections to each community:"
         for c, nodes in sorted(cmtys.iteritems()):
