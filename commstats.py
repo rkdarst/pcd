@@ -671,6 +671,52 @@ class CmtyEmbeddednessVsSLD(Statter):
             yield lin_bin(sld), cmtyembeddedness
 
 
+class CmtyCompSize(Statter):
+    """Size distribution of all components of communities.
+
+    Note: consider using CmtyCompLCCSize instead, it gives more useful
+    answers."""
+    ylabel = "cmty comp size fraction"
+    legend_loc = "upper right"
+    log_y = True
+    def calc(self, g, cmtys):
+        for cname, cnodes in cmtys.iteritems():
+            n_cmty = len(cnodes)
+            if n_cmty < self.minsize:
+                continue
+
+            sg = g.subgraph(cnodes)
+            ccs = networkx.connected_components(sg)
+            #from fitz import interactnow
+            ccs_sizes = [len(x) for x in ccs]
+            if not all(x==1 for x in ccs_sizes):
+                print ccs_sizes
+
+            n_cmty_binned = log_bin(n_cmty)
+            for size in ccs_sizes:
+                if size == 1: continue
+                yield n_cmty_binned, size/float(n_cmty)
+
+class CmtyLCCSize(Statter):
+    """Size of the largest connected component within communities."""
+    ylabel = "cmty comp size fraction"
+    legend_loc = "upper right"
+    log_y = False
+    def calc(self, g, cmtys):
+        for cname, cnodes in cmtys.iteritems():
+            n_cmty = len(cnodes)
+            if n_cmty < self.minsize:
+                continue
+
+            sg = g.subgraph(cnodes)
+            ccs = networkx.connected_components(sg)
+            #from fitz import interactnow
+            ccs_sizes = [len(x) for x in ccs]
+
+            n_cmty_binned = log_bin(n_cmty)
+            yield n_cmty_binned, ccs_sizes[0]/float(n_cmty)
+
+
 
 
 #class MaxDegNodeFocusednessLabel(MaxDegNodeFocusedness,Statter):
