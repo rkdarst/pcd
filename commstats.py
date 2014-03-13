@@ -497,7 +497,6 @@ class NodeEmbeddedness(Statter):
     ylabel = 'node embeddedness'
     legend_loc = 'lower right'
     def calc(self, g, cmtys):
-        cmtygraph = cmtys.cmty_graph(g)
         for cname, cnodes in cmtys.iteritems():
             n_cmty = len(cnodes)
             # Skip communities below some minimum size.  We must have
@@ -551,7 +550,6 @@ class CmtySelfNeighborFraction(Statter):
     """n_cmty / count(union(neighbors(node) for node in cmty)"""
     ylabel = "neighbor fraction"
     def calc(self, g, cmtys):
-        cmtygraph = cmtys.cmty_graph(g)
         for cname, cnodes in cmtys.iteritems():
             n_cmty = len(cnodes)
             # Skip communities below some minimum size.  We must have
