@@ -23,13 +23,14 @@ def quantile(sorted_list, p):
     d1 = sorted_list[int(c)] * (k-f)
     return d0+d1
 
-def lin_bin(k, range=1, bins=10):
+def lin_bin(k, range=1, bins=10, ints=None):
     #print k, floor(k*bins/float(range)) * range/bins
     return floor(k*bins/float(range)) * range/bins
-def lin_bin_width(k, range=1, bins=10):
+def lin_bin_width(k, range=1, bins=10, ints=None):
     return range/float(bins)
 
-def log_bin(k, base=10, decadesize=10, minlog=1):
+def log_bin(k, base=10, decadesize=10, minlog=1,
+            ints=False):
     """Given a point, return its bin center"""
     decadesize = float(decadesize)
     if k < minlog:  return k
@@ -39,14 +40,18 @@ def log_bin(k, base=10, decadesize=10, minlog=1):
     return k
 #def log_bin(k, base=10, decadesize=10, minlog=10):
 #    return k
-def log_bin_width(k, base=10, decadesize=10, minlog=1):
+def log_bin_width(k, base=10, decadesize=10, minlog=1,
+                  ints=False):
     """Given a bin center, return its bin width"""
     if k < minlog: return 1
     i = log(k)/log(base)*decadesize
     i = round(i)
     max_ = exp((i+.5)/decadesize * log(base))
     min_ = max(minlog, exp((i-.5)/decadesize * log(base)))
-    width = max_ - min_
+    if ints:
+        width = floor(max_) - ceil(min_) + 1
+    else:
+        width = max_ - min_
     return float(width)
 
 
@@ -60,6 +65,7 @@ class Statter(object):
     xlabel = '$n_\mathrm{cmty}$'
     ylabel = None
     legend_loc = None
+    bin_ints = False
     @property
     def title(self):
         if hasattr(self, '_title'): return self._title
@@ -260,15 +266,15 @@ class DistStatter(Statter):
         from functools import partial
 
         if self.bin and self.log_y:
-            binparams = { }
+            binparams = {'ints': self.bin_ints}
             binfunc = log_bin
             binwidth = log_bin_width
         elif self.bin:
-            binparams = {'bins':20 }
+            binparams = {'bins':20, 'ints': self.bin_ints}
             binfunc = lin_bin
             binwidth = lin_bin_width
         else:
-            binparams = { }
+            binparams = {'ints': self.bin_ints}
             binfunc = lambda x: x
             binwidth = lambda x: 1
 
@@ -322,6 +328,7 @@ class CmtySize(Statter):
     """Community sizes"""
     ylabel = "size"
     log_y = True
+    bin_ints = True
     def calc(self, g, cmtys):
         for cname, cnodes in cmtys.iteritems():
             n_cmty = len(cnodes)
