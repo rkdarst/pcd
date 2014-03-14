@@ -193,6 +193,8 @@ class QuantileStatter(Statter):
 
 class DistStatter(Statter):
     bin = True
+    dist_is_counts = False
+    ylabel_dist = None
     def write(self, fname, axopts={}, title=None):
         from pcd.support import matplotlibutil
         ax, extra = matplotlibutil.get_axes(fname, **axopts)
@@ -231,18 +233,27 @@ class DistStatter(Statter):
             [vals.extend(x) for x in points.values() ]
             vals = map(partial(binfunc, **binparams), vals)
             vals, vals_counts = growsf.counts(vals)
-            vals_counts = [ c/binwidth(s, **binparams)
-                            for s,c in zip(vals, vals_counts) ]
-            p_vals = growsf.norm(vals_counts)
-            ax.plot(vals, p_vals, color=colormap(normmap(i)),
-                    label=label)
+            if self.dist_is_counts:
+                ax.plot(vals, vals_counts, color=colormap(normmap(i)),
+                        label=label)
+            else:
+                vals_counts = [ c/binwidth(s, **binparams)
+                                for s,c in zip(vals, vals_counts) ]
+                p_vals = growsf.norm(vals_counts)
+                ax.plot(vals, p_vals, color=colormap(normmap(i)),
+                        label=label)
 
         if self.log_y:
             ax.set_xscale('log')
         #ax.set_xlim(min(ns), max(ns))
         #ax.set_ylim(*ylims)
-        if self.xlabel: ax.set_xlabel(self.ylabel)
-        if self.ylabel: ax.set_ylabel("P(%s)"%self.ylabel)
+        if self.ylabel: ax.set_xlabel(self.ylabel)
+        if self.ylabel_dist:
+            ax.set_ylabel(self.ylabel_dist)
+        elif self.dist_is_counts:
+            if self.ylabel: ax.set_ylabel("Count(%s)"%self.ylabel)
+        else:
+            if self.ylabel: ax.set_ylabel("P(%s)"%self.ylabel)
         if   title:      ax.set_title(self.title)
         elif self.title: ax.set_title(self.title)
         #ax.set_ylim(floor(min_v), ceil(max_v))
@@ -256,6 +267,10 @@ class DistStatter(Statter):
 
         self._hook_write_setup_plot(locals())
         matplotlibutil.save_axes(ax, extra)
+
+class CountStatter(DistStatter):
+    dist_is_counts = True
+
 
 
 
@@ -743,8 +758,10 @@ for name, obj in _glbs:
         if not issubclass(obj, object): continue
     except TypeError:
         continue
-    if obj in  (Statter, QuantileStatter, DistStatter): continue
+    if obj in  (Statter, QuantileStatter, DistStatter, CountStatter): continue
     if issubclass(obj, Statter) and not issubclass(obj, QuantileStatter):
         globals()[name+'Qtl'] = type(name+'Qtl', (obj,QuantileStatter), {})
     if issubclass(obj, Statter) and not issubclass(obj, DistStatter):
         globals()[name+'Dist'] = type(name+'Dist', (obj,DistStatter), {})
+    if issubclass(obj, Statter) and not issubclass(obj, CountStatter):
+        globals()[name+'Count'] = type(name+'Count', (obj,CountStatter), {})
