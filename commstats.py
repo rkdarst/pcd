@@ -55,6 +55,26 @@ def log_bin_width(k, base=10, decadesize=10, minlog=1,
     return float(width)
 
 
+def cache_get(cache, name, func):
+    """Simple dictionary based.
+
+    Returns func(), or cache of the results.
+
+    cache: dictionary or mappable.
+        The cache.  If cache is None, then do not do any caching and
+        just return the value.
+    name: hashable
+        Dictionary key to cache under.
+    func: callable
+        Callable to evaluate for value, only if value is not already
+        in cache.
+    """
+    if cache is None:
+        return func()
+    if name not in cache:
+        cache[name] = func()
+    return cache[name]
+
 
 class Statter(object):
     """Base statter."""
@@ -76,8 +96,8 @@ class Statter(object):
     def __init__(self):
         self._data = collections.defaultdict(lambda: collections.defaultdict(list))
         self.label_order = [ ]
-    def calc(self, g, cmtys):
-        return self.calc(g, cmtys)
+    def calc(self, g, cmtys, cache=None):
+        raise NotImplementedError("This is a prototype.")
 
     def add_label(self, label):
         if label not in self._data:
@@ -88,8 +108,8 @@ class Statter(object):
             self.label_order.append(label)
         for n, sld in data:
             self._data[label][n].append(sld)
-    def add(self, g, cmtys, label):
-        self.accumulate(self.calc(g, cmtys), label=label)
+    def add(self, g, cmtys, label, cache=None):
+        self.accumulate(self.calc(g, cmtys, cache=cache), label=label)
 
     quantiles = None
     def write(self, fname, axopts={}, title=None):
@@ -240,7 +260,7 @@ class DistStatter(Statter):
 
 
 class Null(Statter):
-    def calc(self, g, cmtys):
+    def calc(self, g, cmtys, cache=None):
         # Force generation of possible lazy communites, don't do an
         # iteration.
         cmtys.iteritems()
@@ -252,7 +272,7 @@ class CmtySize(Statter):
     ylabel = "size"
     log_y = True
     bin_ints = True
-    def calc(self, g, cmtys):
+    def calc(self, g, cmtys, cache=None):
         for cname, cnodes in cmtys.iteritems():
             n_cmty = len(cnodes)
             # Skip communities below some minimum size.  We must have
@@ -264,7 +284,7 @@ class CmtySize(Statter):
 class Density(Statter):
     log_y = False
     ylabel = 'edge density'
-    def calc(self, g, cmtys):
+    def calc(self, g, cmtys, cache=None):
         for cname, cnodes in cmtys.iteritems():
             n_cmty = len(cnodes)
             # Skip communities below some minimum size.  We must have
@@ -291,7 +311,7 @@ class ScaledLinkDensity(Statter):
     log_y = False
     ylabel = 'scaled link density'
     legend_loc = 'lower right'
-    def calc(self, g, cmtys):
+    def calc(self, g, cmtys, cache=None):
         for cname, cnodes in cmtys.iteritems():
             n_cmty = len(cnodes)
             # Skip communities below some minimum size.  We must have
@@ -332,7 +352,7 @@ class ScaledLinkDensity(Statter):
 
 class AvgClusteringCoef(Statter):
     """Average clustering coefficient within community"""
-    def calc(self, g, cmtys):
+    def calc(self, g, cmtys, cache=None):
         for cname, cnodes in cmtys.iteritems():
             n_cmty = len(cnodes)
             # Skip communities below some minimum size.  We must have
@@ -351,7 +371,7 @@ class AvgClusteringCoef(Statter):
 class CmtyMinEmbeddednessOne(Statter):
     log_y = False
     ylabel = 'community embeddedness with worst external cmty'
-    def calc(self, g, cmtys):
+    def calc(self, g, cmtys, cache=None):
         nodecmtys = cmtys.nodecmtys_onetoone()
         cmtygraph = cmtys.cmty_graph(g, nodecmtys=nodecmtys)
         for cname, cnodes in cmtys.iteritems():
@@ -372,7 +392,7 @@ class CmtyEmbeddedness(Statter):
     log_y = False
     ylabel = 'community embeddedness'
     legend_loc = 'lower right'
-    def calc(self, g, cmtys):
+    def calc(self, g, cmtys, cache=None):
         cmtygraph = cmtys.cmty_graph(g)
         for cname, cnodes in cmtys.iteritems():
             n_cmty = len(cnodes)
@@ -392,7 +412,7 @@ class CmtyEmbeddedness2(Statter):
     log_y = False
     ylabel = 'community embeddedness'
     legend_loc = 'lower right'
-    def calc(self, g, cmtys):
+    def calc(self, g, cmtys, cache=None):
         #cmtygraph = cmtys.cmty_graph(g)
         adj = g.adj
         for cname, cnodes in cmtys.iteritems():
@@ -426,7 +446,7 @@ class NodeEmbeddedness(Statter):
     log_y = False
     ylabel = 'node embeddedness'
     legend_loc = 'lower right'
-    def calc(self, g, cmtys):
+    def calc(self, g, cmtys, cache=None):
         for cname, cnodes in cmtys.iteritems():
             n_cmty = len(cnodes)
             # Skip communities below some minimum size.  We must have
@@ -442,7 +462,7 @@ class NodeEmbeddedness(Statter):
                 yield n_cmty, x
 
 #class CmtyExtRatio(CmtyMaxExtRatio):
-#    def calc(self, g, cmtys):
+#    def calc(self, g, cmtys, cache=None):
 #        nodecmtys = cmtys.nodecmtys_onetoone()
 #        cmtygraph = cmtys.cmty_graph(g)
 #        for cname, cnodes in cmtys.iteritems():
@@ -459,7 +479,7 @@ class NodeEmbeddedness(Statter):
 #            yield n_cmty, ext_ratio
 #
 #class CmtyExtRatio(Statter):
-#    def calc(self, g, cmtys):
+#    def calc(self, g, cmtys, cache=None):
 #        nodecmtys = cmtys.nodecmtys_onetoone()
 #        cmtygraph = cmtys.cmty_graph(g)
 #        for cname, cnodes in cmtys.iteritems():
@@ -479,7 +499,7 @@ class NodeEmbeddedness(Statter):
 class CmtySelfNeighborFraction(Statter):
     """n_cmty / count(union(neighbors(node) for node in cmty)"""
     ylabel = "neighbor fraction"
-    def calc(self, g, cmtys):
+    def calc(self, g, cmtys, cache=None):
         for cname, cnodes in cmtys.iteritems():
             n_cmty = len(cnodes)
             # Skip communities below some minimum size.  We must have
@@ -503,7 +523,7 @@ class CmtyHubness(Statter):
     """max(internal_degree) / (n_cmty-1)."""
     ylabel = "cmty max hubness"
     legend_loc = 'lower right'
-    def calc(self, g, cmtys):
+    def calc(self, g, cmtys, cache=None):
         for cname, cnodes in cmtys.iteritems():
             n_cmty = len(cnodes)
             # Skip communities below some minimum size.  We must have
@@ -522,7 +542,7 @@ class CmtyAvgDegree(Statter):
     """sum(degree) / n_cmty.  Average total degree (internal + external)"""
     ylabel = "cmty average degree"
     log_y = True
-    def calc(self, g, cmtys):
+    def calc(self, g, cmtys, cache=None):
         for cname, cnodes in cmtys.iteritems():
             n_cmty = len(cnodes)
             # Skip communities below some minimum size.  We must have
@@ -544,8 +564,8 @@ class CmtyOverlap(Statter):
     """Number of overlaps per community."""
     ylabel = "number of overlaps"
     log_y = True
-    def calc(self, g, cmtys):
-        nodecmtys = cmtys.nodecmtys()
+    def calc(self, g, cmtys, cache=None):
+        nodecmtys = cache_get(cache, 'nodecmtys', lambda: cmtys.nodecmtys())
         for cname, cnodes in cmtys.iteritems():
             n_cmty = len(cnodes)
             if n_cmty < self.minsize:
@@ -559,8 +579,8 @@ class CmtyAvgNodeOverlap(Statter):
     For each community: sum(memberships per node) / n_nodes"""
     ylabel = "avg memberships per node"
     log_y = True
-    def calc(self, g, cmtys):
-        nodecmtys = cmtys.nodecmtys()
+    def calc(self, g, cmtys, cache=None):
+        nodecmtys = cache_get(cache, 'nodecmtys', lambda: cmtys.nodecmtys())
         for cname, cnodes in cmtys.iteritems():
             n_cmty = len(cnodes)
             if n_cmty < self.minsize:
@@ -575,8 +595,8 @@ class CmtyNodeOverlap(Statter):
     """Average memberships per node in community"""
     ylabel = "memberships per node"
     log_y = True
-    def calc(self, g, cmtys):
-        nodecmtys = cmtys.nodecmtys()
+    def calc(self, g, cmtys, cache=None):
+        nodecmtys = cache_get(cache, 'nodecmtys', lambda: cmtys.nodecmtys())
         for cname, cnodes in cmtys.iteritems():
             n_cmty = len(cnodes)
             if n_cmty < self.minsize:
@@ -590,8 +610,8 @@ class NodeOverlapByDeg(Statter):
     ylabel = "memberships per node"
     xlabel = "node degree"
     log_y = True
-    def calc(self, g, cmtys):
-        nodecmtys = cmtys.nodecmtys()
+    def calc(self, g, cmtys, cache=None):
+        nodecmtys = cache_get(cache, 'nodecmtys', lambda: cmtys.nodecmtys())
         for cname, cnodes in cmtys.iteritems():
             n_cmty = len(cnodes)
             if n_cmty < self.minsize:
@@ -606,7 +626,7 @@ class MaxDegNodeJaccard(Statter):
     ylabel = "cmty jacc with hub node neighbors"
     n = 1
     legend_loc = 'lower right'
-    def calc(self, g, cmtys):
+    def calc(self, g, cmtys, cache=None):
         for cname, cnodes in cmtys.iteritems():
             n_cmty = len(cnodes)
             # Skip communities below some minimum size.  We must have
@@ -633,7 +653,7 @@ class CmtyEmbeddednessVsSLD(Statter):
     ylabel = "cmty embeddedness"
     log_x = False
     legend_loc = "upper left"
-    def calc(self, g, cmtys):
+    def calc(self, g, cmtys, cache=None):
         cmtygraph = cmtys.cmty_graph(g)
         for cname, cnodes in cmtys.iteritems():
             n_cmty = len(cnodes)
@@ -671,7 +691,7 @@ class CmtyCompSize(Statter):
     ylabel = "cmty comp size fraction"
     legend_loc = "upper right"
     log_y = True
-    def calc(self, g, cmtys):
+    def calc(self, g, cmtys, cache=None):
         for cname, cnodes in cmtys.iteritems():
             n_cmty = len(cnodes)
             if n_cmty < self.minsize:
@@ -694,7 +714,7 @@ class CmtyLCCSize(Statter):
     ylabel = "cmty comp size fraction"
     legend_loc = "upper right"
     log_y = False
-    def calc(self, g, cmtys):
+    def calc(self, g, cmtys, cache=None):
         for cname, cnodes in cmtys.iteritems():
             n_cmty = len(cnodes)
             if n_cmty < self.minsize:
