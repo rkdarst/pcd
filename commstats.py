@@ -614,6 +614,70 @@ class CmtyAvgDegree(Statter):
             n_cmty = log_bin(n_cmty)
             yield n_cmty, x
 
+#
+# Statters related to overlaps
+#
+class CmtyOverlap(Statter):
+    """Number of overlaps per community."""
+    ylabel = "number of overlaps"
+    log_y = True
+    def calc(self, g, cmtys):
+        nodecmtys = cmtys.nodecmtys()
+        for cname, cnodes in cmtys.iteritems():
+            n_cmty = len(cnodes)
+            if n_cmty < self.minsize:
+                continue
+
+            overlaps = set.union(*(nodecmtys[n] for n in cnodes))
+            yield log_bin(n_cmty), len(overlaps)
+class CmtyAvgNodeOverlap(Statter):
+    """Average memberships per node in community
+
+    For each community: sum(memberships per node) / n_nodes"""
+    ylabel = "avg memberships per node"
+    log_y = True
+    def calc(self, g, cmtys):
+        nodecmtys = cmtys.nodecmtys()
+        for cname, cnodes in cmtys.iteritems():
+            n_cmty = len(cnodes)
+            if n_cmty < self.minsize:
+                continue
+
+            total_memb = sum(len(nodecmtys[n]) for n in cnodes)
+            x = total_memb / float(n_cmty)
+
+            n_cmty = log_bin(n_cmty)
+            yield n_cmty, x
+class CmtyNodeOverlap(Statter):
+    """Average memberships per node in community"""
+    ylabel = "memberships per node"
+    log_y = True
+    def calc(self, g, cmtys):
+        nodecmtys = cmtys.nodecmtys()
+        for cname, cnodes in cmtys.iteritems():
+            n_cmty = len(cnodes)
+            if n_cmty < self.minsize:
+                continue
+
+            n_cmty = log_bin(n_cmty)
+            for n in cnodes:
+                yield n_cmty, len(nodecmtys[n])
+class NodeOverlapByDeg(Statter):
+    """Average memberships per node by degree"""
+    ylabel = "memberships per node"
+    xlabel = "node degree"
+    log_y = True
+    def calc(self, g, cmtys):
+        nodecmtys = cmtys.nodecmtys()
+        for cname, cnodes in cmtys.iteritems():
+            n_cmty = len(cnodes)
+            if n_cmty < self.minsize:
+                continue
+
+            for n in cnodes:
+                yield log_bin(g.degree(n)), len(nodecmtys[n])
+
+
 class MaxDegNodeJaccard(Statter):
     """jaccard(community, neighbors of highest degree node)"""
     ylabel = "cmty jacc with hub node neighbors"
