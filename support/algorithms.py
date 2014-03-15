@@ -2016,7 +2016,7 @@ class CliquePerc(CDMethod):
             i_values.append(i)
         # Set the labels.  k%d, with enough leading zeros so they sort properly.
         max_i = i
-        label_format = "k%%%dd"%math.ceil(math.log(max_i)/math.log(10))
+        label_format = "k%%0%dd"%math.ceil(math.log(max_i)/math.log(10))
         for i, cmtys in zip(i_values, results):
             cmtys.label = label_format%i
         # Set default
@@ -2058,7 +2058,7 @@ class SeqCliquePerc(CDMethod):
             k_values.append(k)
         # Set the labels.  k%d, with enough leading zeros so they sort properly.
         max_k = k
-        label_format = "k%%%dd"%math.ceil(math.log(max_k)/math.log(10))
+        label_format = "k%%0%dd"%math.ceil(math.log(max_k)/math.log(10))
         for k, cmtys in zip(k_values, results):
             cmtys.label = label_format%k
         # Set default
