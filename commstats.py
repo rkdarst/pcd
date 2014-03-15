@@ -356,6 +356,9 @@ class ScaledLinkDensity(Statter):
     def _hook_write_setup_plot(self, lcls):
         if isinstance(self, DistStatter):
             return
+        if 'xvals' not in lcls:
+            # There was no data, so don't do anything
+            return
         ax = lcls['ax']
         ns = lcls['xvals']
         # plot bounds
