@@ -234,13 +234,13 @@ class DistStatter(Statter):
             vals = map(partial(binfunc, **binparams), vals)
             vals, vals_counts = growsf.counts(vals)
             if self.dist_is_counts:
-                ax.plot(vals, vals_counts, color=colormap(normmap(i)),
+                ax.plot(vals, vals_counts, 'o-', color=colormap(normmap(i)),
                         label=label)
             else:
                 vals_counts = [ c/binwidth(s, **binparams)
                                 for s,c in zip(vals, vals_counts) ]
                 p_vals = growsf.norm(vals_counts)
-                ax.plot(vals, p_vals, color=colormap(normmap(i)),
+                ax.plot(vals, p_vals, 'o-', color=colormap(normmap(i)),
                         label=label)
 
         if self.log_y:
