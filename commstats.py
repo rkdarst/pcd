@@ -763,6 +763,9 @@ for name, obj in _glbs:
     except TypeError:
         continue
     if obj in  (Statter, QuantileStatter, DistStatter, CountStatter): continue
+    globals()[name+'Base'] = obj
+    if issubclass(obj, Statter) and not issubclass(obj, QuantileStatter):
+        globals()[name+''] = type(name+'', (obj, ), {})
     if issubclass(obj, Statter) and not issubclass(obj, QuantileStatter):
         globals()[name+'Qtl'] = type(name+'Qtl', (obj,QuantileStatter), {})
     if issubclass(obj, Statter) and not issubclass(obj, DistStatter):
