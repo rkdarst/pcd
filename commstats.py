@@ -88,6 +88,7 @@ class Statter(object):
     bin_ints = False
     xlim = None
     ylim = None
+    legend_make = True
     @property
     def title(self):
         if hasattr(self, '_title'): return self._title
@@ -179,7 +180,7 @@ class Statter(object):
             ax.minorticks_on()
             ax.set_yscale('log', basey=10)
 
-        if len(data) > 1:
+        if len(data) > 1 and self.legend_make:
             ax.legend(loc=self.legend_loc)
 
         self._hook_write_setup_plot(locals())
@@ -262,7 +263,7 @@ class DistStatter(Statter):
             ax.minorticks_on()
             ax.set_yscale('log', basey=10)
 
-        if len(data) > 1:
+        if len(data) > 1 and self.legend_make:
             ax.legend(loc=self.legend_loc)
 
         self._hook_write_setup_plot(locals())
