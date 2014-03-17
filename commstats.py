@@ -225,6 +225,8 @@ class DistStatter(Statter):
             binparams = {'ints': self.bin_ints}
             binfunc = lambda x: x
             binwidth = lambda x: 1
+        if hasattr(self, 'binparams'):
+            binparams.update(self.binparams)
 
         label_order = self.label_order
         if not label_order:
