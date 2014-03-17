@@ -86,6 +86,8 @@ class Statter(object):
     ylabel = None
     legend_loc = None
     bin_ints = False
+    xlim = None
+    ylim = None
     @property
     def title(self):
         if hasattr(self, '_title'): return self._title
@@ -167,14 +169,12 @@ class Statter(object):
         ylims = ax.get_ylim()
         if self.log_x:
             ax.set_xscale('log')
-        #ax.set_xlim(min(ns), max(ns))
-        #ax.set_ylim(*ylims)
         if self.xlabel: ax.set_xlabel(self.xlabel)
         if self.ylabel: ax.set_ylabel(self.ylabel)
         if   title:      ax.set_title(self.title)
         elif self.title: ax.set_title(self.title)
-        #ax.set_ylim(floor(min_v), ceil(max_v))
-        #ax.set_yticks(range(2, int(ceil(max_v))))
+        if self.xlim: ax.set_xlim(*self.xlim)
+        if self.ylim: ax.set_ylim(*self.ylim)
         if self.log_y:
             ax.minorticks_on()
             ax.set_yscale('log', basey=10)
@@ -195,6 +195,8 @@ class DistStatter(Statter):
     bin = True
     dist_is_counts = False
     ylabel_dist = None
+    dist_xlim = None
+    dist_ylim = None
     def write(self, fname, axopts={}, title=None):
         from pcd.support import matplotlibutil
         ax, extra = matplotlibutil.get_axes(fname, **axopts)
@@ -245,8 +247,6 @@ class DistStatter(Statter):
 
         if self.log_y:
             ax.set_xscale('log')
-        #ax.set_xlim(min(ns), max(ns))
-        #ax.set_ylim(*ylims)
         if self.ylabel: ax.set_xlabel(self.ylabel)
         if self.ylabel_dist:
             ax.set_ylabel(self.ylabel_dist)
@@ -256,8 +256,8 @@ class DistStatter(Statter):
             if self.ylabel: ax.set_ylabel("P(%s)"%self.ylabel)
         if   title:      ax.set_title(self.title)
         elif self.title: ax.set_title(self.title)
-        #ax.set_ylim(floor(min_v), ceil(max_v))
-        #ax.set_yticks(range(2, int(ceil(max_v))))
+        if self.dist_xlim: ax.set_xlim(*self.dist_xlim)
+        if self.dist_ylim: ax.set_ylim(*self.dist_ylim)
         if self.log_p:
             ax.minorticks_on()
             ax.set_yscale('log', basey=10)
