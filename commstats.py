@@ -198,6 +198,7 @@ class DistStatter(Statter):
     ylabel_dist = None
     dist_xlim = None
     dist_ylim = None
+    domain = None
     def write(self, fname, axopts={}, title=None):
         from pcd.support import matplotlibutil
         ax, extra = matplotlibutil.get_axes(fname, **axopts)
@@ -237,7 +238,12 @@ class DistStatter(Statter):
             vals = []
             [vals.extend(x) for x in points.values() ]
             vals = map(partial(binfunc, **binparams), vals)
-            vals, vals_counts = growsf.counts(vals)
+            # Set a domain of all values to include
+            if self.domain is not None:
+                domain = set(binfunc(x, **binparams) for x in self.domain)
+            else:
+                domain = set()
+            vals, vals_counts = growsf.counts(vals, domain=domain)
             if self.dist_is_counts:
                 lines = ax.plot(vals, vals_counts, 'o-', color=colormap(normmap(i)),
                         label=label)
