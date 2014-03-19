@@ -741,9 +741,10 @@ class CmtyCompSize(Statter):
 
 class CmtyLCCSize(Statter):
     """Size of the largest connected component within communities."""
-    ylabel = "cmty comp size fraction"
+    ylabel = "cmty LCC size fraction"
     legend_loc = "upper right"
     log_y = False
+    _which_comp = 0
     def calc(self, g, cmtys, cache=None):
         for cname, cnodes in cmtys.iteritems():
             n_cmty = len(cnodes)
@@ -752,12 +753,42 @@ class CmtyLCCSize(Statter):
 
             sg = g.subgraph(cnodes)
             ccs = networkx.connected_components(sg)
-            #from fitz import interactnow
-            ccs_sizes = [len(x) for x in ccs]
 
             n_cmty_binned = log_bin(n_cmty)
-            yield n_cmty_binned, ccs_sizes[0]/float(n_cmty)
+            # If we don't have the n-th largest component requested,
+            # then return zero.  This makes sense since in this case,
+            # the size of that component has tended to zero.
+            if len(ccs) <= self._which_comp:
+                yield n_cmty_binned, 0.0
+                continue
+            yield n_cmty_binned, len(ccs[self._which_comp])/float(n_cmty)
+class CmtySLCCSize(CmtyLCCSize):
+    """Second largest component size."""
+    ylabel = "cmty second LCC size fraction"
+    _which_comp = 1  # second largest component
+class CmtySLCCRatio(Statter):
+    """Size ratio of second to first largest connected comps."""
+    ylabel = "cmty SLCC/LCC size ratio"
+    legend_loc = "upper right"
+    log_y = False
+    _which_comp = 0
+    def calc(self, g, cmtys, cache=None):
+        for cname, cnodes in cmtys.iteritems():
+            n_cmty = len(cnodes)
+            if n_cmty < self.minsize:
+                continue
 
+            sg = g.subgraph(cnodes)
+            ccs = networkx.connected_components(sg)
+
+            n_cmty_binned = log_bin(n_cmty)
+            # If we don't have the n-th largest component requested,
+            # then return zero.  This makes sense since in this case,
+            # the size of that component has tended to zero.
+            if len(ccs) <= self._which_comp+1:
+                yield n_cmty_binned, 0.0
+                continue
+            yield n_cmty_binned, len(ccs[self._which_comp+1])/float(len(ccs[self._which_comp]))
 
 
 
