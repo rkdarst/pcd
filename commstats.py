@@ -813,6 +813,36 @@ class CmtySLCCRatio(Statter):
 
 
 
+
+class CmtyLinkComm(Statter):
+    """Fraction of external links that are part of some community.
+
+    This analyzer was made to support link community analysis work."""
+    ylabel = "external edges internal fraction"
+    #legend_loc = "upper right"
+    _which_comp = 0
+    def calc(self, g, cmtys, cache=None):
+        nodecmtys = cache_get(cache, 'nodecmtys', lambda: cmtys.nodecmtys())
+        for cname, cnodes in cmtys.iteritems():
+            n_cmty = len(cnodes)
+            if n_cmty < self.minsize:
+                continue
+
+            k_ext = 0
+            k_ext_int = 0
+            for n in cnodes:
+                for neigh in g.adj[n]:
+                    if neigh in cnodes: continue
+                    if neigh not in nodecmtys: continue
+                    k_ext += 1
+                    if len(nodecmtys[n]&nodecmtys[neigh]):
+                        k_ext_int += 1
+
+            n_cmty_binned = log_bin(n_cmty)
+            if k_ext + k_ext_int == 0: continue
+            yield n_cmty_binned, k_ext_int/float(k_ext)
+
+
 #class MaxDegNodeFocusednessLabel(MaxDegNodeFocusedness,Statter):
 #    pass
 
