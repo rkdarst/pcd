@@ -398,50 +398,13 @@ class AvgClusteringCoef(Statter):
 
 
 
-class CmtyMinEmbeddednessOne(Statter):
-    log_y = False
-    ylabel = 'community embeddedness with worst external cmty'
-    def calc(self, g, cmtys, cache=None):
-        nodecmtys = cmtys.nodecmtys_onetoone()
-        cmtygraph = cmtys.cmty_graph(g, nodecmtys=nodecmtys)
-        for cname, cnodes in cmtys.iteritems():
-            n_cmty = len(cnodes)
-            # Skip communities below some minimum size.  We must have
-            # minsize at least 2, since edge density is not defined
-            # for size=1.
-            if n_cmty < self.minsize:
-                continue
-
-            k_in = cmtygraph.node[cname]['weight'] * 2
-            k_outs = [ dat['weight']
-                       for neigh,dat in cmtygraph[cname].iteritems() ]
-            x = min( k_in/float(k_in+k_out) for k_out in k_outs )
-            n_cmty = log_bin(n_cmty)
-            yield n_cmty, x
 class CmtyEmbeddedness(Statter):
     log_y = False
     ylabel = 'community embeddedness'
     legend_loc = 'lower right'
-    def calc(self, g, cmtys, cache=None):
-        cmtygraph = cmtys.cmty_graph(g)
-        for cname, cnodes in cmtys.iteritems():
-            n_cmty = len(cnodes)
-            # Skip communities below some minimum size.  We must have
-            # minsize at least 2, since edge density is not defined
-            # for size=1.
-            if n_cmty < self.minsize:
-                continue
-
-            k_in = cmtygraph.node[cname]['weight'] * 2
-            k_outs = [ dat['weight']
-                       for neigh,dat in cmtygraph[cname].iteritems() ]
-            x = k_in/float(k_in+sum(k_outs))
-            n_cmty = log_bin(n_cmty)
-            yield n_cmty, x
-class CmtyEmbeddedness2(Statter):
-    log_y = False
-    ylabel = 'community embeddedness'
-    legend_loc = 'lower right'
+    # This allows us to transform embeddedness into conductance by
+    # setting _val_map = lambda x: 1-x
+    _val_map = staticmethod(lambda x: x)
     def calc(self, g, cmtys, cache=None):
         #cmtygraph = cmtys.cmty_graph(g)
         adj = g.adj
@@ -452,25 +415,83 @@ class CmtyEmbeddedness2(Statter):
             # for size=1.
             if n_cmty < self.minsize:
                 continue
-
-
+            # Old test code
             #_k_in2 = cmtygraph.node[cname]['weight'] * 2
             #_k_outs = [ dat['weight']
             #           for neigh,dat in cmtygraph[cname].iteritems() ]
             ##x = _k_in2/float(_k_in2+sum(_k_outs))
-
-
             k_tot = sum(len(adj[n]) for n in cnodes )
-            k_in2 = sum(sum(1 for n1 in adj[n] if n1 in cnodes)
-                       for n in cnodes)
-            k_out = k_tot - k_in2
-
-            #assert k_in2 == _k_in
-            #assert k_out == sum(_k_outs)
-            x = k_in2 / float(k_in2 + k_out)
+            k_in = sum(1 for n in cnodes
+                       for n1 in adj[n] if n1 in cnodes)
+            k_out = k_tot - k_in
+            #assert k_in2 == _k_in and k_out == sum(_k_outs)
+            x = k_in / float(k_in + k_out)
 
             n_cmty = log_bin(n_cmty)
-            yield n_cmty, x
+            yield n_cmty, self._val_map(x)
+CmtyEmbeddedness2 = CmtyEmbeddedness
+class CmtyEmbeddednessWorst(Statter):
+    """k_in / (k_in + k_out_max).
+
+    k_in is every edge that go between two nodes in a community.
+
+    k_out_max is the number of edges that start on a node in a
+    community and end on a node that is in the other community.  If
+    the two communities overlap, edges in that overlap are counted
+    twice for this out degree.
+
+    By this definition, two communities that exactly overlap will have
+    an embeddedness of 0.5.  There is also no normalization as for the
+    other community size.
+    """
+    log_y = False
+    ylabel = 'community worst embeddedness'
+    legend_loc = 'lower right'
+    def calc(self, g, cmtys, cache=None):
+        nodecmtys = cache_get(cache, 'nodecmtys', lambda: cmtys.nodecmtys())
+        adj = g.adj
+        for cname, cnodes in cmtys.iteritems():
+            n_cmty = len(cnodes)
+            if n_cmty < self.minsize:
+                continue
+
+            k_map = collections.defaultdict(int)
+            k_int = 0
+            k_tot = 0
+            for n in cnodes:
+                for neigh in g.adj[n]:
+                    if neigh not in nodecmtys:
+                        continue
+                    for c2 in nodecmtys[neigh]:
+                        k_tot += 1
+                        if c2 == cname:
+                            k_int += 1
+                            continue
+                        k_map[c2] += 1
+            n_cmty = log_bin(n_cmty)
+
+            if not k_map:
+                yield n_cmty, self._val_map(1.0)
+                continue
+            if k_int == 0:
+                print cname, cnodes, n_cmty, k_int, k_map, k_tot
+                yield n_cmty, self._val_map(0)
+                continue
+
+            c_best = max(k_map, key=lambda _c: k_map[_c])
+            x = k_int / float(k_int + k_map[c_best])
+
+            yield n_cmty, self._val_map(x)
+
+class CmtyConductance(CmtyEmbeddedness):
+    """community conductance, 1-embeddedness"""
+    ylabel = 'community conductance'
+    _val_map = lambda x: 1.0-x
+class CmtyConductanceWorst(CmtyEmbeddednessWorst):
+    """community worst conductance, 1-worst embeddedness"""
+    ylabel = 'community weak conductance'
+    _val_map = lambda x: 1.0-x
+
 
 class NodeEmbeddedness(Statter):
     log_y = False
