@@ -124,6 +124,9 @@ def nodecmtys(g):
 def graphcolor(g, colormap=None, distance=1):
     """Return a coloring of a graph.
 
+    This function returns a graph coloring.  It is designed to be
+    fast, not give the fewest number of colors.
+
     Arguments:
 
     g: undirected networkx.Graph
@@ -133,7 +136,8 @@ def graphcolor(g, colormap=None, distance=1):
         of returning node->int map, return node->color tuple map.
     distance: int, default 1
         Nodes have unique colors for the n-th nearest neighbors,
-        instead of only nearest neighbors.
+        instead of only nearest neighbors.  Sometimes when
+        visualizing, you may want extra colors for clarity.
 
     Returns:
 
