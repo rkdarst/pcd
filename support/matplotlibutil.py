@@ -29,17 +29,21 @@ def get_axes(fname, figsize=(13, 10)):
         of something like FILE.[pdf,png,ps] and it will save a file of
         ALL of these extensions.
     """
-    if fname:
+    if isinstance(fname, str):
         import matplotlib.figure
         import matplotlib.backends.backend_agg
         fig = matplotlib.figure.Figure(figsize=figsize, dpi=100)
         canvas = matplotlib.backends.backend_agg.FigureCanvasAgg(fig)
         ax = fig.add_subplot(111)#, aspect='equal')
         return ax, (fname, canvas, fig, ax)
+    if isinstance(fname, matplotlib.axes.Axes):
+        ax = fname
+        return ax, (fname, )
     else:
-        raise
+        raise ValueError("Unknown type of object: %s"%type(fname))
 def save_axes(ax, extra):
-    if extra[0]: # if fname
+    fname = extra[0]
+    if isinstance(fname, str):
         fname, canvas, fig, ax = extra
         if not os.path.exists(os.path.dirname(fname)):
             os.mkdir(os.path.dirname(fname))
@@ -55,6 +59,10 @@ def save_axes(ax, extra):
         else:
             canvas.print_figure(fname, dpi=fig.get_dpi(),
                                 bbox_inches='tight')
+    elif isinstance(fname, matplotlib.axes.Axes):
+        pass # no operation needed
+    else:
+        raise ValueError("Unknown type of object: %s (also, how did we even get to this point?)"%type(fname))
 
 
 class Figure(object):
