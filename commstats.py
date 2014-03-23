@@ -90,6 +90,8 @@ class Statter(object):
     xlim = None
     ylim = None
     legend_make = True
+    # decorate: put all the title, axis labels, etc, on the plot.
+    decorate = True
     @property
     def title(self):
         if hasattr(self, '_title'): return self._title
@@ -171,18 +173,19 @@ class Statter(object):
         ylims = ax.get_ylim()
         if self.log_x:
             ax.set_xscale('log')
-        if self.xlabel: ax.set_xlabel(self.xlabel)
-        if self.ylabel: ax.set_ylabel(self.ylabel)
-        if   title:      ax.set_title(self.title)
-        elif self.title: ax.set_title(self.title)
-        if self.xlim: ax.set_xlim(*self.xlim)
-        if self.ylim: ax.set_ylim(*self.ylim)
         if self.log_y:
             ax.minorticks_on()
             ax.set_yscale('log', basey=10)
+        if self.xlim: ax.set_xlim(*self.xlim)
+        if self.ylim: ax.set_ylim(*self.ylim)
+        if self.decorate:
+            if self.xlabel: ax.set_xlabel(self.xlabel)
+            if self.ylabel: ax.set_ylabel(self.ylabel)
+            if   title:      ax.set_title(self.title)
+            elif self.title: ax.set_title(self.title)
+            if len(data) > 1 and self.legend_make:
+                ax.legend(loc=self.legend_loc)
 
-        if len(data) > 1 and self.legend_make:
-            ax.legend(loc=self.legend_loc)
 
         self._hook_write_setup_plot(locals())
         matplotlibutil.save_axes(ax, extra)
@@ -260,23 +263,23 @@ class DistStatter(Statter):
 
         if self.log_y:
             ax.set_xscale('log')
-        if self.ylabel: ax.set_xlabel(self.ylabel)
-        if self.ylabel_dist:
-            ax.set_ylabel(self.ylabel_dist)
-        elif self.dist_is_counts:
-            if self.ylabel: ax.set_ylabel("Count(%s)"%self.ylabel)
-        else:
-            if self.ylabel: ax.set_ylabel("P(%s)"%self.ylabel)
-        if   title:      ax.set_title(self.title)
-        elif self.title: ax.set_title(self.title)
         if self.dist_xlim: ax.set_xlim(*self.dist_xlim)
         if self.dist_ylim: ax.set_ylim(*self.dist_ylim)
         if self.log_p:
             ax.minorticks_on()
             ax.set_yscale('log', basey=10)
-
-        if len(data) > 1 and self.legend_make:
-            ax.legend(loc=self.legend_loc)
+        if self.decorate:
+            if self.ylabel: ax.set_xlabel(self.ylabel)
+            if self.ylabel_dist:
+                ax.set_ylabel(self.ylabel_dist)
+            elif self.dist_is_counts:
+                if self.ylabel: ax.set_ylabel("Count(%s)"%self.ylabel)
+            else:
+                if self.ylabel: ax.set_ylabel("P(%s)"%self.ylabel)
+            if   title:      ax.set_title(self.title)
+            elif self.title: ax.set_title(self.title)
+            if len(data) > 1 and self.legend_make:
+                ax.legend(loc=self.legend_loc)
 
         self._hook_write_setup_plot(locals())
         matplotlibutil.save_axes(ax, extra)
