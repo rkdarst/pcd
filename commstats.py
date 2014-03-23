@@ -1,9 +1,10 @@
 
 import collections
 import math
-from math import ceil, floor, log, exp
+from math import ceil, floor, log, exp, log10
 import networkx
 import numpy
+import random
 
 
 
@@ -841,6 +842,65 @@ class CmtyLinkComm(Statter):
             n_cmty_binned = log_bin(n_cmty)
             if k_ext + k_ext_int == 0: continue
             yield n_cmty_binned, k_ext_int/float(k_ext)
+
+
+class CmtyAvgShortestPath(Statter):
+    """Average shortest path within community."""
+    ylabel = "avg shortest path"
+    # damping: a way to specify how many nodes to check for larger
+    # communities.
+    damping = 0.35
+    def calc(self, g, cmtys, cache=None):
+        nodecmtys = cache_get(cache, 'nodecmtys', lambda: cmtys.nodecmtys())
+        ssspl = networkx.single_source_shortest_path_length
+        for cname, cnodes in cmtys.iteritems():
+            n_cmty = len(cnodes)
+            if n_cmty < self.minsize:
+                continue
+
+            # Complete or partial shortest path calculation?
+            if n_cmty <= 100:
+                startnodes = cnodes
+            else:
+                startnodes = random.sample(list(cnodes),
+                               int(n_cmty*10**(-self.damping*(log10(n_cmty)-2))))
+
+            sg = g.subgraph(cnodes)  # subgraph
+            sum_l = 0.0              # sum of path lenghts accumulator
+            num_l = 0.0              # number of paths accumulator
+            #print n_cmty, len(startnodes)
+            for node in startnodes:
+                path_lengths = ssspl(sg, node)
+                # Returns one path ength for every reachable node.  If
+                # this is less than n_cmty, the cmty is disconnected.
+                if len(path_lengths) < n_cmty:
+                    # What should we do when the community is not
+                    # connected?  We should never pass in communities
+                    # that are unconnected, this problem needs to be
+                    # solved at a higher level.  If it ever gets down
+                    # to this point, we have a problem and should just
+                    # abort.
+                    raise RuntimeError("Cmty not connected:"
+                        " cname=%s, comps=%s (%s, %s)"%(cname,
+                        [len(x) for x in networkx.connected_components(sg)],
+                                                        sum_l, num_l))
+
+                sum_l += sum(path_lengths.values())
+                num_l += len(path_lengths) - 1  # don't include path to self
+            if num_l == 0:
+                # No paths found
+                print sum_l, num_l, len(cnodes)
+                print [len(x) for x in networkx.connected_components(sg) ]
+                raise RuntimeError("Singleton community?")
+                continue
+            # Compute average
+            avg = sum_l / float(num_l) #float(len(startnodes)*(n_cmty-1))
+
+            #print avg
+            n_cmty_binned = log_bin(n_cmty)
+            yield n_cmty_binned, avg
+
+
 
 
 #class MaxDegNodeFocusednessLabel(MaxDegNodeFocusedness,Statter):
