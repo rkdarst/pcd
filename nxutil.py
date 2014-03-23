@@ -12,6 +12,7 @@ Networkx graphs have two ways of representing the community:
 
 import collections
 import numpy
+import random
 
 def edges_between(g, nbunch1, nbunch2):
     """Edges betwen nbunches.
@@ -117,4 +118,66 @@ def nodecmtys(g):
         for c in _iterCmtys(data):
             cmtys[node].add(c)
     return cmtys
+
+
+
+def graphcolor(g, colormap=None, distance=1):
+    """Return a coloring of a graph.
+
+    Arguments:
+
+    g: undirected networkx.Graph
+        graph to be colored
+    colormap: str, matplotlib colormap name.
+        If given, should be a string listing a colormap name.  Instead
+        of returning node->int map, return node->color tuple map.
+    distance: int, default 1
+        Nodes have unique colors for the n-th nearest neighbors,
+        instead of only nearest neighbors.
+
+    Returns:
+
+    dict node->int
+        indexes for colors (or color tuples).
+    """
+    colors = set()
+    coloring = { }
+    # Go through and make a greedy coloring.  Coloring-satisfying
+    # integer for each node.
+    for n in g:
+        # 1-st nearest neighbors
+        neighbors = set(g.neighbors(n))
+        # n-th nearest neighbors
+        for _ in range(distance-1):
+            neighbors = set(y for neigh in neighbors
+                            for y in g.neighbors(neigh))
+        #
+        used_colors = set(coloring[neigh] for neigh in neighbors
+                           if neigh in coloring)
+        avail_colors = colors - used_colors
+        if avail_colors:
+            color = random.choice(list(avail_colors))
+        else:
+            color = len(colors)
+            colors.add(color)
+        coloring[n] = color
+    # This step goes through and re-randomizes choices, given the
+    # minimal set of colors we found already.
+    for n in g:
+        used_colors = set(coloring[neigh] for neigh in g.neighbors(n)
+                           if neigh in coloring)
+        avail_colors = colors - used_colors
+        color = random.choice(list(avail_colors))
+        coloring[n] = color
+
+    # If wanted, do a matplotlib colormap
+    if colormap:
+        import matplotlib.cm as cm
+        import matplotlib.colors as mcolors
+
+        colormap = cm.get_cmap(colormap)
+        normmap = mcolors.Normalize(vmin=0, vmax=len(colors))
+        coloring = dict((n, colormap(normmap(color)))
+                          for n, color in coloring.iteritems())
+    return coloring
 
