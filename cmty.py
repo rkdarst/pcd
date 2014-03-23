@@ -1361,12 +1361,17 @@ class _CommunitiesBase(object):
         weights are number of edges between nodes of the communities.
         Node weights are number of self-edges.
 
+        For overlapping communities: every edge going between two
+        communities is considered into the weight.  Edges within an
+        overlap of communities edges entirely within
+        subgraph(union(c_1, c_2))) are counted twice.
+
+
         This function currently has undefined or error-inducing
         behavior for:
-        - overlapping graphs
         - multigraphs.
 
-        nodecmtys: dict from .nodecmtys_onetoone(), default None
+        nodecmtys: dict from .nodecmtys(), default None
             (infrequently needed) This function must calculate
             nodecmtys_onetoone, which could get expensive.  If it is
             pre-computed, pass it here to avoid recomputation.
@@ -1379,7 +1384,7 @@ class _CommunitiesBase(object):
         else:
             g_new = networkx.Graph()
         if nodecmtys is None:
-            nodecmtys = self.nodecmtys_onetoone()   # update if we support overlaps.
+            nodecmtys = self.nodecmtys()   # update if we support overlaps.
 
         for cname, nodes in self.iteritems():
             cneigh_edges = collections.defaultdict(int)
@@ -1387,7 +1392,8 @@ class _CommunitiesBase(object):
             for n in nodes:
                 # multigraph: does neighbors_iter do all edges?
                 for neigh in g.neighbors_iter(n):
-                    cneigh_edges[nodecmtys[neigh]] += 1
+                    for c_other in nodecmtys[neigh]:
+                        cneigh_edges[c_other] += 1
 
             # Handle self-edges:
             if cname in cneigh_edges:
