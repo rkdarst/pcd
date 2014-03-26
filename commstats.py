@@ -55,6 +55,13 @@ def log_bin_width(k, base=10, decadesize=10, minlog=1,
         width = max_ - min_
     return float(width)
 
+# Pointers to original functions, in case lin_bin and log_bin have
+# been overridden.
+_lin_bin = lin_bin
+_log_bin = log_bin
+_lin_bin_width = lin_bin_width
+_log_bin_width = log_bin_width
+
 
 def cache_get(cache, name, func):
     """Simple dictionary based.
