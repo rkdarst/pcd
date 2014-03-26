@@ -380,9 +380,12 @@ class ScaledLinkDensity(Statter):
             n_edges_subgraph = 0
             for n in cnodes:
                 for nbr in g.adj[n]:
+                    if n == nbr:
+                        print 'self-loop'
+                        continue
                     if nbr in cnodes:
                         n_edges_subgraph += 1
-            assert n_edges_subgraph % 2 == 0
+            assert n_edges_subgraph % 2 == 0, 'non-symmetric or self-loops?'
             n_edges_subgraph /= 2
 
             # subgraph for testing
