@@ -97,8 +97,13 @@ class Statter(object):
     xlim = None
     ylim = None
     legend_make = True
+    markers = None
     # decorate: put all the title, axis labels, etc, on the plot.
     decorate = True
+    # Pre-defined fixed colors for all data.
+    colormap = None
+    # Plotstyle dictionary
+    plotstyle = collections.defaultdict(lambda: '-o')
     @property
     def title(self):
         if hasattr(self, '_title'): return self._title
@@ -141,7 +146,12 @@ class Statter(object):
         if not label_order:
             label_order = sorted(data.keys())
         for i, label in enumerate(label_order):
-            color = colormap(normmap(i))
+            if self.colormap:
+                # Use pre-defined colors
+                color = self.colormap[label]
+            else:
+                # Use unique colors for this set.
+                color = colormap(normmap(i))
             points = data[label]
             if len(points) == 0:
                 print "skipping %s with no data"%label
@@ -151,8 +161,17 @@ class Statter(object):
             xy = sorted((a, numpy.mean(b)) for a,b in points.iteritems())
             xvals, y = zip(*xy)
 
+            # formatting
+
+            if label in self.plotstyle:
+                plotstyle = self.plotstyle[label]
+            elif self.markers:
+                plotstyle = '-%s'%(self.markers[i%len(self.markers)])
+            else:
+                plotstyle = self.plotstyle[label]
+
             # Plot the mean:
-            ax.plot(xvals, y, '-o', lw=2, color=color, label=label)
+            ax.plot(xvals, y, plotstyle, lw=2, color=color, label=label)
 
             # Plot quantiles if we want.
             if self.quantiles is not None and len(self.quantiles):
