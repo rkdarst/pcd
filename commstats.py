@@ -342,6 +342,7 @@ class Density(Statter):
     log_y = False
     ylabel = 'edge density'
     def calc(self, g, cmtys, cache=None):
+        adj = g.adj
         for cname, cnodes in cmtys.iteritems():
             n_cmty = len(cnodes)
             # Skip communities below some minimum size.  We must have
@@ -352,7 +353,7 @@ class Density(Statter):
 
             n_edges_subgraph = 0
             for n in cnodes:
-                for nbr in g.adj[n]:
+                for nbr in adj[n]:
                     if nbr in cnodes:
                         n_edges_subgraph += 1
             assert n_edges_subgraph % 2 == 0
@@ -369,6 +370,7 @@ class ScaledLinkDensity(Statter):
     ylabel = 'scaled link density'
     legend_loc = 'lower right'
     def calc(self, g, cmtys, cache=None):
+        adj = g.adj
         for cname, cnodes in cmtys.iteritems():
             n_cmty = len(cnodes)
             # Skip communities below some minimum size.  We must have
@@ -379,7 +381,7 @@ class ScaledLinkDensity(Statter):
 
             n_edges_subgraph = 0
             for n in cnodes:
-                for nbr in g.adj[n]:
+                for nbr in adj[n]:
                     if n == nbr:
                         print 'self-loop'
                         continue
@@ -492,7 +494,7 @@ class CmtyEmbeddednessWorst(Statter):
             k_int = 0
             k_tot = 0
             for n in cnodes:
-                for neigh in g.adj[n]:
+                for neigh in adj[n]:
                     if neigh not in nodecmtys:
                         continue
                     for c2 in nodecmtys[neigh]:
@@ -738,6 +740,7 @@ class CmtyEmbeddednessVsSLD(Statter):
     log_x = False
     legend_loc = "upper left"
     def calc(self, g, cmtys, cache=None):
+        adj = g.adj
         cmtygraph = cmtys.cmty_graph(g)
         for cname, cnodes in cmtys.iteritems():
             n_cmty = len(cnodes)
@@ -746,7 +749,7 @@ class CmtyEmbeddednessVsSLD(Statter):
 
             n_edges_subgraph = 0
             for n in cnodes:
-                for nbr in g.adj[n]:
+                for nbr in adj[n]:
                     if nbr in cnodes:
                         n_edges_subgraph += 1
             assert n_edges_subgraph % 2 == 0
@@ -855,6 +858,7 @@ class CmtyLinkComm(Statter):
     #legend_loc = "upper right"
     _which_comp = 0
     def calc(self, g, cmtys, cache=None):
+        adj = g.adj
         nodecmtys = cache_get(cache, 'nodecmtys', lambda: cmtys.nodecmtys())
         for cname, cnodes in cmtys.iteritems():
             n_cmty = len(cnodes)
@@ -864,7 +868,7 @@ class CmtyLinkComm(Statter):
             k_ext = 0
             k_ext_int = 0
             for n in cnodes:
-                for neigh in g.adj[n]:
+                for neigh in adj[n]:
                     if neigh in cnodes: continue
                     if neigh not in nodecmtys: continue
                     k_ext += 1
