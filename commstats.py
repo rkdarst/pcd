@@ -116,6 +116,10 @@ class Statter(object):
         self.label_order = [ ]
     def calc(self, g, cmtys, cache=None):
         raise NotImplementedError("This is a prototype.")
+    def calc2(self, g, cmtys, cache=None):
+        if 'igraph' in str(type(g)):
+            return self.calc_igraph(g, cmtys, cache=cache)
+        return self.calc(g, cmtys, cache=cache)
 
     def add_label(self, label):
         if label not in self._data:
@@ -127,7 +131,7 @@ class Statter(object):
         for n, sld in data:
             self._data[label][n].append(sld)
     def add(self, g, cmtys, label, cache=None):
-        self.accumulate(self.calc(g, cmtys, cache=cache), label=label)
+        self.accumulate(self.calc2(g, cmtys, cache=cache), label=label)
 
     quantiles = None
     def write(self, fname, axopts={}, title=None):
