@@ -887,8 +887,8 @@ class CmtyAvgShortestPath(Statter):
     # communities.
     damping = 0.35
     def calc(self, g, cmtys, cache=None):
-        nodecmtys = cache_get(cache, 'nodecmtys', lambda: cmtys.nodecmtys())
         ssspl = networkx.single_source_shortest_path_length
+
         for cname, cnodes in cmtys.iteritems():
             n_cmty = len(cnodes)
             if n_cmty < self.minsize:
