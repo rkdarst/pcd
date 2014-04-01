@@ -400,6 +400,16 @@ class ScaledLinkDensity(Statter):
 
             n_cmty = log_bin(n_cmty)
             yield n_cmty, sld
+    def calc_igraph(self, g, cmtys, cache=None):
+        for cname, cnodes in cmtys.iteritems():
+            n_cmty = len(cnodes)
+            if n_cmty < self.minsize:
+                continue
+            sg = g.subgraph(cnodes)
+            n_edges_subgraph = sg.ecount()
+            sld = 2 * n_edges_subgraph / float(n_cmty-1)
+            n_cmty = log_bin(n_cmty)
+            yield n_cmty, sld
     def _hook_write_setup_plot(self, lcls):
         if isinstance(self, DistStatter):
             return
@@ -462,6 +472,17 @@ class CmtyEmbeddedness(Statter):
             #assert k_in2 == _k_in and k_out == sum(_k_outs)
             x = k_in / float(k_in + k_out)
 
+            n_cmty = log_bin(n_cmty)
+            yield n_cmty, self._val_map(x)
+    def calc_igraph(self, g, cmtys, cache=None):
+        for cname, cnodes in cmtys.iteritems():
+            n_cmty = len(cnodes)
+            if n_cmty < self.minsize:
+                continue
+            sg = g.subgraph(cnodes)
+            k_in = 2 * sg.ecount()
+            k_tot = sum(g.degree(cnodes, loops=False))
+            x = k_in / float(k_tot)
             n_cmty = log_bin(n_cmty)
             yield n_cmty, self._val_map(x)
 CmtyEmbeddedness2 = CmtyEmbeddedness
@@ -622,6 +643,16 @@ class CmtyHubness(Statter):
             maxdeg = max(sg.degree().values())
             x = maxdeg / (float(n_cmty)-1)
 
+            n_cmty = log_bin(n_cmty)
+            yield n_cmty, x
+    def calc_igraph(self, g, cmtys, cache=None):
+        for cname, cnodes in cmtys.iteritems():
+            n_cmty = len(cnodes)
+            if n_cmty < self.minsize:
+                continue
+            sg = g.subgraph(cnodes)
+            maxdeg = g.maxdegree()
+            x = maxdeg / (float(n_cmty)-1)
             n_cmty = log_bin(n_cmty)
             yield n_cmty, x
 class CmtyAvgDegree(Statter):
@@ -935,8 +966,26 @@ class CmtyAvgShortestPath(Statter):
             #print avg
             n_cmty_binned = log_bin(n_cmty)
             yield n_cmty_binned, avg
+    def calc_igraph(self, g, cmtys, cache=None):
+        for cname, cnodes in cmtys.iteritems():
+            n_cmty = len(cnodes)
+            if n_cmty < self.minsize:
+                continue
 
+            # Complete or partial shortest path calculation?
+            if n_cmty <= 100:
+                startnodes = range(n_cmty)
+            else:
+                startnodes = random.sample(range(n_cmty),
+                               int(n_cmty*10**(-self.damping*(log10(n_cmty)-2))))
 
+            sg = g.subgraph(cnodes)  # subgraph
+
+            all_sp = sg.shortest_paths(source=startnodes)
+            # Compute average
+            avg = numpy.sum(all_sp) / float((n_cmty-1) * len(startnodes))
+            n_cmty_binned = log_bin(n_cmty)
+            yield n_cmty_binned, avg
 
 
 #class MaxDegNodeFocusednessLabel(MaxDegNodeFocusedness,Statter):
