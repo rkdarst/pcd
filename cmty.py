@@ -847,14 +847,6 @@ class _CommunitiesBase(object):
         write_names: 'separate'(default) or 'inline' or None.
            'separate': write another file with extension .names which has one line per community
         """
-        # remove all empty communities:
-        cmtynodes = self.cmtynodes()
-        cnames = [cname for cname, cnodes in cmtynodes.iteritems() if len(cnodes) != 0 ]
-        #cnames = self.cmtynames()
-        for c in cnames:
-            if isinstance(c, str) and len(c) == 0:
-                raise ValueError("Can not write empty community label '%s'"%c)
-
         f = fname
         if not hasattr(f, 'write'):
             f = open(f, 'w')
@@ -874,9 +866,7 @@ class _CommunitiesBase(object):
             if hasattr(self, 'label'):
                 print >> f_names, '# label:', self.label
             print >> f_names, '#', time.ctime()
-            for cname in cnames:
-                print >> f_names, cname
-            f_names.close()
+        # Write headers if we are not in raw mode
         if not raw:
             # Write representation of self: includes q and N.
             print >> f, '# Comunities, one community per line'
@@ -892,7 +882,7 @@ class _CommunitiesBase(object):
                 print >> f, '# label:', self.label
             # Write the community names inline, if requested:
             if write_names == 'inline':
-                print >> f, '# community names:', ' '.join(str(cname) for cname in cnames)
+                print >> f, '# community names:', ' '.join(str(cname) for cname in self.iterkeys())
             # Write the current time.
             print >> f, '#', time.ctime()
 
@@ -901,13 +891,26 @@ class _CommunitiesBase(object):
             raise ValueError("Automatically mapping to int doesn't make sense - it isn't reproduciable.")
 
         # Write all the communities.
-        for c in cnames:
-            if len(cmtynodes[c]) == 0:
+        for cname, cnodes in self.iteritems():
+            # Both the name and nodes must be nonempty
+            if len(cnodes) == 0:
                 raise ValueError("Can not write empty community %s"%c)
+            if isinstance(cname, str) and len(cname) == 0:
+                raise ValueError("Can not write empty community label '%s'"%
+                                 cname)
+            # Write separate community names
+            if write_names == 'separate':
+                print >> f_names, cname
+            # Write actual communities.
             if mapping:
-                print >> f, ' '.join(str(x) for x in sorted(mapping[n] for n in cmtynodes[c]))
+                print >> f, ' '.join(str(x) for x in mapping[n] for n in cnodes)
             else:
-                print >> f, ' '.join(str(x) for x in sorted(cmtynodes[c]))
+                print >> f, ' '.join(str(x) for x in cnodes)
+
+        if write_names == 'separate':
+            f_names.close()
+
+
     def write_clu(self, fname):
         """Write pajek .clu file (one line per node)"""
         nodecmtys = self.nodecmtys()
