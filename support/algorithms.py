@@ -1689,11 +1689,11 @@ class LinkCommunities(CDMethod):
         jaccs_file = self.graphfile+'.jaccs'
         self.results = [ ]
         # Ensure threshold is going to be an iterable
-        threshold = self._threshold_doc
-        if isinstance(self.threshold, (int, float)):
+        threshold = self.threshold
+        if isinstance(threshold, (int, float)):
             threshold = (threshold, )
         # For each threshold, do our calculation.
-        for thr in self.threshold:
+        for thr in threshold:
             # Calculate clusters at a threshold.  Do not re-calculate
             # it if the output files already exist on disk.
             fname = self._get_threshold(thr)
