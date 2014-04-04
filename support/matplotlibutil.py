@@ -21,7 +21,7 @@ def write_fig(fig):
                         bbox_inches='tight')
 
 
-def get_axes(fname, figsize=(13, 10)):
+def get_axes(fname, figsize=(13, 10), ax_hook=None):
     """Interface to matplotlib plotting.
 
     fname: str:
@@ -35,19 +35,20 @@ def get_axes(fname, figsize=(13, 10)):
         fig = matplotlib.figure.Figure(figsize=figsize, dpi=100)
         canvas = matplotlib.backends.backend_agg.FigureCanvasAgg(fig)
         ax = fig.add_subplot(111)#, aspect='equal')
-        return ax, (fname, canvas, fig, ax)
+        return ax, (fname, canvas, fig, ax, ax_hook)
     if isinstance(fname, matplotlib.axes.Axes):
         ax = fname
-        return ax, (fname, )
+        return ax, (fname, ax_hook)
     else:
         raise ValueError("Unknown type of object: %s"%type(fname))
 def save_axes(ax, extra):
     fname = extra[0]
     if isinstance(fname, str):
-        fname, canvas, fig, ax = extra
+        fname, canvas, fig, ax, ax_hook = extra
         if not os.path.exists(os.path.dirname(fname)):
-            os.mkdir(os.path.dirname(fname))
+            os.makedirs(os.path.dirname(fname))
         multi_ext_match = re.match(r'(.*\.)\[([A-Za-z,]+?)\]$', fname)
+        if ax_hook: ax_hook(ax, locals())
         if multi_ext_match:
             # Support for multi-extension matching.  If fname matches
             # FILE.[ext1,ext2], then write the figure to ALL of these
@@ -60,7 +61,8 @@ def save_axes(ax, extra):
             canvas.print_figure(fname, dpi=fig.get_dpi(),
                                 bbox_inches='tight')
     elif isinstance(fname, matplotlib.axes.Axes):
-        pass # no operation needed
+        fname, ax_hook = extra
+        if ax_hook: ax_hook(ax, locals())
     else:
         raise ValueError("Unknown type of object: %s (also, how did we even get to this point?)"%type(fname))
 
