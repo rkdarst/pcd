@@ -7,6 +7,22 @@ import numpy
 import random
 
 
+# Copied from growsf.py.  Move somewhere better sometime.
+def counts(it, domain=None):
+    counts = collections.defaultdict(int)
+    for i in it:
+        counts[i] += 1
+    if domain is not None:
+        keys = sorted(set(counts.iterkeys())|set(domain))
+    else:
+        keys = sorted(counts.iterkeys())
+    values = [ counts[k] for k in keys ]
+    return keys, values
+
+def norm(it):
+    sum_ = float(sum(it))
+    return [ x/sum_ for x in it ]
+
 
 def quantile(sorted_list, p):
     #N = len(sorted_list)
@@ -245,7 +261,6 @@ class DistStatter(Statter):
         colormap = cm.get_cmap('jet')
         normmap = mcolors.Normalize(vmin=0, vmax=len(data))
 
-        import growsf
         from functools import partial
 
         if self.bin and self.log_y:
@@ -277,14 +292,14 @@ class DistStatter(Statter):
                 domain = set(binfunc(x, **binparams) for x in self.domain)
             else:
                 domain = set()
-            vals, vals_counts = growsf.counts(vals, domain=domain)
+            vals, vals_counts = counts(vals, domain=domain)
             if self.dist_is_counts:
                 lines = ax.plot(vals, vals_counts, 'o-', color=colormap(normmap(i)),
                         label=label)
             else:
                 vals_counts = [ c/binwidth(s, **binparams)
                                 for s,c in zip(vals, vals_counts) ]
-                p_vals = growsf.norm(vals_counts)
+                p_vals = norm(vals_counts)
                 lines = ax.plot(vals, p_vals, 'o-', color=colormap(normmap(i)),
                         label=label)
 
