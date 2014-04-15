@@ -925,39 +925,51 @@ class _CommunitiesBase(object):
     def stats(self, width=120, level=1, nodes=None):
         """Human-readable statistics on the overall community sturucture."""
         cmtynodes = self.cmtynodes()
-        cmtys_total_nonempty = len(cmtynodes)
+        cmtys_total_withempty = len(cmtynodes)
         # exclude empty communities
         cmtynodes = dict((k,v) for (k,v) in self.iteritems() if v)
         cmtynodes_nonsingle = dict((k,v) for (k,v) in self.iteritems()
                                    if len(v)>1)
         nodecmtys = self.nodecmtys()
+        N_universe = None
+        N_spans = None
         if nodes is not None:
-            N = len(nodes)
+            N_universe = len(nodes)
+            N_spans = len(nodecmtys)
         else:
-            N = len(nodecmtys)
+            N_universe = len(nodecmtys)
+            N_spans = len(nodecmtys)
         def iter_nonsingle():
-            return ((k,v) for (k,v) in self.iteritems()
+            return ((k,v) for (k,v) in cmtynodes.iteritems()
                     if len(v)>1)
 
         stats = [ ]
-        stats.append("number of nodes: %d"%N)
+        stats.append("number of nodes: %d"%N_spans)
+        stats.append("number of nodes in graph: %d"%N_universe)
         if hasattr(self, 'g'):
             stats.append("number of edges: %d"%self.g.number_of_edges())
         # Regular stats
+        stats.append("fraction of network covered: %f"%(len(nodecmtys)/float(N_universe)))
+        stats.append("fraction of network covered (non-singleton): %f"%(
+            sum(1 for (n, cs) in nodecmtys.iteritems()
+                if any((len(cmtynodes[c])>1) for c in cs))
+            /float(N_universe)))
         stats.append("number of communities: %d"%len(cmtynodes))
-        stats.append("number of communities (including empty): %d"%(cmtys_total_nonempty))
-        stats.append("number of empty communities: %d"%(cmtys_total_nonempty-len(cmtynodes)))
+        stats.append("number of communities (including empty): %d"%(cmtys_total_withempty))
+        stats.append("number of communities (nonsingleton): %d"%(len(cmtynodes_nonsingle)))
+        stats.append("number of empty communities: %d"%(cmtys_total_withempty-len(cmtynodes)))
         stats.append("mean community size: %f"%numpy.mean(
             [len(c) for c in cmtynodes.itervalues()]))
         stats.append("std community size: %f"%numpy.std(
             [len(c) for c in cmtynodes.itervalues()]))
         stats.append("sum of community size: %s"%
                      sum(len(ns) for ns in cmtynodes.itervalues()))
-        stats.append("normalized sum of community size (sum/N): %s"%
-                     (sum(len(ns) for ns in cmtynodes.itervalues())/float(N)))
+        stats.append("mean memberships per node: (sum/N_graph): %s"%
+                     (sum(len(ns) for ns in cmtynodes.itervalues())/float(N_universe)))
+        stats.append("mean memberships per node: (sum/N_spans): %s"%
+                     (sum(len(ns) for ns in
+                          cmtynodes.itervalues())/float(N_spans)))
         # Stats excluding singletons
-        stats.append("number of non-singleton communities: %d"%(
-            len(cmtynodes_nonsingle)))
         stats.append("mean community size (no singletons): %f"%numpy.mean(
             [len(c) for c in cmtynodes_nonsingle.values()]))
         stats.append("std community size (no singletons): %f"%numpy.std(
@@ -974,12 +986,7 @@ class _CommunitiesBase(object):
         stats.append("largest community size: %d"%(
             max(len(c) for c in cmtynodes.values())))
         stats.append("fraction of nodes in largest community: %f"%(
-            max(len(c) for c in cmtynodes.values())/float(N)))
-        stats.append("fraction of network covered: %f"%(len(nodecmtys)/float(N)))
-        stats.append("fraction of network covered (non-singleton): %f"%(
-            sum(1 for (n, cs) in nodecmtys.iteritems()
-                if any((len(cmtynodes[c])>1) for c in cs))
-            /float(N)))
+            max(len(c) for c in cmtynodes.values())/float(N_universe)))
         return stats
     def list_communities(self, width=120):
         """Human-readable list of community contents."""
