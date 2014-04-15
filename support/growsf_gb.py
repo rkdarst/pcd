@@ -47,3 +47,58 @@ def growsf(N, p, beta, kappa):
         g.graph['kappa'] = float(kappa)
         return g
 
+# static_original.c
+def marsili(T, lambda_, xi):
+    """Marsili model
+
+    T: int
+        Number of equilibration steps.
+    lambda_: float
+        Lambda value (frequency of deleting nodes)
+    xi: float
+        Probably of links via friends.
+    """
+    binary = '/home/darstr1/proj/growsf/gb_code/static_original'
+    with pcd.util.tmpdir_context(prefix='tmp-marsili-', chdir=True):
+        print os.getcwd()
+        args = [ binary ]
+        args.extend(("%d %f %f"%(T, lambda_, xi)).split())
+
+        proc = subprocess.Popen(args)#, stdout=subprocess.PIPE)
+        assert proc.wait() == 0
+
+        g = networkx.read_edgelist('data.edges', nodetype=int,
+                                   create_using=networkx.Graph())
+        g.graph['T'] = T
+        g.graph['lambda'] = float(lambda_)
+        g.graph['xi'] = float(xi)
+        return g
+
+
+# duplication.c
+def sole(T, delta, alpha):
+    """Sole model
+
+    T: int
+        Size of network
+    delta: float
+        Probability of link deletion.  z_old*(1-delta) is average degree
+        for a new node.  Misnamed nu in the help.
+    alpha: float
+        Probability of linking old and new node.
+    """
+    binary = '/home/darstr1/proj/growsf/gb_code/duplication'
+    with pcd.util.tmpdir_context(prefix='tmp-sole-', chdir=True):
+        print os.getcwd()
+        args = [ binary ]
+        args.extend(("%d %f %f"%(T, delta, alpha)).split())
+
+        proc = subprocess.Popen(args)#, stdout=subprocess.PIPE)
+        assert proc.wait() == 0
+
+        g = networkx.read_edgelist('data_duplication.edges', nodetype=int,
+                                   create_using=networkx.Graph())
+        g.graph['T'] = T
+        g.graph['delta'] = float(delta)
+        g.graph['alpha'] = float(alpha)
+        return g
