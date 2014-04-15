@@ -71,6 +71,50 @@ def save_axes(ax, extra):
         raise ValueError("Unknown type of object: %s (also, how did we even get to this point?)"%type(fname))
 
 
+def get_line_style(default='o-',
+                   label=None, label_lookup=None,
+                   i=None, i_max=None, i_markers=None, colormap=None):
+    """
+    colormap: str, default None
+        colormap name.  Try gist_rainbow.  Requires i and i_max
+    """
+    # ls, marker, color
+    kwargs = { }
+    style = default
+    # Do an initial update to get starting values of kwargs for use in
+    # future configuration.
+    if label and label in label_lookup:
+        kwargs.update(label_lookup[label])
+    else:
+        print label
+    #print label, label_lookup
+
+    # Custom config of this function through kwargs
+    config_vars = ['i', 'i_max', 'colormap']
+    if 'i' in kwargs:        i        = kwargs.pop('i')
+    if 'i_max' in kwargs:    i_max    = kwargs.pop('i_max')
+    if 'colormap' in kwargs: colormap = kwargs.pop('colormap')
+    #print colormap, i, i_max
+    if i:
+        if colormap:
+            import pylab as plt
+            import numpy
+            cm = getattr(plt.cm, colormap)
+            colors = cm(numpy.linspace(0, 1, i_max))
+            color = colors[i%i_max]
+            kwargs['color'] = color
+        if not i_markers:
+            kwargs['marker'] = 'o+x<>*^vsh.'[i%11]
+        else:
+            kwargs['marker'] = i_markers[i%len(i_markers)]
+    # This overrides anything else we may set.
+    if label and label in label_lookup:
+        kwargs.update(label_lookup[label])
+    # Remove function-local configuration again:
+    for var in config_vars:
+        if var in kwargs: kwargs.pop(var)
+    return kwargs
+
 class Figure(object):
     def __init__(self, fname, figsize=None):
         self.fname = fname
