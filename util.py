@@ -945,7 +945,7 @@ def graph_stats(g, prefix='', recurse=1, level=1, _test=False):
             stats.append("Average-Clustering-Coefficient: %f"%avg_clustering_coefficient)
             stats.append("Average-Clustering-Coefficient-Nonzero: %f"%avg_clustering_coefficient_nonzero)
 
-        if level < 1 or transitivity != 1.0:
+        if level >= 1.5 and transitivity != 1.0:
             # This function raises a warning when run on complete
             # graphs:
             # networkx/algorithms/assortativity/correlation.py:285:
@@ -954,30 +954,31 @@ def graph_stats(g, prefix='', recurse=1, level=1, _test=False):
             stats.append("Degree-Assortativity-Coefficient: %s"%
                          networkx.degree_assortativity_coefficient(g))
 
-        comps = networkx.connected_components(g)
-        if len(comps)==1 and level >= 2:
-            #print "diameter"
-            stats.append("Diameter: %d"%networkx.diameter(g))
-            #print "radius"
-            stats.append("Radius: %d"%networkx.radius(g))
-        stats.append("Is-Connected: %d"%(len(comps)==1))
-        if len(comps) > 1:
-            stats.append("Conn-Components-Number-Of: %d"%len(comps))
-            stats.append("Conn-Components-Fraction-Nodes-In-Largest: %g"%(
-                len(comps[0])/float(len(g))))
-            stats.append("Conn-Components-Sizes-Top-20: %s"%(
-                " ".join(str(len(x)) for x in comps[:20])))
-            stats.append("Conn-Components-Size-Fractions-Top-5: %s"%(
-                " ".join("%g"%(len(x)/float(len(g))) for x in comps[:5])))
-            stats.append("Conn-Components-Number-Singletons: %d"%(
-                             sum(1 for x in comps if len(x)==1)))
-            # Fails for directed graphs...
-            if recurse:
-                #print "recursing"
-                lcc = g.subgraph(comps[0])
-                stats.extend(graph_stats(lcc, prefix='LCC-', recurse=recurse-1))
+        if level >= 1.7:
+            comps = networkx.connected_components(g)
+            if len(comps)==1 and level >= 2:
+                #print "diameter"
+                stats.append("Diameter: %d"%networkx.diameter(g))
+                #print "radius"
+                stats.append("Radius: %d"%networkx.radius(g))
+            stats.append("Is-Connected: %d"%(len(comps)==1))
+            if len(comps) > 1:
+                stats.append("Conn-Components-Number-Of: %d"%len(comps))
+                stats.append("Conn-Components-Fraction-Nodes-In-Largest: %g"%(
+                    len(comps[0])/float(len(g))))
+                stats.append("Conn-Components-Sizes-Top-20: %s"%(
+                    " ".join(str(len(x)) for x in comps[:20])))
+                stats.append("Conn-Components-Size-Fractions-Top-5: %s"%(
+                    " ".join("%g"%(len(x)/float(len(g))) for x in comps[:5])))
+                stats.append("Conn-Components-Number-Singletons: %d"%(
+                                 sum(1 for x in comps if len(x)==1)))
+                # Fails for directed graphs...
+                if recurse:
+                    #print "recursing"
+                    lcc = g.subgraph(comps[0])
+                    stats.extend(graph_stats(lcc, prefix='LCC-', recurse=recurse-1))
 
-    if g.is_directed():
+    if g.is_directed() and level >= 1.7:
         #print "ncc: s/w"
         s_comps = networkx.strongly_connected_components(g)
         stats.append("Is-Strongly-Connected: %d"%(len(s_comps) == 1))
