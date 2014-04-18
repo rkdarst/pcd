@@ -168,9 +168,16 @@ def graphcolor(g, colormap=None, distance=1):
     # This step goes through and re-randomizes choices, given the
     # minimal set of colors we found already.
     for n in g:
-        used_colors = set(coloring[neigh] for neigh in g.neighbors(n)
-                           if neigh in coloring)
+        # 1-st nearest neighbors
+        neighbors = set(g.neighbors(n))
+        # n-th nearest neighbors
+        for _ in range(distance-1):
+            neighbors = set(y for neigh in neighbors
+                            for y in g.neighbors(neigh))
+
+        used_colors = set(coloring[neigh] for neigh in neighbors)
         avail_colors = colors - used_colors
+        avail_colors.add(coloring[n])
         color = random.choice(list(avail_colors))
         coloring[n] = color
 
