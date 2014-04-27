@@ -11,6 +11,7 @@ def test_algorithms():
     exclude_methods = set(('CDMethod',
                            'BeliefPropogationZ',
                            'BeliefPropogationq',
+                           'PCDmodSA',   # works but slow.
                            ))
 
 
