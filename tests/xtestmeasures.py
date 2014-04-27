@@ -2,9 +2,9 @@
 
 from math import exp, log
 
-import graphs
-import models
-import util
+import pcd.graphs as graphs
+import pcd.models as models
+import pcd.util as util
 
 approxequal = lambda x,y: abs(x-y) <= 5e-6*max(abs(x),abs(y))
 gamma = 1.0

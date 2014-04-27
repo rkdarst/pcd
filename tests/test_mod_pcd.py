@@ -7,7 +7,7 @@ def approxeq(a, b, tol=1e-6):
 
 
 
-def test_mod(g, known_mod=None):
+def dotest_mod(g, known_mod=None):
     G = pcd.Graph.fromNetworkX(g)
     G.enableModularity(None)
 
@@ -36,12 +36,13 @@ def test_mod(g, known_mod=None):
     if known_mod:
         assert approxeq(cmtys.Q(g), known_mod, .001), (cmtys.Q(g), known_mod)
 
-g = pcd.graphs.karate_club()
-test_mod(g)
-# known_mod test is disabled for now, since annealing is
-# non-deterministic and it doesn't work every time.
-# karate club Q is Q=0.4197896 (to 6 decimal places)
-#test_mod(g, known_mod=0.419789)
+def test():
+    g = pcd.graphs.karate_club()
+    dotest_mod(g)
+    # known_mod test is disabled for now, since annealing is
+    # non-deterministic and it doesn't work every time.
+    # karate club Q is Q=0.4197896 (to 6 decimal places)
+    #test_mod(g, known_mod=0.419789)
 
-#g = pcd.graphs.dolphins()
-test_mod(g)
+    #g = pcd.graphs.dolphins()
+    #test_mod(g)
