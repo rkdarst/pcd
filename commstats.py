@@ -348,6 +348,7 @@ class CmtySize(Statter):
     ylabel = "size"
     log_y = True
     bin_ints = True
+    binparams = dict(minlog=10)
     def calc(self, g, cmtys, cache=None):
         for cname, cnodes in cmtys.iteritems():
             n_cmty = len(cnodes)
