@@ -158,7 +158,8 @@ class GrowFitness(GrowingGraph):
 
 
 class HolmeGraph(GrowingGraph):
-    def __init__(self, m, mt=None, Pt=None, m0=3, seed=None):
+    def __init__(self, m, mt=None, Pt=None, m0=3, seed=None,
+                 g0=None):
         """
 
         m: int
@@ -168,11 +169,11 @@ class HolmeGraph(GrowingGraph):
         mt: float
             Avg number of clustered edges per run.  Pt is then set to mt/(m-1)
         m0: int
-             original number of nodes.
+             original number of nodes.  If less than m, then set m0 to
+             m regardless of this value.
         """
-        self.g = networkx.Graph()
         self.m = m
-        m0 = max(m0, m+1)
+        m0 = max(m0, m)
         self.m0 = m0
         self.rng = random.Random(seed) # seed not given: random seed.
         # We can specify eather Pt or Mt
@@ -182,12 +183,18 @@ class HolmeGraph(GrowingGraph):
             assert mt is None
         assert Pt <= 1.0, "Pt=%s must be <= 1.0"%Pt
         self.Pt = Pt
-        # Add initial nodes
-        for n in range(m0):
-            self.g.add_node(n)  # One free unit for each node.
-        # Preferential attachment selector.  Selects random nodes
-        # proportional to degree.
-        self.pa_selector = list(range(m0))
+        if g0 is None:
+            # Add initial nodes
+            self.g = networkx.Graph()
+            for n in range(m0):
+                self.g.add_node(n)  # One free unit for each node.
+            # Preferential attachment selector.  Selects random nodes
+            # proportional to degree.
+            self.pa_selector = list(range(m0))
+        else:
+            self.g = g0
+            self.pa_selector = sum(([n]*g0.degree(n) for n in g0.nodes()),
+                                   [])
     def add(self):
         g = self.g
         n = len(g)
@@ -209,19 +216,21 @@ class HolmeGraph(GrowingGraph):
 
         edges_made = set((n, ))
         assert len(g) > self.m, "Graph to small and not enough edges to connect to."
-        for e in range(self.m):
-            # Random edge
-            n1 = pa_select()
-            if n1 is None:
-                print "  can't make more edges at %d"%n
-                break
-            assert not g.has_edge(n, n1)
-            assert n != n1
-            g.add_edge(n, n1)
-            edges_made.add(n1)
-            pa_selector.extend((n, n1))
 
+        # For the first round, we always pick a new edge.
+        n1 = pa_select()
+        assert n1 is not None, "  can't make more edges at %d"%n
+        assert not g.has_edge(n, n1)
+        assert n != n1
+        g.add_edge(n, n1)
+        edges_made.add(n1)
+        pa_selector.extend((n, n1))
+
+
+        for e in range(self.m-1):
+            n2 = None
             if rng.uniform(0,1) <= self.Pt:
+                # Add triadic closure edge
                 # Next, add clustered edge
                 second_neighbors = set(g.neighbors(n1))
                 available = second_neighbors - edges_made
@@ -229,20 +238,22 @@ class HolmeGraph(GrowingGraph):
                 if available:
                     # Triad closure
                     n2 = rng.sample(available, 1)[0]
-                else:
-                    # No second neighbor available.  Do a random PA step
-                    # instead.
-                    n2 = pa_select()
-                    if n2 is None:
-                        print "    can't make more edges at %d, %d"%(n, n1)
-                        continue
-                assert not g.has_edge(n, n2)
-                assert n != n2
-                assert n1 != n2
+            if n2 is None:
+                # Either: We can't add a triadic edge, or it wasn't
+                # attempted.
+                n2 = pa_select()
+                if n2 is None:
+                    print "    can't make more edges at %d, %d"%(n, n1)
+                    assert False
 
-                g.add_edge(n, n2)
-                edges_made.add(n2)
-                pa_selector.extend((n, n2))
+            assert not g.has_edge(n, n2)
+            assert n != n2
+            assert n1 != n2
+
+            g.add_edge(n, n2)
+            edges_made.add(n2)
+            pa_selector.extend((n, n2))
+            n1 = n2
 
 
 class SquareClosure(GrowingGraph):
