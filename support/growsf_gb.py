@@ -48,7 +48,7 @@ def growsf(N, p, beta, kappa):
         return g
 
 # static_original.c
-def marsili(T, lambda_, xi):
+def marsili(N, T, lambda_, xi):
     """Marsili model
 
     T: int
@@ -58,11 +58,14 @@ def marsili(T, lambda_, xi):
     xi: float
         Probably of links via friends.
     """
-    binary = '/home/darstr1/proj/growsf/gb_code/static_original'
+    seed = random.randint(0, 2**32-1)
+    binary = '/home/darstr1/proj/growsf/gb_code/marsili/static_original'
     with pcd.util.tmpdir_context(prefix='tmp-marsili-', chdir=True):
-        print os.getcwd()
+        #print os.getcwd()
         args = [ binary ]
-        args.extend(("%d %f %f"%(T, lambda_, xi)).split())
+        args.extend(("%d %d %f %f"%(N, T, lambda_, xi)).split())
+        if with_seed:
+            args.append("%d"%seed)
 
         proc = subprocess.Popen(args)#, stdout=subprocess.PIPE)
         assert proc.wait() == 0
@@ -72,7 +75,14 @@ def marsili(T, lambda_, xi):
         g.graph['T'] = T
         g.graph['lambda'] = float(lambda_)
         g.graph['xi'] = float(xi)
-        return g
+        if with_seed:
+            g.graph['seed'] = seed
+    # Remove self-loops?
+    for n in g.nodes_with_selfloops():
+        g.remove_edge(n, n)
+    return g
+
+
 
 
 # duplication.c
@@ -87,11 +97,14 @@ def sole(T, delta, alpha):
     alpha: float
         Probability of linking old and new node.
     """
-    binary = '/home/darstr1/proj/growsf/gb_code/duplication'
+    seed = random.randint(0, 2**32-1)
+    binary = '/home/darstr1/proj/growsf/gb_code/sole/duplication'
     with pcd.util.tmpdir_context(prefix='tmp-sole-', chdir=True):
-        print os.getcwd()
+        #print os.getcwd()
         args = [ binary ]
         args.extend(("%d %f %f"%(T, delta, alpha)).split())
+        if with_seed:
+            args.append("%d"%seed)
 
         proc = subprocess.Popen(args)#, stdout=subprocess.PIPE)
         assert proc.wait() == 0
@@ -101,4 +114,8 @@ def sole(T, delta, alpha):
         g.graph['T'] = T
         g.graph['delta'] = float(delta)
         g.graph['alpha'] = float(alpha)
+        if with_seed:
+            g.graph['seed'] = seed
         return g
+
+
