@@ -385,7 +385,7 @@ class Density(Statter):
 
 
 class ScaledLinkDensity(Statter):
-    log_y = False
+    log_y = True
     ylabel = 'scaled link density'
     legend_loc = 'lower right'
     def calc(self, g, cmtys, cache=None):
