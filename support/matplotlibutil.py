@@ -49,7 +49,8 @@ def save_axes(ax, extra):
     fname = extra[0]
     if isinstance(fname, str):
         fname, canvas, fig, ax, ax_hook = extra
-        if not os.path.exists(os.path.dirname(fname)):
+        dirname = os.path.dirname(fname)
+        if dirname and not os.path.exists(os.path.dirname(fname)):
             os.makedirs(os.path.dirname(fname))
         multi_ext_match = re.match(r'(.*\.)\[([A-Za-z,]+?)\]$', fname)
         if ax_hook: ax_hook(ax, locals())
@@ -95,7 +96,7 @@ def get_line_style(default='o-',
     if 'i_max' in kwargs:    i_max    = kwargs.pop('i_max')
     if 'colormap' in kwargs: colormap = kwargs.pop('colormap')
     #print colormap, i, i_max
-    if i:
+    if i is not None:
         if colormap:
             import pylab as plt
             import numpy
@@ -103,7 +104,7 @@ def get_line_style(default='o-',
             colors = cm(numpy.linspace(0, 1, i_max))
             color = colors[i%i_max]
             kwargs['color'] = color
-        if not i_markers:
+        if i_markers is None:
             kwargs['marker'] = 'o+x<>*^vsh.'[i%11]
         else:
             kwargs['marker'] = i_markers[i%len(i_markers)]
