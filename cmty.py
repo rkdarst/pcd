@@ -279,26 +279,69 @@ class _CommunitiesBase(object):
         nedges2 = pcd.nxutil.n_edges_between  # double the number of edges
         return dict((c,   nedges2(g, ns, ns) / float(len(ns)*(len(ns)-1)))
                     for c,ns in self.iteritems())
-    def cmty_scaledlinkdensities(self, g):
+    def cmty_scaledlinkdensities(self, g, empty=0.0, singleton=2.0):
         """Dictionary of all community scaled link densities.
 
         Scaled link densities is average internal degree =
         internal_degree / (n-1)."""
         nedges2 = pcd.nxutil.n_edges_between  # double the number of edges
-        return dict((c,   nedges2(g, ns, ns) / float(len(ns)-1))
-                    for c,ns in self.iteritems())
-    def cmty_embeddedness(self, g):
+        #return dict((c,   nedges2(g, ns, ns) / float(len(ns)-1))
+        #            for c,ns in self.iteritems())
+        results = { }
+        for cname, cnodes in self.iteritems():
+            if len(cnodes) == 0:
+                results[cname] = empty
+                continue
+            if len(cnodes) == 1:
+                results[cname] = singleton
+                continue
+            results[cname] = nedges2(g, cnodes, cnodes) / float(len(cnodes)-1)
+        return results
+    def tot_scaledlinkdensity(self, g):
+        sizes = self.cmtysizes()
+        slds = self.cmty_scaledlinkdensities(g)
+        sum_sld = 0.0
+        sum_size = 0.0
+        for c, size in sizes.iteritems():
+            sum_size += size
+            sum_sld += slds[c]*size
+        return sum_sld / sum_size
+    def cmty_embeddedness(self, g, empty=0.0, singleton=1.0):
         """Dictionary of all community embeddednesses.
 
         Embeddedness = internal_degree / total_degree over all nodes
-        in the community."""
+        in the community.
+
+        empty: float
+            Value for empty communities.  Default 0.0
+        singleton:
+            Value for singleton communities.  Default 1.0
+        """
         results = { }
         nedges2 = pcd.nxutil.n_edges_between  # double the number of edges
         for cname, cnodes in self.iteritems():
+            if len(cnodes) == 0:
+                results[cname] = empty
+                continue
+            if len(cnodes) == 1:
+                results[cname] = singleton
+                continue
             k_in = nedges2(g, cnodes, cnodes)
             k_tot = sum(g.degree(n) for n in cnodes)
+            if k_tot == 0:
+                results[cname] = float('nan')
+                continue
             results[cname] = k_in / float(k_tot)
         return results
+    def tot_embeddedness(self, g):
+        sizes = self.cmtysizes()
+        ces = self.cmty_embeddedness(g)
+        sum_ce = 0.0
+        sum_size = 0.0
+        for c, size in sizes.iteritems():
+            sum_size += size
+            sum_ce += ces[c]*size
+        return sum_ce / sum_size
     def cmty_calc(self, g, func):
         """Dictonary of arbitrary calculation on communities.
 

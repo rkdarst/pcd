@@ -241,3 +241,73 @@ class TestCmtygraph(unittest.TestCase):
         # The following test is 5 becasue overlaps count twice.
         self.assertEqual(cg.edge['b']['c']['weight'], 5)
         self.assertEqual(cg.edge['a']['c']['weight'], 3)
+
+
+# Test measures
+
+gb = networkx.union(
+    networkx.complete_graph(4),
+    networkx.relabel_nodes(networkx.complete_graph(3), {0:4,1:5,2:6}),
+    )
+gb.add_edge(0, 4)
+cb = cmty.Communities({0:set((0,1,2,3)), 1:set((4,5,6))})
+
+
+from nose.tools import *
+
+class TestMeasures(unittest.TestCase):
+    def test_embeddedness(self):
+        assert_equal(cb.cmty_embeddedness(gb),
+                     {0:(3*4/float(3*4+1)),  1:2*3/float(2*3+1)})
+
+        g = networkx.complete_graph(5)
+        c = cmty.Communities({0:set(range(5))})
+        assert_equal(c.cmty_embeddedness(g)[0],
+                     1.0)
+
+        g = networkx.path_graph(5)
+        c = cmty.Communities({0:set(range(5))})
+        assert_equal(c.cmty_embeddedness(g)[0],
+                     1.0)
+
+        # Singleton comm
+        g = networkx.complete_graph(1)
+        c = cmty.Communities({0:set(range(1))})
+        assert_equal(c.cmty_embeddedness(g)[0],
+                     1.0)
+
+        # Empty comm
+        g = networkx.complete_graph(0)
+        c = cmty.Communities({0:set(range(0))})
+        assert_equal(c.cmty_embeddedness(g)[0],
+                     0.0)
+
+        # Total embeddednesses
+        ce = (4*3/(4*3+1.) * 4 + 3*2/(3*2+1.) * 3) / (4+3)
+        assert_equal(cb.tot_embeddedness(gb), ce)
+
+    def test_sld(self):
+        assert_equal(cb.cmty_scaledlinkdensities(gb),
+                     {0:4,  1:3})
+
+        g = networkx.complete_graph(5)
+        c = cmty.Communities({0:set(range(5))})
+        assert_equal(c.cmty_scaledlinkdensities(g)[0],   5)
+
+        g = networkx.path_graph(5)
+        c = cmty.Communities({0:set(range(5))})
+        assert_equal(c.cmty_scaledlinkdensities(g)[0],   2)
+
+        # Singleton comm
+        g = networkx.complete_graph(1)
+        c = cmty.Communities({0:set(range(1))})
+        assert_equal(c.cmty_scaledlinkdensities(g)[0],   2.0)
+
+        # Empty comm
+        g = networkx.complete_graph(0)
+        c = cmty.Communities({0:set(range(0))})
+        assert_equal(c.cmty_scaledlinkdensities(g)[0],   0.0)
+
+        # Total SLD
+        ce = (4 * 4 + 3 * 3) / float(4+3)
+        assert_equal(cb.tot_scaledlinkdensity(gb), ce)
