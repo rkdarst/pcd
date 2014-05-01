@@ -39,8 +39,8 @@ class GrowFitness(GrowingGraph):
     track_edges = False
     def __init__(self, g, p, beta, kappa, m=2, seed=None,
                  **kwargs):
-        # In each growing step, prob. to attach to a random node in
-        # the network.  Prob 1-p to attach to a neighbor of one of the
+        # In each growing step, prob. 1-p to attach to a random node in
+        # the network.  Prob. p to attach to a neighbor of one of the
         # previous nodes in the addition sequence.
         self.p = p
         self.beta = beta
@@ -100,12 +100,9 @@ class GrowFitness(GrowingGraph):
 
         for _ in range(self.m - 1):
 
-            # NOTE: the Communities.c file seems to be backwards here,
-            # with a probability of 1-p instead of p.  The real
-            # situation needs to be worked out...
             random_last = False
-            if self.rng.uniform(0, 1) < self.p:
-                # p chance of making second link to a completly random node:
+            if self.rng.uniform(0, 1) < 1 - self.p:
+                # 1-p chance of making second link to a completly random node:
                 random_last = True
                 assert len(self.chooser) == len(g)
                 while True:
@@ -114,7 +111,7 @@ class GrowFitness(GrowingGraph):
                         break
 
             else:
-                # 1-p chance of next link to a neighbor of node n1
+                # p chance of next link to a neighbor of node n1
                 assert neighs - links_exclude != 0, "We have no remaining neighoring nodes to connect to"
                 #print n0, len(g), len(neighs), len(links_exclude)
                 #if len(neighs) < .05 * len(g):
