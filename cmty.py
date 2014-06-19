@@ -2061,6 +2061,23 @@ class CommunityFilter(_CommunitiesBase):
 #        for cname, nodes in self.cmtys.iteritems():
 #            for new_name, new_nodes in filter(cname, nodes):
 #                yield new_name, new_nodes
+class CmtyLimitNodes(CommunityFilter):
+    """Remove any community nodes not in the set ``nodes``."""
+    def __init__(self, cmtys, nodes):
+        self._cmtys = cmtys
+        def limitfilter(cname, cnodes):
+            cnodes = (cnodes & nodes)
+            if cnodes:
+                yield cname, cnodes
+        self._filter = limitfilter
+class CmtyLimitAnyNodes(CommunityFilter):
+    """Remove any communities that have *no* nodes in common with ``nodes``."""
+    def __init__(self, cmtys, nodes):
+        self._cmtys = cmtys
+        def limitfilter(cname, cnodes):
+            if any(_ in nodes for _ in cnodes):
+                yield cname, cnodes
+        self._filter = limitfilter
 
 
 class CommunityUnion(_CommunitiesBase):
