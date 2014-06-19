@@ -279,7 +279,7 @@ class _CommunitiesBase(object):
         nedges2 = pcd.nxutil.n_edges_between  # double the number of edges
         return dict((c,   nedges2(g, ns, ns) / float(len(ns)*(len(ns)-1)))
                     for c,ns in self.iteritems())
-    def cmty_scaledlinkdensities(self, g, empty=0.0, singleton=2.0):
+    def cmty_scaledlinkdensities(self, g, empty=0.0, singleton=0.0):
         """Dictionary of all community scaled link densities.
 
         Scaled link densities is average internal degree =
@@ -306,7 +306,7 @@ class _CommunitiesBase(object):
             sum_size += size
             sum_sld += slds[c]*size
         return sum_sld / sum_size
-    def cmty_embeddedness(self, g, empty=0.0, singleton=1.0):
+    def cmty_embeddedness(self, g, empty=0.0, singleton=0.0):
         """Dictionary of all community embeddednesses.
 
         Embeddedness = internal_degree / total_degree over all nodes
