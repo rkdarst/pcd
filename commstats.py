@@ -249,6 +249,8 @@ class DistStatter(Statter):
     dist_xlim = None
     dist_ylim = None
     domain = None
+    dist_is_ccdf = False  # plot compl. cumul. dist func
+    dist_is_cccf = False  # plot compl. cumul. count func
     def write(self, fname, axopts={}, title=None):
         from pcd.support import matplotlibutil
         ax, extra = matplotlibutil.get_axes(fname, **axopts)
@@ -296,6 +298,21 @@ class DistStatter(Statter):
             if self.dist_is_counts:
                 lines = ax.plot(vals, vals_counts, 'o-', color=colormap(normmap(i)),
                         label=label)
+            # Complimentary cumulative distribution function plotting.
+            elif self.dist_is_ccdf or self.dist_is_cccf:
+                vals, vals_counts = \
+                      zip(*sorted(zip(vals, vals_counts), key=lambda x: x[0])
+                          )
+                total = float(sum(vals_counts))
+                import pcd.util
+                counts_cumul = list(pcd.util._accumulate(vals_counts))
+                counts_cumul = [counts_cumul[-1]-x for x in counts_cumul]
+                if self.dist_is_ccdf:
+                    counts_cumul = [ x/total for x in counts_cumul ]
+                lines = ax.plot(vals, counts_cumul, 'o-',
+                                color=colormap(normmap(i)),
+                                label=label)
+
             else:
                 vals_counts = [ c/binwidth(s, **binparams)
                                 for s,c in zip(vals, vals_counts) ]
@@ -319,6 +336,12 @@ class DistStatter(Statter):
                 ax.set_ylabel(self.ylabel_dist)
             elif self.dist_is_counts:
                 if self.ylabel: ax.set_ylabel("Count(%s)"%self.ylabel)
+            elif self.dist_is_ccdf:
+                if self.ylabel:
+                    ax.set_ylabel("CCDF(%s)"%self.ylabel)
+            elif self.dist_is_cccf:
+                if self.ylabel:
+                    ax.set_ylabel("Complimentary cumulative count(%s)"%self.ylabel)
             else:
                 if self.ylabel: ax.set_ylabel("P(%s)"%self.ylabel)
             if   title:      ax.set_title(self.title)
@@ -331,6 +354,11 @@ class DistStatter(Statter):
 
 class CountStatter(DistStatter):
     dist_is_counts = True
+
+class CcdfStatter(DistStatter):
+    dist_is_ccdf = True
+class CccfStatter(DistStatter):
+    dist_is_cccf = True
 
 
 
@@ -1020,7 +1048,8 @@ for name, obj in _glbs:
         if not issubclass(obj, object): continue
     except TypeError:
         continue
-    if obj in  (Statter, QuantileStatter, DistStatter, CountStatter): continue
+    if obj in  (Statter, QuantileStatter, DistStatter, CountStatter,
+                CcdfStatter, CccfStatter): continue
     globals()[name+'Base'] = obj
     if issubclass(obj, Statter) and not issubclass(obj, QuantileStatter):
         globals()[name+''] = type(name+'', (obj, ), {})
@@ -1030,3 +1059,7 @@ for name, obj in _glbs:
         globals()[name+'Dist'] = type(name+'Dist', (obj,DistStatter), {})
     if issubclass(obj, Statter) and not issubclass(obj, CountStatter):
         globals()[name+'Count'] = type(name+'Count', (obj,CountStatter), {})
+    if issubclass(obj, Statter) and not issubclass(obj, CcdfStatter):
+        globals()[name+'Ccdf'] = type(name+'Ccdf', (obj,CcdfStatter), {})
+    if issubclass(obj, Statter) and not issubclass(obj, CccfStatter):
+        globals()[name+'Cccf'] = type(name+'Cccf', (obj,CccfStatter), {})
