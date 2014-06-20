@@ -7,6 +7,7 @@ import networkx
 from math import exp, pow
 
 import random
+from scipy.stats.distributions import poisson
 
 import pcd.util
 
@@ -254,7 +255,7 @@ class HolmeGraph(GrowingGraph):
 
 
 class SquareClosure(GrowingGraph):
-    def __init__(self, ns, seed=None, m0=3):
+    def __init__(self, ns, seed=None, m0=3, pois=False):
         self.g = networkx.Graph()
         self.ns = ns
         self.rng = random.Random(seed) # seed not given: random seed.
@@ -262,6 +263,7 @@ class SquareClosure(GrowingGraph):
             self.g.add_node(n)
             for n1 in range(n):
                 self.g.add_edge(n, n1)
+        self.pois = pois
     def add(self):
         g = self.g
         rng = self.rng
@@ -276,6 +278,9 @@ class SquareClosure(GrowingGraph):
         inner_nodes = set((n, n1))
         shell_nodes = inner_nodes
         for dist, n_at_dist in enumerate(self.ns):
+            if self.pois and n_at_dist>0:
+                n_at_dist = poisson(n_at_dist).rvs()
+
             dist += 1  # dist starts from 1, not zero
             nodes_available = set.union(*(set(g.neighbors(_))
                                           for _ in shell_nodes))
