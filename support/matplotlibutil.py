@@ -22,7 +22,8 @@ def write_fig(fig):
 
 
 def get_axes(fname, figsize=(13, 10), ax_hook=None,
-             ret_fig=False, figargs={}):
+             ret_fig=False, figargs={},
+             dpi=100):
     """Interface to matplotlib plotting.
 
     fname: str:
@@ -33,7 +34,7 @@ def get_axes(fname, figsize=(13, 10), ax_hook=None,
     if isinstance(fname, str):
         import matplotlib.figure
         import matplotlib.backends.backend_agg
-        fig = matplotlib.figure.Figure(figsize=figsize, dpi=100, **figargs)
+        fig = matplotlib.figure.Figure(figsize=figsize, dpi=dpi, **figargs)
         canvas = matplotlib.backends.backend_agg.FigureCanvasAgg(fig)
         if not ret_fig:
             ax = fig.add_subplot(111)#, aspect='equal')
