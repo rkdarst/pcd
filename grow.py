@@ -1,13 +1,12 @@
 """Growing graph models.
 """
 
-
-import networkx
-
+import collections
 from math import exp, pow
-
 import random
 from scipy.stats.distributions import poisson
+
+import networkx
 
 import pcd.util
 
@@ -19,8 +18,7 @@ class GrowingGraph(object):
             self.add()
 
     @classmethod
-    def get(cls, **kwargs):
-        N = kwargs.pop('N')
+    def get(cls, N, **kwargs):
         grower = cls(**kwargs)
         grower.grow(N)
         return grower.g
@@ -307,6 +305,123 @@ class SquareClosure(GrowingGraph):
                 g.add_edge(n, n2)
 
             inner_nodes |= nodes_available
+
+
+class TriadGraph(GrowingGraph):
+    def __init__(self, m, p, mmean=0, mode=None, T=None,
+                 seed=None):
+        self.rng = random.Random(seed) # seed not given: random seed.
+        self.g = networkx.complete_graph(3)
+        self.g.graph['name'] = self.__class__.__name__
+        self.m = m
+        self.mmean = mmean
+        self.p = p
+        self.mode = mode
+        self.T = T
+    def add(self):
+        g = self.g
+        rng = self.rng
+        n = len(g)
+
+        nodes_linked = set()
+        neigh_counts = collections.defaultdict(int)
+
+        g.add_node(n)
+        nodes_linked.add(n)
+
+        # First link
+        n1 = random.choice(xrange(n))
+        assert not g.has_edge(n, n1)
+        g.add_edge(n, n1)
+        nodes_linked.add(n1)
+        #print "adding", n, n1
+
+        # Compute neighbor counts
+
+        for neigh in g.neighbors(n1):
+            neigh_counts[neigh] += 1
+
+        def pick_next():
+            counts = collections.defaultdict(list)
+            for n, count in neigh_counts.iteritems():
+                if n in nodes_linked:
+                    continue
+                counts[count].append(n)
+            max_count = max(counts)
+            node = random.choice(counts[max_count])
+            #print "node %s has %d triads (%s) (%s)"%(
+            #    node, max_count,
+            #    counts[max_count],
+            #    sorted((c, len(ns)) for c,ns in counts.iteritems()))
+            return node
+        def pick_T():
+            itemsweights = [ ]
+            for n, count in neigh_counts.iteritems():
+                if n in nodes_linked:
+                    continue
+                weight = exp(count / float(self.T) )
+                itemsweights.append((n, weight))
+            chooser = pcd.util.WeightedChoice(itemsweights)
+            #if len(itemsweights) > 1 \
+            #       and any(_>1 for _ in neigh_counts.values()) \
+            #       and len(set(_ for x,_ in itemsweights)) > 1:
+            #    #raise
+            #    pass
+            return chooser.choice()
+        def pick_TN():
+            counts = collections.defaultdict(list)
+            for n, count in neigh_counts.iteritems():
+                if n in nodes_linked:
+                    continue
+                counts[count].append(n)
+            print [(count, len(x)) for count,x in sorted(counts.iteritems())]
+            itemsweights = [ ]
+            for count, ncounts in counts.iteritems():
+                weight = exp(count / float(self.T) )
+                itemsweights.append((count, weight))
+            chooser = pcd.util.WeightedChoice(itemsweights)
+            count = chooser.choice()
+            return random.choice(counts[count])
+
+        if self.mode == 'T':
+            pick_next = pick_T
+        elif self.mode == 'TN':
+            pick_next = pick_TN
+        elif self.mode is None:
+            pass
+        else:
+            raise ValueError
+
+
+        # How many extra edges should we add?
+        if self.mmean > self.m:
+            from scipy.stats.distributions import poisson
+            pgen = poisson(self.mmean-self.m)
+            m = pgen.rvs() + self.mmean
+        else:
+            m = self.m
+        m = min(m, len(g)-1)
+        # Add additional edges
+        for i in range(m-1):
+            if rng.uniform(0,1) <= self.p:
+                # Add triadic closure edge
+                n1 = pick_next()
+                #if n1 is None:
+                #    continue
+                for neigh in g.neighbors(n1):
+                    neigh_counts[neigh] += 1
+            else:
+                while True:
+                    n1 = random.randint(0, len(g)-2)  # exclude endpoint and n
+                    if n1 not in nodes_linked:
+                        break
+
+            assert not g.has_edge(n, n1)
+            g.add_edge(n, n1)
+            #print "adding", n, n1
+            nodes_linked.add(n1)
+
+
 
 
 
