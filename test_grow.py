@@ -13,13 +13,13 @@ def test_holme():
 
     for N in (5, 10, 15):
         for m in (1, 2, 3, 4):
-            m0 = max(3, m)    # must reproduce logic of the model.
+            m0 = max(3, m+1)    # must reproduce logic of the model.
             g = HolmeGraph.get(N=N, m=m, Pt=1, m0=m0)
             assert_equal(g.number_of_edges(),   (N-m0)*m)
 
     for N in (5, 10, 15):
         for m in (1, 2, 3, 4):
-            m0 = max(3, m)    # must reproduce logic of the model.
+            m0 = max(3, m+1)    # must reproduce logic of the model.
             g = HolmeGraph.get(N=N, m=m, Pt=.5, m0=m0)
             assert_equal(g.number_of_edges(),   (N-m0)*m)
 

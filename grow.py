@@ -155,7 +155,7 @@ class GrowFitness(GrowingGraph):
 
 class HolmeGraph(GrowingGraph):
     def __init__(self, m, mt=None, Pt=None, m0=3, seed=None,
-                 g0=None):
+                 g0=None, mode=None, free_degree=1):
         """
 
         m: int
@@ -169,9 +169,12 @@ class HolmeGraph(GrowingGraph):
              m regardless of this value.
         """
         self.m = m
-        m0 = max(m0, m)
+        m0 = max(m0, m+1)
         self.m0 = m0
+        self.mode = mode
+        assert self.mode in (None, 'orig')
         self.rng = random.Random(seed) # seed not given: random seed.
+        self.free_degree = free_degree
         # We can specify eather Pt or Mt
         if Pt is None:
             Pt = mt/float(m-1)
@@ -181,16 +184,18 @@ class HolmeGraph(GrowingGraph):
         self.Pt = Pt
         if g0 is None:
             # Add initial nodes
-            self.g = networkx.Graph()
+            self.g = g0 = networkx.Graph()
             for n in range(m0):
                 self.g.add_node(n)  # One free unit for each node.
             # Preferential attachment selector.  Selects random nodes
             # proportional to degree.
-            self.pa_selector = list(range(m0))
+        elif g0 == 'clique':
+            self.g = g0 = networkx.complete_graph(self.m+1)
+
         else:
             self.g = g0
-            self.pa_selector = sum(([n]*g0.degree(n) for n in g0.nodes()),
-                                   [])
+        self.pa_selector = sum(([n]*(g0.degree(n)+free_degree) for n in g0.nodes()),
+                               [])
     def add(self):
         g = self.g
         n = len(g)
@@ -198,7 +203,8 @@ class HolmeGraph(GrowingGraph):
         rng = self.rng
 
         g.add_node(n)
-        pa_selector.append(n)  # One free unit for each node.
+        for _ in range(self.free_degree):
+            pa_selector.append(n)  # One free unit for each node.
 
         def pa_select():
             if len(g) <= len(edges_made):
@@ -221,6 +227,7 @@ class HolmeGraph(GrowingGraph):
         g.add_edge(n, n1)
         edges_made.add(n1)
         pa_selector.extend((n, n1))
+        n_next = n1
 
 
         for e in range(self.m-1):
@@ -241,6 +248,8 @@ class HolmeGraph(GrowingGraph):
                 if n2 is None:
                     print "    can't make more edges at %d, %d"%(n, n1)
                     assert False
+                if self.mode == 'orig':
+                    n_next = n2
 
             assert not g.has_edge(n, n2)
             assert n != n2
@@ -249,7 +258,10 @@ class HolmeGraph(GrowingGraph):
             g.add_edge(n, n2)
             edges_made.add(n2)
             pa_selector.extend((n, n2))
-            n1 = n2
+            if self.mode == 'orig':
+                n1 = n_next
+            else:
+                n1 = n2
 
 
 class SquareClosure(GrowingGraph):
