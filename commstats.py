@@ -40,10 +40,13 @@ def quantile(sorted_list, p):
     d1 = sorted_list[int(c)] * (k-f)
     return d0+d1
 
-def lin_bin(k, range=1, bins=10, ints=None, pointat=.5, offset=-.5):
+def lin_bin(k, range=1, bins=10, ints=None, pointat=.5, offset=-.5,
+            min_=float('-inf'), max_=float('inf')):
     #print k, floor(k*bins/float(range)) * range/bins
-    return (floor(k*bins/float(range)-offset)+offset) * range/bins + pointat*(range/float(bins))
-def lin_bin_width(k, range=1, bins=10, ints=None, pointat=.5, offset=-.5):
+    width = range/float(bins)
+    return (floor(k/width-offset)+offset) * width + pointat*(range/float(bins))
+def lin_bin_width(k, range=1, bins=10, ints=None, pointat=.5, offset=-.5,
+                  min_=float('-inf'), max_=float('inf')):
     return range/float(bins)
 
 def log_bin(k, base=10, decadesize=10, minlog=1,
