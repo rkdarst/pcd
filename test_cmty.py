@@ -274,7 +274,7 @@ class TestMeasures(unittest.TestCase):
         g = networkx.complete_graph(1)
         c = cmty.Communities({0:set(range(1))})
         assert_equal(c.cmty_embeddedness(g)[0],
-                     1.0)
+                     0.0)
 
         # Empty comm
         g = networkx.complete_graph(0)
@@ -301,7 +301,7 @@ class TestMeasures(unittest.TestCase):
         # Singleton comm
         g = networkx.complete_graph(1)
         c = cmty.Communities({0:set(range(1))})
-        assert_equal(c.cmty_scaledlinkdensities(g)[0],   2.0)
+        assert_equal(c.cmty_scaledlinkdensities(g)[0],   0.0)
 
         # Empty comm
         g = networkx.complete_graph(0)
