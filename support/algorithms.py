@@ -317,15 +317,26 @@ class CDMethod(object):
         if hasattr(self, '_filter_graphfilename'):
             self.graphfile = self._filter_graphfilename(self.graphfile)
         if not os.access(self.dir, os.F_OK): os.mkdir(self.dir)
-    def call_process(self, args, binary_name=None, stdout_suffix=""):
+    def call_process(self, args, binary_name=None, stdout_suffix="",
+                     env=None):
         """Call a process, saving the standard output to disk.
 
         This handles running a program, while also doing other
         important tasks like saving the times, command line arguments,
         return value, and stdout to disk.
         """
+        # Environment update, if requested.
+        env_new = None
+        env_new_string = ''
+        if env:
+            env_new = dict(os.environ)    # make a copy
+            env_new.update(env)
+            for k,v in sorted(env.iteritems()):
+                env_new_string += '%s=%s '%(k,v)
+
+
         if self.verbosity >= 2:
-            print " ".join(args)
+            print env_new_string + " ".join(args)
         # Stdout is saved to BINARY_NAME.stdout, BINARY_NAME defaults
         # to args[0]
         if binary_name is None:
@@ -357,7 +368,8 @@ class CDMethod(object):
 
         ret = None
         try:
-            ret = subprocess.call(args, stdout=stdout, stderr=subprocess.STDOUT)
+            ret = subprocess.call(args, stdout=stdout,
+                                  stderr=subprocess.STDOUT, env=env_new)
         finally:
             #if self.verbosity >= 2:
             #    print open(binary_name+'.stdout').read()
