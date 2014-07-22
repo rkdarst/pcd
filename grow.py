@@ -371,7 +371,10 @@ class TriadGraph(GrowingGraph):
             for n, count in neigh_counts.iteritems():
                 if n in nodes_linked:
                     continue
-                weight = exp(count / float(self.T) )
+                try:
+                    weight = exp(count / float(self.T) )
+                except OverflowError:
+                    weight = 1e200
                 itemsweights.append((n, weight))
             chooser = pcd.util.WeightedChoice(itemsweights)
             #if len(itemsweights) > 1 \
