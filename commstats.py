@@ -371,6 +371,19 @@ class Null(Statter):
         return ()
 
 
+class NodeDeg(Statter):
+    """Node degree"""
+    xlabel = '1'
+    ylabel = "$k$"
+    log_y = True
+    bin_ints = True
+    binparams = dict(minlog=10)
+    def calc(self, g, cmtys, cache=None):
+        for cname, cnodes in cmtys.iteritems():
+            for node in cnodes:
+                yield 1, g.degree(node)
+
+
 class CmtySize(Statter):
     """Community sizes"""
     ylabel = "size"
