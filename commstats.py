@@ -100,6 +100,61 @@ def cache_get(cache, name, func):
     return cache[name]
 
 
+class MultiStatter(object):
+    def __init__(self,
+                 sttrs,
+                 layout):
+        self.sttrs = sttrs
+        self.layout = layout
+
+        def add(self, g, cmtys, label, cache=None):
+            for sttr in self.sttrs:
+                sttr.accumulate(sttr.calc2(g, cmtys, cache=cache), label=label)
+        def calc(self, g, cmtys, label, cache=None):
+            results = [ ]
+            for sttr in self.sttrs:
+                results.append(sttr.calc(g=g, cmtys=cmtys, label=label,
+                                         cache=cache))
+            return results
+        def accumulate(self, data, label):
+            for sttr, data in zip(self.sttrs, data):
+                sttr.accumulate(data, label)
+        def write(self, fname, axopts, title=None):
+            from string import lowercase
+
+            ymax = max(len(_) for _ in self.layout)
+            xmax = len(self.layout)
+            figsize = (y_max*13, x_max*13)
+            #figargs=dict(subplotpars=matplotlib.figure.SubplotParams(
+            #   hspace=.3)))
+            fig, extra = get_axes(fname=fname, ret_fig=True, figsize=figsize)
+
+
+            for y, ylst in enumerate(self.layout):
+                for x, sttr in enumerate(ylst):
+                    # Use None to not write anything.
+                    if sttr is None: continue
+                    # Format for specifying statters:
+                    # - integer
+                    # - "N.write_function"
+                    if isinstance(sttr, str):
+                        i = int(sttr)
+                    if isinstance(sttr, int):
+                        i = sttr
+                    sttr = self.layout[i]
+
+                    sax = fig.add_subplot(maxy, maxx, 1+maxy*y+x)
+                    sax.set_title(cdname, fontsize=20)
+                    sax.text(0, 1.03, '(%s)'%lowercase[i%26], fontsize=20,
+                             transform=sax.transAxes)
+                    sttr.write(ax=sax)
+                    #sttr.data.clear()
+
+        save_axes(fig, extra)
+
+
+
+
 class Statter(object):
     """Base statter."""
     minsize = 2
