@@ -530,6 +530,7 @@ class Infomap(CDMethod):
 
     initial: initial configuration.
     """
+    threads = None
     _binary = 'infomap/Infomap-0.11.5/Infomap'
     _input_format = 'edgelist'
     _nodemapZeroIndexed = True
@@ -559,8 +560,11 @@ class Infomap(CDMethod):
         if self.initial:
             self.initial.write_clusters("initial.txt", mapping=self.vmap)
             args.append('--cluster-data=initial.txt')
+        env = { }
+        if self.threads is not None:
+            env.update({'OMP_NUM_THREADS': str(int(self.threads))})
         args.extend(self.args)
-        self.call_process(args)
+        self.call_process(args, env=env)
 
     def read_cmtys(self):
         fname = self.basename+'.tree'
