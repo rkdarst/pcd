@@ -2357,11 +2357,21 @@ if __name__ == "__main__":
 
     import pcd.ioutil
     g = pcd.ioutil.read_any(input)
+    #print networkx.get_edge_attributes(g, 'weight')
+    #print g.adj['51']['68']
+    print len(g), g.number_of_edges()
+    print [len(_) for _ in networkx.connected_components(g)]
+    from fitz import interactnow
 
     options['basename'] = os.path.basename(input)
 
     method = locals()[method]
     r = method(g, **options)
+
+    for i, cmtys in enumerate(r.results):
+        cmtys.write_clusters(output+'.%d.txt'%i)
+
+
     #initial = r.cmtys
     #r = method(g, initial=initial, **options)
     #import pcd.ioutil
