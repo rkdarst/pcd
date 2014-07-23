@@ -726,6 +726,7 @@ class _Oslom(CDMethod):
     strip_singletons = False
     p_value = None
     coverage_parameter = None
+    which_level = 0
 
     #def _use_weigthed(self, g):
     #    if self.weigthed is not None:
@@ -802,7 +803,7 @@ class _Oslom(CDMethod):
                 fname = self.outdir+'tp%s'%(level if level else '')
             if not os.access(fname, os.F_OK):
                 if self.verbosity >= 3:
-                    print "*** level %s"%level
+                    print "*** Breaking at: level %s"%level
                 break
 
             cmtys = self.read_oslom_cmtys(fname=fname)
@@ -810,8 +811,9 @@ class _Oslom(CDMethod):
 
             self.results.append(cmtys)
             if not self.strip_singletons and isinstance(self.g, networkx.Graph):
-                assert len(self.g) <= self.results[-1].cmtysizes_sum()
-        self.cmtys = self.results[0]
+                assert len(self.g) <= self.results[-1].cmtysizes_sum(), \
+                       "Too few nodes detected - Graph disconnected?"
+        self.cmtys = self.results[self.which_level]
         return self.results
     def read_oslom_cmtys(self, fname):
         """Read Oslom communities from a single hierachical level"""
@@ -860,6 +862,9 @@ class OslomMerge(Oslom):
 
     Singletons are merged into the communities they best connect to."""
     merge_singletons = True
+class OslomHighest(Oslom):
+    which_level = -1
+
 
 
 class _Copra(CDMethod):
