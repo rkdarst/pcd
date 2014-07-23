@@ -129,6 +129,7 @@ class CDMethod(object):
     _load_results = True
     _recovery_mode = False        # recovery mode - do nothing, user should
                                   # call .run(), .read_cmtys() etc.
+    weighted = False              # Write a weighted edgelist/turn on weights?
 
     def __init__(self, g, dir=None, basename=None, **kwargs):
         """
@@ -201,7 +202,7 @@ class CDMethod(object):
                 # overwritten.
                 if os.path.islink(self.graphfile):
                     raise RuntimeError("%s is a symlink, aborting."%self.graphfile)
-                getattr(self, 'write_'+self._input_format)(self.g, self.graphfile)
+                getattr(self, 'write_'+self._input_format)(self.g, self.graphfile, weighted=self.weighted)
             if self._run_method        and not self._recovery_mode:
                 self.run()
             if self._load_results  and not self._recovery_mode:
@@ -389,7 +390,7 @@ class CDMethod(object):
         return ret
 
     # Format writer methods
-    def write_pajek(self, g, fname):
+    def write_pajek(self, g, fname, weighted=False):
         f = open(fname, 'w')
         print >> f, '*Vertices %d'%len(g)
         vmap = self.vmap
@@ -399,8 +400,8 @@ class CDMethod(object):
             #print >> f, i, repr(n)#, "0.00", "0.00", "ellipse"
         print >> f, "*Edges"
         for u, v, d in g.edges_iter(data=True):
-            if 'weight' in d:
-                print >> f, vmap[u], vmap[v], float(d['weight'])
+            if weighted:
+                print >> f, vmap[u], vmap[v], float(d.get('weight', 1.0))
             else:
                 print >> f, vmap[u], vmap[v] #, "1.0"
         f.flush()
@@ -411,13 +412,14 @@ class CDMethod(object):
         vmap = self.vmap
         for u, v, d in g.edges_iter(data=True):
             #if getattr(self, 'weighted', True):
-            if 'weight' in d or weighted:
+            if weighted:
                 # weighted
                 print >> f, vmap[u], vmap[v], float(d.get('weight', 1.0))
             else:
                 # unweighted
                 print >> f, vmap[u], vmap[v]
-    def write_edgelistWeighted(self, g, fname):
+    def write_edgelistWeighted(self, g, fname, weighted=True):
+        """Write an edgelist with forced weights."""
         self.write_edgelist(g, fname, weighted=True)
     def write_gml(self, g, fname):
         # networkx writes nodes in order of g.nodes()
@@ -427,7 +429,7 @@ class CDMethod(object):
         #assert [ int(x) for x in g.nodes() ]
         g = networkx.relabel_nodes(g, mapping=self.vmap)  # Make a copy.
         networkx.write_gml(g, fname)
-    def write_null(self, g, fname):
+    def write_null(self, g, fname, weighted=False):
         pass
 
 
