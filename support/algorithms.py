@@ -541,6 +541,7 @@ class Infomap(CDMethod):
     trials = 10
     include_self_links = False
     args = [ ]
+    which_level = 0
     def run(self):
         args = [_get_file(self._binary),
                 '--num-trials=%d'%self.trials,
@@ -571,7 +572,7 @@ class Infomap(CDMethod):
         self.results = self.read_infomap_cmtys(
             fname=fname, vmap_inv=self.vmap_inv,
             full_lower_levels=self.full_lower_levels)
-        self.cmtys = self.results[0]
+        self.cmtys = self.results[self.which_level]
         return self.results
 
     def read_infomap_cmtys(self, fname, full_lower_levels=True, vmap_inv=None):
@@ -663,6 +664,8 @@ class InfomapSingle_dir(Infomap):
     _is_directed = True
     directed = True
 
+class InfomapHighest(Infomap):
+    which_level = -1
 
 
 class _Oslom(CDMethod):
