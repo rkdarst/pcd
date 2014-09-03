@@ -164,6 +164,7 @@ class Statter(object):
     xlabel = '$n_\mathrm{cmty}$'
     ylabel = None
     legend_loc = None
+    legend_kwargs = { }  # to set fontsize, use prop=dict(size=10)
     bin_ints = False
     xlim = None
     ylim = None
@@ -221,29 +222,25 @@ class Statter(object):
         if not label_order:
             label_order = sorted(data.keys())
         for i, label in enumerate(label_order):
-            if self.colormap:
-                # Use pre-defined colors
+            # Colors
+            if self.colormap and label in self.colormap:
                 color = self.colormap[label]
             else:
-                # Use unique colors for this set.
                 color = colormap(normmap(i))
-            points = data[label]
-            if len(points) == 0:
-                print "skipping %s with no data"%label
-                continue
-        #for i, (label, points) in enumerate(data.iteritems()):
-            #print label, points.keys()
-            xy = sorted((a, numpy.mean(b)) for a,b in points.iteritems())
-            xvals, y = zip(*xy)
-
-            # formatting
-
+            # Line type
             if label in self.plotstyle:
                 plotstyle = self.plotstyle[label]
             elif self.markers:
                 plotstyle = '-%s'%(self.markers[i%len(self.markers)])
             else:
                 plotstyle = self.plotstyle[label]
+            #
+            points = data[label]
+            if len(points) == 0:
+                print "skipping %s with no data"%label
+                continue
+            xy = sorted((a, numpy.mean(b)) for a,b in points.iteritems())
+            xvals, y = zip(*xy)
 
             # Plot the mean:
             ax.plot(xvals, y, plotstyle, lw=2, color=color, label=label)
@@ -285,7 +282,7 @@ class Statter(object):
             if   title:      ax.set_title(self.title)
             elif self.title: ax.set_title(self.title)
             if len(data) > 1 and self.legend_make:
-                ax.legend(loc=self.legend_loc)
+                ax.legend(loc=self.legend_loc, **self.legend_kwargs)
 
 
         self._hook_write_setup_plot(locals())
@@ -340,7 +337,18 @@ class DistStatter(Statter):
             label_order = sorted(data.keys())
         for i, label in enumerate(label_order):
             points = data[label]
-        #for i, (label, points) in enumerate(data.iteritems()):
+            if self.colormap and label in self.colormap:
+                color = self.colormap[label]
+            else:
+                color = colormap(normmap(i))
+            # Line type
+            if label in self.plotstyle:
+                plotstyle = self.plotstyle[label]
+            elif self.markers:
+                plotstyle = '-%s'%(self.markers[i%len(self.markers)])
+            else:
+                plotstyle = self.plotstyle[label]
+            #
             vals = []
             [vals.extend(x) for x in points.values() ]
             vals = map(partial(binfunc, **binparams), vals)
@@ -351,8 +359,8 @@ class DistStatter(Statter):
                 domain = set()
             vals, vals_counts = counts(vals, domain=domain)
             if self.dist_is_counts:
-                lines = ax.plot(vals, vals_counts, 'o-', color=colormap(normmap(i)),
-                        label=label)
+                lines = ax.plot(vals, vals_counts, plotstyle, color=color,
+                                label=label)
             # Complimentary cumulative distribution function plotting.
             elif self.dist_is_ccdf or self.dist_is_cccf:
                 vals, vals_counts = \
@@ -364,16 +372,15 @@ class DistStatter(Statter):
                 counts_cumul = [counts_cumul[-1]-x for x in counts_cumul]
                 if self.dist_is_ccdf:
                     counts_cumul = [ x/total for x in counts_cumul ]
-                lines = ax.plot(vals, counts_cumul, 'o-',
-                                color=colormap(normmap(i)),
-                                label=label)
+                lines = ax.plot(vals, counts_cumul, plotstyle,
+                                color=color, label=label)
 
             else:
                 vals_counts = [ c/binwidth(s, **binparams)
                                 for s,c in zip(vals, vals_counts) ]
                 p_vals = norm(vals_counts)
-                lines = ax.plot(vals, p_vals, 'o-', color=colormap(normmap(i)),
-                        label=label)
+                lines = ax.plot(vals, p_vals, plotstyle, color=color,
+                                label=label)
 
             if hasattr(self, '_hook_lines'):
                 self._hook_lines(locals())
@@ -402,7 +409,7 @@ class DistStatter(Statter):
             if   title:      ax.set_title(self.title)
             elif self.title: ax.set_title(self.title)
             if len(data) > 1 and self.legend_make:
-                ax.legend(loc=self.legend_loc)
+                ax.legend(loc=self.legend_loc, **self.legend_kwargs)
 
         self._hook_write_setup_plot(locals())
         matplotlibutil.save_axes(ax, extra)
