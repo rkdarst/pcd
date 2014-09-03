@@ -82,7 +82,7 @@ def read_any(fname):
     # Look inside for the schema:
     if _test_pajek(fname):    return networkx.read_pajek(fname)
     if _test_gml(fname):      return networkx.read_gml(fname)
-    if _test_edgelist(fname): return networkx.read_edgelist(fname)
+    if _test_edgelist(fname): return networkx.read_edgelist(fname, data=[('weight', float)])
 
     # So it is probably an edgelist.
 
