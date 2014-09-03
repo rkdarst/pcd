@@ -2137,7 +2137,7 @@ class Ganxis(CDMethod):
         if not self.directed:
             args.extend(('-Sym', '1'))
         if not self.weighted:
-            args.exted(('-W', '0'))
+            args.extend(('-W', '0'))
         if not self.overlaps:
             args.extend(('-ov', '0'))
         if self.threshold:
