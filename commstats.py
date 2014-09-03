@@ -461,7 +461,7 @@ class CmtySize(Statter):
             yield n_cmty, n_cmty
 
 
-class Density(Statter):
+class CmtyDensity(Statter):
     log_y = False
     ylabel = 'edge density'
     def calc(self, g, cmtys, cache=None):
@@ -477,7 +477,7 @@ class Density(Statter):
             n_edges_subgraph = 0
             for n in cnodes:
                 for nbr in adj[n]:
-                    if nbr in cnodes:
+                    if nbr in cnodes and nbr != n:
                         n_edges_subgraph += 1
             assert n_edges_subgraph % 2 == 0
             n_edges_subgraph /= 2
