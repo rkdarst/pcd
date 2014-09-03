@@ -50,7 +50,7 @@ def log_bin(k, base=10, decadesize=10, minlog=1,
             ints=False):
     """Given a point, return its bin center"""
     decadesize = float(decadesize)
-    if k < minlog:  return k
+    if k < minlog:  return int(k)
     i = log(k)/log(base)*decadesize
     i = round(i)
     k = exp((i/decadesize) * log(base))
