@@ -8,6 +8,8 @@ import networkx
 from nose.plugins.attrib import attr
 from nose.tools import assert_set_equal, assert_true
 
+algs.tmpdir_base = '/tmp/'
+
 # Methods to NOT test.
 methods_exclude = set(('CDMethod',
                        'BeliefPropogationZ',
@@ -76,7 +78,7 @@ g_2clique_cmtys = pcd.cmty.Communities({0:set(range(0,nclq)), 1:set(range(nclq,n
 
 
 @attr('slow')
-def test_2clique():
+def test_2clique(options={}):
     """Test that algorithms run and give reasonable results."""
 
     for method in methods:
@@ -85,21 +87,28 @@ def test_2clique():
         if method in methods_dontwork:
             continue
         g = g_2clique.copy()
-        yield do_method, method, g_2clique, g_2clique_cmtys
+        yield do_method, method, g_2clique, g_2clique_cmtys, options
 
-def do_method(method, g, cmtys_true):
+def test_2clique_weighted():
+    for _ in test_2clique(options=dict(weighted=True)):
+        yield _
+
+
+def do_method(method, g, cmtys_true, options={}):
+    # Give the method 10 tries to return the correct results
     for i in range(10):
         try:
-            return do_method_trial(method, g, cmtys_true)
+            return do_method_trial(method, g, cmtys_true, options=options)
         except AssertionError:
             continue
     raise
 
-def do_method_trial(method, g, cmtys_true):
+def do_method_trial(method, g, cmtys_true, options={}):
     print method
     cda = getattr(algs, method)
     args = default_args.copy()
     args.update(method_args.get(method, {}))
+    args.update(options)
     r = cda(g, **args)
 
     cmtys = r.cmtys
