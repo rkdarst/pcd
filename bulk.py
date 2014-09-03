@@ -38,7 +38,7 @@ def pathsplitall(f):
 
 
 def read_edgelist(fname, constructor=networkx.DiGraph):
-    return networkx.read_edgelist(fname, create_using=constructor())
+    return networkx.read_edgelist(fname, data=[('weight', float)], create_using=constructor())
 def read_edgelistreverse(fname, constructor=networkx.DiGraph):
     g = constructor(fname=fname)
     split_re = re.compile('\s+')
@@ -114,6 +114,8 @@ class BulkAnalyzer(object):
     output_dir = None
     loader = 'edgelist'
     filename_chooser = None
+    draw_nodes = False
+    print_cmtys = True
 
     hook_result = [ ]
 
@@ -174,7 +176,7 @@ class BulkAnalyzer(object):
                 g = self.g_dir.copy()
             else:
                 g = self.g_undir.copy()
-            self.runMethod(method, g)
+            self.runMethod(method, g, kwargs=dict(weighted=True))
     def runMethods_oslom(self):
         self.runMethod(OslomSeed30_dir,     self.g_dir.copy())
         self.runMethod(OslomSeed73_dir,     self.g_dir.copy())
@@ -229,8 +231,9 @@ class BulkAnalyzer(object):
             s += [ "Result: "+fullname ]
             #s += [ "Filename: "]
             s += result.stats()
-            s += result.list_communities()
-            s += result.list_overlapping_nodes()
+            if self.print_cmtys:
+                s += result.list_communities()
+                s += result.list_overlapping_nodes()
             s += ["", ""]
             s = '\n'.join(s)
 
@@ -249,7 +252,7 @@ class BulkAnalyzer(object):
             result.write_clusters(fname, headers=['Result-Name: %s'%fullname])
 
             # Draw pictures
-            if 1 or self.draw_nodes:
+            if self.draw_nodes:
                 import pcd.draw
                 if getattr(self, 'pos', None) is None:
                     self.pos = pcd.draw.layout(g)
