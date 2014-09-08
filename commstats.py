@@ -186,6 +186,20 @@ class Statter(object):
     def __init__(self):
         self._data = collections.defaultdict(lambda: collections.defaultdict(list))
         self.label_order = [ ]
+    # Pickle support.  The lambda functions in self._data
+    # collections.defaultdict are not pickleable, so convert to and
+    # from regular dictionary when pickling.
+    def __getstate__(self):
+        state = self.__dict__.copy()
+        state['_data'] = { }
+        state['_data'].update(self._data)
+        return state
+    def __setstate__(self, state):
+        _data = collections.defaultdict(lambda: collections.defaultdict(list))
+        _data.update(state['_data'])
+        state['_data'] = _data
+        self.__dict__ = state
+
     def calc(self, g, cmtys, cache=None):
         raise NotImplementedError("This is a prototype.")
     def calc2(self, g, cmtys, cache=None):
