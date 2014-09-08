@@ -1,3 +1,98 @@
+"""Community statistics functions.
+
+This module contains classes which allow calculation of properties of communities.  There are two base classes:
+
+- Statter - produces <measure(cmty)> vs size(cmty)
+- DistStatter - produces histograpms of <measure(cmty)>
+where `measure` is some general function of one community.
+
+General use
+~~~~~~~~~~~
+
+sttr = CmtyDensity()   # initialize statter
+
+# Add two averages for 'p=0.1'.  That these are two averages of the
+# same thing is indicated by the same label.
+sttr.add(g, cmtys_p1a, label='p=0.1')
+sttr.add(g, cmtys_p1b, label='p=0.1')
+
+# Add two averages for 'p=0.5'.  Since the label is different, there
+# will be a different line on the final plot.
+sttr.add(g, cmtys_p5a, label='p=0.5')
+sttr.add(g, cmtys_p5b, label='p=0.5')
+
+# Write to a file.  This uses options and formatting available in
+# pcd.support.matplotlibutil.get_axes.
+sttr.write('filename.[pdf,png]')
+
+# Write to another matplotlib.axes.Axes object.  This could be used to
+# add the plots to a figure with subfigures.  For doing final layout,
+# you may want to set decorate=False to turn off all labels and
+# titles, and add those yourself manually outside of the write
+# function.
+sttr.write(ax)
+
+
+Subclasses
+~~~~~~~~~~
+
+Let's use CmtyDensity as an example.  CmtyDensity is a subclass of
+Statter, and only defines thene extra pieces of data:
+
+- calc(self, g, cmtys, ...)
+  - The actual logic of calculating whatever this class does.  More on
+  - this later.
+
+- log_y = False
+  ylabel = 'edge density'
+  - These two class attributes provide configuration for the writing
+    function, so that it can have good defaults for this particular
+    type of plot.  For example, legend location, log scales, and so on
+    can be configured, for both Statter and DistStatter writers.
+
+At the end of the module, *every* class defined has some automatic
+subclasses made.  For CmtyDensity, these wolud be:
+
+- CmtyDensityQtl   (from QuantileStatter)
+  - Like Statter (density vs size), but also draws quantiles
+    (10-tiles) of the distribution, so that you can see the standard
+    deviation, min, max, and skewness from the mean.
+
+- CmtyDensityDist   (from DistStatter)
+  - Made by mixing CmtyDensity with DistStatter
+
+- CmtyDensityCount   (from CountStater)
+  - Like CmtyDensityDist, but instead of normalizing, prints raw counts.
+
+- CmtyDensityCcdf   (from CcdfStatter)
+  - Community density distribution, as a complimentary cumulative
+    distribution function
+
+- CmtyDensityCccf   (from CccfStatter)
+  - Community density distribution, as a complimentary cumulative
+    counts function
+
+You can look at the definitions of all of these statters, but all the
+logic is in Statter or DistStatter.
+
+
+Configuring output
+~~~~~~~~~~~~~~~~~~
+
+All of the writing logic is in the write() methods on Statter or
+DistStatter, but these will probably be kind of confusing.  All
+configuration is done by instance attributes.  For example, to change
+the location of a legend, do::
+
+  sttr.legend_loc = 'lower left'
+
+You can get an idea of what is available by looking at the source for
+these classes.
+
+There are generally lots of weird hooks that can be used for
+configuration, but for 'professional' layout you should draw to an
+axis object and manually configure all labels and items.
+"""
 
 import collections
 import math
@@ -201,8 +296,12 @@ class Statter(object):
         self.__dict__ = state
 
     def calc(self, g, cmtys, cache=None):
+        """Calculate values.  Does not change object.
+
+        See add() docstring."""
         raise NotImplementedError("This is a prototype.")
     def calc2(self, g, cmtys, cache=None):
+        """Support for picking igraph calc() methods if exists."""
         if 'igraph' in str(type(g)):
             return self.calc_igraph(g, cmtys, cache=cache)
         return self.calc(g, cmtys, cache=cache)
@@ -212,21 +311,35 @@ class Statter(object):
             self.label_order.append(label)
             self._data[label]
     def accumulate(self, data, label):
+        """Append calculated values to internal lists.
+
+        This adds the given data to self._data."""
         if label not in self._data:
             self.label_order.append(label)
         for n, sld in data:
             self._data[label][n].append(sld)
     def add(self, g, cmtys, label, cache=None):
+        """Add data.  This does calc() and accumulate().
+
+        calc() and accumulate() were separated in order to separate
+        calculation from data collection, for possible future
+        parallelism."""
         self.accumulate(self.calc2(g, cmtys, cache=cache), label=label)
 
     quantiles = None
     def write(self, fname, axopts={}, title=None):
+        """Write data.
+
+        `fname` can be an matplotlib.axes.Axes object, in which case
+        no new files are created and lines are added to this axis.
+        """
         from pcd.support import matplotlibutil
         ax, extra = matplotlibutil.get_axes(fname, **axopts)
 
         data = self._data
 
         # Do the actual plotting
+        # Get colors and styles.
         import matplotlib.cm as cm
         import matplotlib.colors as mcolors
         colormap = cm.get_cmap('jet')
@@ -248,7 +361,9 @@ class Statter(object):
                 plotstyle = '-%s'%(self.markers[i%len(self.markers)])
             else:
                 plotstyle = self.plotstyle[label]
-            #
+            # Make all points data.  `points` is a list of (cmty_size,
+            # [list of <measure> values]) pairs and `xy` is a list of
+            # (cmty_size, <mean_measure>) pairs.
             points = data[label]
             if len(points) == 0:
                 print "skipping %s with no data"%label
@@ -259,7 +374,8 @@ class Statter(object):
             # Plot the mean:
             ax.plot(xvals, y, plotstyle, lw=2, color=color, label=label)
 
-            # Plot quantiles if we want.
+            # If we are a subclass of QuantileStatter, plot quantiles,
+            # too.
             if self.quantiles is not None and len(self.quantiles):
                 quantiles = [ ]
                 for x in xvals:
@@ -282,6 +398,7 @@ class Statter(object):
                     ax.plot(xvals, qtl, color=color,
                             lw=.5)
 
+        # General plot layout and configuration.
         ylims = ax.get_ylim()
         if self.log_x:
             ax.set_xscale('log')
