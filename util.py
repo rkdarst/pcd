@@ -699,6 +699,42 @@ def tmpdir_context(chdir=False, delete=True, suffix='', prefix='tmp', dir=None):
     if delete:
         shutil.rmtree(tmpdir)
 
+@contextlib.contextmanager
+def writefile_context(fname, mode, leave_incomplete=False):
+    """Open a file for writing safely.
+
+    Context manager for writing files safely (removing the file if any
+    exceptions raised, instead of possibly allowing partial data to be
+    written).
+
+    Example usage:
+
+    with writefile_context('cmtys.txt', 'w') as f:
+        for x in lines:
+            f.write('%s\n'%x)
+
+    Without writefile_context, if there was an exception while writing
+    (even a KeyboardInterrupt), the file would remain half-written.
+    Any program which considers file existance to be completion would
+    be fooled into using this incomplete data.
+    """
+    if 'a' in mode:
+        raise ValueError("Can not use writefile_context to append.")
+    if 'r' in mode:
+        raise ValueError("Can not use writefile_context to read.")
+    fname_tmp = fname+'.new'
+    f = open(fname_tmp, mode)
+    try:
+        yield f
+    except:
+        if not leave_incomplete:
+            f.close()
+            os.unlink(fname_tmp))
+        raise
+    f.flush()
+    f.close()
+    os.rename(fname_tmp, fname)
+
 def NMI_LF(cmtys1, cmtys2, check=True, use_existing=False):
     """Compute NMI using the overlap-including definition.
 
