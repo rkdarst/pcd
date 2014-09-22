@@ -692,7 +692,9 @@ class _Oslom(CDMethod):
 
     initial: Communities object
         Initial configuration.  Used with -hint option.  Cleans up and
-        only returns statistically significant communities.
+        only returns statistically significant communities.  Should be
+        used with trials=0 and trials_hier=0 to prevent a new search for
+        communities, and these are not automatically set.
 
     weighted: bool, default False.
         Use -w option, which specifies floating point weights.  If
@@ -786,11 +788,11 @@ class _Oslom(CDMethod):
         if self.initial:
             args = args + ('-hint', "initial_state.txt",)
             f = open("initial_state.txt", 'w')
-            for cmty, nodes in self.initial.cmtynodes():
+            if self.trials != 0 or self.trials_hier != 0:
+                raise ValueError("Oslom initial state requires trials=0 and trials_hier=0")
+            for cmty, nodes in self.initial.iteritems():
                 f.write(' '.join(str(self.vmap[n]) for n in nodes))
                 f.write('\n')
-            raise NotImplementedError("Check documentation and ensure that this works.  "
-                                      "-r 0 option may be needed.")
             f.close()
         if self.p_value:
             args = args + ('-t', '%f'%self.p_value)
@@ -1095,7 +1097,10 @@ class Louvain(CDMethod):
             args = args + ('-q', str(self.stop_dQ),)
         if self.initial:
             raise NotImplementedError("Check this before using.")
-            # FIXME: write it
+            f = open('initial.txt', 'w')
+            for cname, cnodes in self.initial.iteritems():
+                for node in cnodes:
+                    print >> f, self.vmap[node], cname
             args = args + ('-p', 'initial.txt')
         self.call_process(args, stdout_suffix='.%03d'%trial)
 
