@@ -1,8 +1,16 @@
+from functools import partial
+from math import log
+import subprocess
+
+from pcd.util import tmpdir_context
+
 log2 = lambda x: log(x, 2)
 
 
-
-def mutual_information(cmtys1, cmtys2):
+#
+# Simple python-based implementations.
+#
+def mutual_information_python(cmtys1, cmtys2):
     MI = 0.0
     N = len(cmtys1.nodes)
     assert N == len(cmtys2.nodes)
@@ -15,7 +23,7 @@ def mutual_information(cmtys1, cmtys2):
                 continue
             MI += (n_shared/float(N)) * log2(n_shared*N/float(n1*n2))
     return MI
-def entropy(cmtys):
+def entropy_python(cmtys):
     H = 0.0
     N = float(len(cmtys.nodes))
     for cnodes in cmtys.itervalues():
@@ -23,16 +31,55 @@ def entropy(cmtys):
         if n == 0: continue
         H += n/N * log2(n/N)
     return -H
-def In(cmtys1, cmtys2):
-    I = mutual_information(cmtys1, cmtys2)
-    Hs = (entropy(cmtys1) + entropy(cmtys2))
+def vi_python(cmtys1, cmtys2):
+    """Variation of Information"""
+    I = mutual_information_python(cmtys1, cmtys2)
+    VI = entropy_python(cmtys1) + entropy_python(cmtys2) - 2*I
+    return VI
+def nmi_python(cmtys1, cmtys2):
+    I = mutual_information_python(cmtys1, cmtys2)
+    Hs = entropy_python(cmtys1) + entropy_python(cmtys2)
+    if Hs == 0 and I == 0:
+        return 1.0
     if Hs == 0:
         return float('nan')
     In = 2.*I / Hs
     return In
 
+In = nmi_python
 
-def NMI_LF(cmtys1, cmtys2, check=True, use_existing=False):
+
+#
+# Old implementation from my pcd C code
+#
+def _cmtys_to_pcdgraph(cmtys):
+    return cmtys.to_pcd()
+def mutual_information_pcd(cmtys1, cmtys2):
+    from .old.util import mutual_information_c
+    return mutual_information_c(
+        _cmtys_to_pcdgraph(cmtys1), _cmtys_to_pcdgraph(cmtys2))
+def nmi_pcd(cmtys1, cmtys2):
+    from .old.util import In
+    return In(
+        _cmtys_to_pcdgraph(cmtys1), _cmtys_to_pcdgraph(cmtys2))
+def vi_pcd(cmtys1, cmtys2):
+    from .old.util import VI
+    return VI(
+        _cmtys_to_pcdgraph(cmtys1), _cmtys_to_pcdgraph(cmtys2))
+def nmi_overlap_LF_pcd(cmtys1, cmtys2):
+    from .old.util import mutual_information_overlap
+    return mutual_information_overlap(
+        _cmtys_to_pcdgraph(cmtys1), _cmtys_to_pcdgraph(cmtys2))
+def nmi_overlap_LF_pcdpy(cmtys1, cmtys2):
+    from .old.util import mutual_information_overlap_python
+    return mutual_information_overlap_python(
+        _cmtys_to_pcdgraph(cmtys1), _cmtys_to_pcdgraph(cmtys2))
+
+
+#
+# External code: Overlap NMI by L and F
+#
+def nmi_overlap_LF_LF(cmtys1, cmtys2, check=True, use_existing=False):
     """Compute NMI using the overlap-including definition.
 
     This uses the external code 'mutual3/mutual' to calculate the
@@ -125,4 +172,64 @@ def NMI_LF(cmtys1, cmtys2, check=True, use_existing=False):
                 args[0], ret))
         nmi = float(stdout.split(':', 1)[1])
     return nmi
-ovIn_LF = NMI_LF
+NMI_LF = nmi_overlap_LF_LF
+ovIn_LF = nmi_overlap_LF_LF
+
+
+
+#
+# Igraph-based implementations
+#
+def to_membership_list(*cmtys_list):
+    nodes = set.union(*(c.nodes for c in cmtys_list))
+    results = [ ]
+    for cmtys in cmtys_list:
+        nodecmtys = cmtys.nodecmtys_onetoone()
+        clist = [ nodecmtys[n] for n in nodes ]
+        results.append(clist)
+
+    return results, nodes
+def _similarity_igraph(cmtys1, cmtys2, method):
+    """Calculate community similarity using igraph
+
+    Available methods:
+    'vi' or 'meila'
+    'nmi' or 'danon'
+    'split-join'
+    'rand'
+    'adjusted_rand'
+
+    Quirk/bug: Only the first character of these names is used!
+    """
+    import igraph
+    (mlist1, mlist2), nodes = to_membership_list(cmtys1, cmtys2)
+    val = igraph.compare_communities(mlist1, mlist2, method=method)
+    if method == 'meila': val /= log(2)
+    return val
+
+
+vi_igraph = partial(_similarity_igraph, method='meila')
+nmi_igraph = partial(_similarity_igraph, method='danon')
+rand_igraph = partial(_similarity_igraph, method='rand')
+adjusted_rand_igraph = partial(_similarity_igraph, method='adjusted_rand')
+
+
+measures = {
+    'vi': ['vi_python', 'vi_igraph', 'vi_pcd'],
+    'mutual_information':
+        ['mutual_information_python', 'mutual_information_pcd'],
+    'nmi': ['nmi_python', 'nmi_igraph', 'nmi_pcd'],
+    'nmi_overlap': ['nmi_overlap_LF_LF', 'nmi_overlap_LF_pcd',
+                    'nmi_overlap_LF_pcdpy'],
+    'rand': ['rand_igraph'],
+    'adjusted_rand': ['adjusted_rand_igraph'],
+    }
+
+# Standard implementations
+
+nmi = nmi_python
+vi = vi_python
+mutual_information = mutual_information_python
+nmi_overlap_LF = nmi_overlap_LF_LF
+rand = rand_igraph
+adjusted_rand = adjusted_rand_igraph
