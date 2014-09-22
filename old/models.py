@@ -19,8 +19,8 @@ import networkx
 
 import anneal
 import cmodels
-import stats
-import util
+from .. import stats
+from .. import util
 
 log2 = lambda x: math.log(x, 2)
 

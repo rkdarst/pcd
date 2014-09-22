@@ -8,7 +8,8 @@ def approxeq(a, b, tol=1e-6):
 
 
 def dotest_mod(g, known_mod=None):
-    G = pcd.Graph.fromNetworkX(g)
+    from pcd.old.models import Graph
+    G = Graph.fromNetworkX(g)
     G.enableModularity(None)
 
     G.verbosity = -1

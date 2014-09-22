@@ -20,8 +20,6 @@ try:
 except ImportError:
     from networkx.convert import relabel_nodes as nx_relabel_nodes
 
-import models
-from models import Graph
 import util
 
 def dict_values_to_str(d):
@@ -51,7 +49,8 @@ def random_graph(graph=None, size=10, cluster=True, layout=None):
     for a,b,d in g.edges(data=True):
         d['weight'] = -10
 
-    G = models.Graph.fromNetworkX(g, coords=layout, defaultweight=1)
+    from .old.models import Graph
+    G = Graph.fromNetworkX(g, coords=layout, defaultweight=1)
     return G
 
 def relabel_nodes(g, copy=False):
@@ -119,6 +118,7 @@ def polopa_tribes(weightAllied=-1, weightHostile=2):
     return g
 def polopa_tribes_G(*args, **kwargs):
     g = polopa_tribes(*args, **kwargs)
+    from .old.models import Graph
     G = Graph.fromNetworkX(g, defaultweight=1, diagonalweight=0)
     return G
 
@@ -244,7 +244,8 @@ def polblogs(relabel=True):
 
 def dolphins_G():
     #graph = dolphins(weightFriend=-1)
-    G = models.Graph.fromNetworkX(graph)
+    from .old.models import Graph
+    G = Graph.fromNetworkX(graph)
     return G
 
 def nussinov_256node(weight=-1):
@@ -262,6 +263,7 @@ def nussinov_256node(weight=-1):
     return g
 def nussinov_256node_G(weight=-1):
     graph = nussinov_256node(weight=weight)
+    from .old.models import Graph
     G = Graph.fromNetworkX(graph, defaultweight=1)
     return G
 
@@ -334,7 +336,8 @@ def karate_club(weighted=False):
 def fractalsquare(L):
     from support.fractalsquare import fractalsquare2
     imatrix, coords = fractalsquare2(L=L)
-    G = models.Graph.from_imatrix(imatrix, coords=coords)
+    from .old.models import Graph
+    G = Graph.from_imatrix(imatrix, coords=coords)
     return G
 
 

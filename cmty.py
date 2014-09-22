@@ -134,7 +134,7 @@ to_dict(G): dict
 to_full(G): new Communities instance
    Return a Communities object that is based on a dictionary.  This
    is used to load any subclass into memory.
-to_pcd(): pcd.Graph
+to_pcd(): pcd.old.Graph
 to_pcd_cmtystate(): dict
 load_pcd(pcd G):
 load_networkx_custom(g):
@@ -552,13 +552,15 @@ class _CommunitiesBase(object):
     def _Q_pcd(self, g, gamma=1.0):
         """Network modularity, computed using pcd C functions"""
         if gamma != 1.0: raise NotImplementedError('gamma != 1.0')
-        G = pcd.Graph.fromNetworkX(g)
+        from .old.models import Graph
+        G = Graph.fromNetworkX(g)
         self.load_pcd(G)
         return G.modularity()
     def _Q_pcd_energy(self, g, gamma=1.0):
         """Network modularity, computed using pcd C functions"""
         if gamma != 1.0: raise NotImplementedError('gamma != 1.0')
-        G = pcd.Graph.fromNetworkX(g)
+        from .old.models import Graph
+        G = Graph.fromNetworkX(g)
         G.enableModularity(None)
         self.load_pcd(G)
         energy = G.energy(gamma)
@@ -679,9 +681,9 @@ class _CommunitiesBase(object):
         return cls.from_iter(c.iteritems(), nodes=nodes)
     @classmethod
     def from_pcd(cls, G):
-        """Convert a pcd.Graph into Communities object.
+        """Convert a pcd.old.Graph into Communities object.
 
-        Communities are loaded from pcd.Graph, using G._nodeLabel."""
+        Communities are loaded from pcd.old.Graph, using G._nodeLabel."""
         d = G.cmtyDict()
         cmtynodes = { }
         if hasattr(G, '_nodeLabel'):
@@ -720,21 +722,23 @@ class _CommunitiesBase(object):
     def to_full(self):
         return Communities(self.to_dict())
     def to_pcd(self, g=None, sparse=True):
-        """Load this community structure into a pcd.Graph structure.
+        """Load this community structure into a pcd.old.Graph structure.
 
-        Returns pcd.Graph with this community structure stored within
+        Returns pcd.old.Graph with this community structure stored within
         it."""
         if g is None:
-            G = pcd.Graph(N=self.N, sparse=sparse)
+            from .old.models import Graph
+            G = Graph(N=self.N, sparse=sparse)
             G._makeNodeMap(self.nodes)
         else:
-            G = pcd.Graph.fromNetworkX(g, sparse=sparse)
+            from .old.models import Graph
+            G = Graph.fromNetworkX(g, sparse=sparse)
         G = self.load_pcd(G, clear=True)
         return G
     def to_pcd_cmtystate(self, G=None):
-        """Return the community structure as pcd.Graph state.
+        """Return the community structure as pcd.old.Graph state.
 
-        This is suitable for usage in pcd.Graph.setcmtystate().  Thin
+        This is suitable for usage in pcd.old.Graph.setcmtystate().  Thin
         wrapper around self.to_pcd().getcmtystate() (but could someday
         be optimized beyond that)."""
         if G is not None:
@@ -1585,42 +1589,42 @@ class _CommunitiesBase(object):
     # different techniques, so some are more efficient than others.
     #
     def VI(self, other):
-        import pcd.util
+        import pcd.old.util
         G1 = self.to_pcd()
         G2 = other.to_pcd()
-        return pcd.util.VI(G1, G2)
+        return pcd.old.util.VI(G1, G2)
     def ovIn(self, other):
-        import pcd.util
+        import pcd.old.util
         G1 = self.to_pcd()
         G2 = other.to_pcd()
-        return pcd.util.N(G1, G2)
+        return pcd.old.util.N(G1, G2)
     def ovInw(self, other):
-        import pcd.util
+        import pcd.old.util
         G1 = self.to_pcd()
         G2 = other.to_pcd()
-        return pcd.util.N(G1, G2, weighted=True)
+        return pcd.old.util.N(G1, G2, weighted=True)
     def ovIn_LF(self, other):
         """NMI using LF's code"""
         nmi = pcd.util.ovIn_LF(self, other)
         return nmi
     def In(self, other):
-        import pcd.util
+        import pcd.old.util
         G1 = self.to_pcd()
         G2 = other.to_pcd()
-        return pcd.util.In(G1, G2)
+        return pcd.old.util.In(G1, G2)
     def F1(self, other, weighted=False):
-        import pcd.F1
+        import pcd.old.F1 as F1
         G1 = self.to_pcd()
         G2 = other.to_pcd()
-        return .5 * (  pcd.F1.F1(G1, G2)[0]
-                     + pcd.F1.F1(G2, G1)[0])
+        return .5 * (  F1.F1(G1, G2)[0]
+                     + F1.F1(G2, G1)[0])
     def F1w(self, other, weighted=False):
         """Like F1, but weighted by community size"""
-        import pcd.F1
+        import pcd.old.F1 as F1
         G1 = self.to_pcd()
         G2 = other.to_pcd()
-        return .5 * (  pcd.F1.F1(G1, G2, weighted=True)[0]
-                     + pcd.F1.F1(G2, G1, weighted=True)[0])
+        return .5 * (  F1.F1(G1, G2, weighted=True)[0]
+                     + F1.F1(G2, G1, weighted=True)[0])
     def Q(self, g, gamma=1.0):
         """Modularity computation using full numpy arrays."""
         if self.N > 1000:

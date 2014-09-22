@@ -3,8 +3,8 @@
 import ctypes
 import numpy
 
-import pcd
-import pcd.cmodels as cmodels
+#import pcd
+from . import cmodels
 #import pcd.multiresolution
 
 def PO_one(G0, c0, G):

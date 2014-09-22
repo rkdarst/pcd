@@ -12,8 +12,8 @@ import types
 import logging
 logger = logging.getLogger('pcd.mr')
 
-import util
-from util import LogInterval
+from .. import util
+from ..util import LogInterval
 from fitz.mathutil import Averager
 
 import F1
