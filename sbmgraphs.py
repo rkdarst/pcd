@@ -24,6 +24,20 @@ def k_in(epsilon, ktot, q=2):  return ktot/float((q-1)*epsilon+1)
 def k_out(epsilon, ktot, q=2): return ktot*epsilon/float((q-1)*epsilon+1)
 
 
+from scipy.special import erf
+def frac_detectable(pin, pout, n):
+    if pin-pout > (1/sqrt(n))*sqrt(pin+(2-1)*pout):
+        x = .5*( 1+erf(sqrt(_alpha2(pin,pout,n) / float(2*(1-_alpha2(pin,pout,n)))))  )
+        return x
+    return .5
+def _alpha2(pin, pout, n):
+    return ((2*n*pin - 2*n*pout)**2 - 2*(2*n*pin + 2*n*pout)) / float((2*n*pin-2*n*pout)**2)
+def frac_detectable_q(pin,pout,q,n):
+    raise NotImplementedError("does not work for general q")
+    return .5*( 1+erf(sqrt(_alpha22(pin,pout,q,n) / float(2*(1-_alpha22(pin,pout,q,n))))))
+def _alpha22(pin,pout, q, n):
+    raise NotImplementedError("does not work for general q")
+    return ( (q*n*pin - q*n*pout)**2 - 2*(q*n*pin + q*n*pout) ) / ( (q*n*pin-q*n*pout)**2 )
 
 
 
