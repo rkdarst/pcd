@@ -179,6 +179,12 @@ class CDMethod(object):
 
         """
         self.g = g
+        if g is None:
+            # This is used to force the method to not actually do
+            # anything, but return an object from which the .name()
+            # attribute can be accessed.  This may be used when the
+            # class is wrapped in a partial object.
+            return
         self.dir = dir
         self.basename = basename
         self.gen_filenames()
