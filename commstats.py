@@ -591,7 +591,7 @@ class CmtySize(Statter):
             # for size=1.
             yield n_cmty, n_cmty
 
-
+#from . import nxutil_c
 class CmtyDensity(Statter):
     log_y = False
     ylabel = 'edge density'
@@ -605,13 +605,16 @@ class CmtyDensity(Statter):
             if n_cmty < self.minsize:
                 continue
 
-            n_edges_subgraph = 0
-            for n in cnodes:
-                for nbr in adj[n]:
-                    if nbr in cnodes and nbr != n:
-                        n_edges_subgraph += 1
-            assert n_edges_subgraph % 2 == 0
-            n_edges_subgraph /= 2
+            #n_edges_subgraph = 0
+            #for n in cnodes:
+            #    for nbr in adj[n]:
+            #        if nbr in cnodes and nbr != n:
+            #            n_edges_subgraph += 1
+            ##assert n_edges_subgraph % 2 == 0
+            #n_edges_subgraph /= 2
+            #n_edges_subgraph = nxutil_c.n_edges_subgraph(adj, cnodes) / 2
+            n_edges_subgraph = sum(1 for n in cnodes for nbr in adj[n]
+                                   if (nbr in cnodes and nbr != n)) // 2
 
             d = 2 * n_edges_subgraph / float(n_cmty*(n_cmty-1))
 
