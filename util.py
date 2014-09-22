@@ -759,7 +759,7 @@ def writefile_context(fname, mode, leave_incomplete=False):
     except:
         if not leave_incomplete:
             f.close()
-            os.unlink(fname_tmp))
+            os.unlink(fname_tmp)
         raise
     f.flush()
     f.close()
