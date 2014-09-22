@@ -40,6 +40,27 @@ def n_edges_between(g, nbunch1, nbunch2):
             if neighbor in nbunch2:
                 n += 1
     return n
+def n_edges_subgraph(g, cnodes, selfedges=True):
+    """Number of edges in a subgraph.
+
+    selfedges: bool, default True
+        If true, also include self-edges in the count.
+    """
+    import verkko.testutil
+    verkko.testutil.warn_untested()
+    adj = g.adj
+    if selfedges:
+        n = sum(1 for n in cnodes for nbr in adj[n]
+                if (nbr in cnodes and nbr != n)) // 2
+        # Do this separately since we can't distinguish two self-loops
+        # from one regular edge.
+        n += sum(1 for n in cnodes in n in adj[n])
+    else:
+        n = sum(1 for n in cnodes for nbr in adj[n]
+                if (nbr in cnodes and nbr != n)) // 2
+    return n
+
+
 
 def _iterCmtys(d):
     """Iterate over the communities in a node' data dict.
