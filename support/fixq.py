@@ -3,8 +3,9 @@
 # This module takes a partition and merges/splits further things until
 # it achieves the correct number of q.
 
-from pcd import anneal
-from pcd import cmodels
+from pcd.old import anneal
+from pcd.old import cmodels
+from pcd.old.models import Graph
 
 import itertools
 
@@ -65,7 +66,7 @@ class FixQ(pcd.support.algorithms.CDMethod):
             raise ValueError("All %s results return fewer than q communities."%self.parent_method.name())
         cmtys = results[-1]
 
-        G = pcd.Graph.fromNetworkX(g)
+        G = Graph.fromNetworkX(g)
         cmtys.load_pcd(G)
         #from fitz import interactnow
         if self.Emode == 'mod':
