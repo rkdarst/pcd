@@ -339,6 +339,36 @@ def In(G0, G1):
     return In
 
 
+def mutual_information(cmtys1, cmtys2):
+    MI = 0.0
+    N = len(cmtys1.nodes)
+    assert N == len(cmtys2.nodes)
+    for c1name, c1nodes in cmtys1.iteritems():
+        for c2name, c2nodes in cmtys2.iteritems():
+            n1 = len(c1nodes)
+            n2 = len(c2nodes)
+            n_shared = len(set(c1nodes) & set(c2nodes))
+            if n_shared == 0:
+                continue
+            MI += (n_shared/float(N)) * log2(n_shared*N/float(n1*n2))
+    return MI
+def entropy(cmtys):
+    H = 0.0
+    N = float(len(cmtys.nodes))
+    for cnodes in cmtys.itervalues():
+        n = len(cnodes)
+        if n == 0: continue
+        H += n/N * log2(n/N)
+    return -H
+def In(cmtys1, cmtys2):
+    I = mutual_information(cmtys1, cmtys2)
+    Hs = (entropy(cmtys1) + entropy(cmtys2))
+    if Hs == 0:
+        return float('nan')
+    In = 2.*I / Hs
+    return In
+
+
 #
 # Overlap-using mutual information
 #
