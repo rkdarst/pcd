@@ -522,21 +522,32 @@ class Infomap(CDMethod):
 
     This runs Infomap code from http://mapequation.org/code.html.
 
-    hierarchical: If true, use hierarchical infomap code.  If false,
-    return just one partition of the network.  Note that this
-    corresponds to the '--two-level' option to the Infomap binary.
+    hierarchical: bool
+        If true, use hierarchical infomap code.  If false, return just
+        one partition of the network.  Note that this corresponds to
+        the '--two-level' option to the Infomap binary.
 
-    directed: If true, have infomap treat the network as directed.
+    directed: bool
+        If true, have Infomap treat the network as directed.
 
-    full_lower_levels: If true(default), each layer is a complete partition
-    of the system.  If false, each lower level includes only the
-    communities that are different from the higher levels.
+    full_lower_levels: bool
+        If true(default), each level is a complete partition of the
+        system.  If false, each lower level (smaller communitie)
+        includes only the communities that are different from the
+        higher levels.
 
-    trials: number of trials
+    trials: int
+        Number of minimization trials.
 
-    args: list of strings to be added to the arguments.
+    _args: list of str
+        List of strings to be added to the arguments.
 
-    initial: initial configuration.
+    initial: Communities object
+        Initial configuration for minimization.
+
+    include_self_links: bool
+        If true, Infomap will consider self-links in random walk dynamics.
+
     """
     threads = None
     _binary = 'infomap/Infomap-0.11.5/Infomap'
@@ -679,11 +690,17 @@ class InfomapHighest(Infomap):
 class _Oslom(CDMethod):
     """Oslom.
 
-    merge_singletons: bool, default False.
+    Code available at http://oslom.org/
+
+    Lisence:
+
+    References:
+
+    merge_singletons: bool
         If true, return the partitions which have singletons (homeless
         nodes) merged into their best community.
 
-    strip_singletons: bool, default False
+    strip_singletons: bool
         If there are singletons in the result, do not return those in
         the detected structure (and thus the result will not be a
         cover).  This is a custom option, not from the core oslom
@@ -696,31 +713,34 @@ class _Oslom(CDMethod):
         used with trials=0 and trials_hier=0 to prevent a new search for
         communities, and these are not automatically set.
 
-    weighted: bool, default False.
+    weighted: bool
         Use -w option, which specifies floating point weights.  If
         False, integer weights are transformed into multiple edges and
         non-integer weights are an error.
 
-    trials: int, default 10
+    trials: int, optional
         Number of trials to run for first hierarchical level, '-r'
         option.  For fastest execution, set this option and
         trials_hier to 1.
 
-    trials_hier: int, default 50
-        Number of trials for each hierarchical level.
+    trials_hier: int, optional
+        Number of trials for each higher level.  These levels have
+        many fewer nodes, so the default is much higher than for
+        `trials`.
 
-    fast: bool or int, default False
-        Specify 'fast mode', trials=1 and trials_hier=1.  If fast is
-        an integer greater than one, then set trials=fast and
-        trials_hier=fast.  Thus, fast=2 can be used for 'fast, but not
+    fast: int, optional
+        If fast=1, specifies 'fast mode', trials=1 and trials_hier=1.
+        This is the fastest possible run time.  If fast is an integer
+        greater than one, then set both 'trials' and `trials_hier` to
+        this many trials.  Thus, fast=2 can be used for 'fast, but not
         quiet as fast as fast=True'.  'fast' is incompatible with
-        'trials' and 'trials_hier'.
+        specifying 'trials' and 'trials_hier'.
 
-    p_value: float, default None
-        Significance level of modules, default to default in code
-        (0.1)
+    p_value: float, optional
+        Significance level of modules, default to upstream default of
+        0.1.
 
-    coverage_parameter: float, default None
+    coverage_parameter: float, optional
         Submodule merging criteria.  Default in Oslom code .5, range 0
         to 1.  Larger leads to bigger clusters.
     """
@@ -878,6 +898,22 @@ class OslomHighest(Oslom):
 
 
 class _Copra(CDMethod):
+    """
+
+    trials: int
+        Number of trial runs.
+
+    max_overlap: int
+        Maximum number of communities per node.  With max_overlap=1,
+        Copra returns a strict partition.
+
+    weighted: bool
+        Treat graph as weighted.
+
+    max_overlap_range: list of int
+        Not handled yet.
+
+    """
     # http://www.cs.bris.ac.uk/~steve/networks/software/copra-guide.pdf
     _input_format = 'edgelist'
     trials = 10
@@ -1021,22 +1057,34 @@ class APM_dir(APM):
 class Louvain(CDMethod):
     """Louvain community detection method.
 
-    weighted: if True, runs in weigthed mode (-w option)
+    weighted: bool
+        Runs in weigted mode (-w option).
 
-    stop_dQ: float, optional: if given stop when modularity change is
-    this much.
+    stop_dQ: float, optional
+        If specified, stop when modularity change is this much.
 
-    trials: int, default 5: do this many trial runs.  This is
-    implemented in python, not in Louvain itself.
+    trials: int
+        Do this many trial runs.  This is implemented by multiple runs
+        of the Louvain binary, since it does not implement this
+        itself.
 
-    which_partition: All partitions are stored in self.results.  One
-    partition is stored in self.cmtys.  which_partition is either an
-    index (0, 1, ... -1) of the results list.  0 is the most granular
-    (smallest communty size), and -1 is the least granular (largest
-    community size).  which_partition can also be the string 'modmax',
-    in which case the partition of maximum modularity is taken.  If we
-    have multiple trials, return the set of partition with the maximum
-    modularity of this level.
+    which_partition: int
+        Louvain returns a hierarchy of partitions.  If which_partition
+        is 0, maximize modularity of the the lowest level (smallest
+        communities).  If which_partition is 1, maximize modularity of
+        the level with second-smallest communities.  If
+        which_partition is -1, maximize the modularity of the
+        partition with largest communities (this is the level with the
+        greatest modularity.)
+
+        All partitions are stored in self.results.  One partition is
+        stored in self.cmtys.  which_partition is either an index (0,
+        1, ... -1) of the results list.  0 is the most granular
+        (smallest communty size), and -1 is the least granular
+        (largest community size).  which_partition can also be the
+        string 'modmax', in which case the partition of maximum
+        modularity is taken.  If we have multiple trials, return the
+        set of partition with the maximum modularity of this level.
 
 
     At the end, the class has these attributes as information:
@@ -1356,6 +1404,25 @@ class LouvainModMax(Louvain):
 #        self.results = results
 #        self.cmtys = self.results[0]
 class ModularitySA(CDMethod):
+    """
+
+    trials: int
+        Number of trials.
+
+    resolution: float
+        Resolution parameter.
+
+    temp_init: float
+        Initial simulated annealing temperature.
+
+    temp_step: float
+        Simulated annealing temperature step.
+
+    initial: Communities object
+        Initial starting configuration.
+
+    """
+
     _input_format = 'edgelist'
     #_binary = 'lancichinetti_codes/clustering_programs_5_1/bin/modopt'
     _binary = 'lancichinetti_modSA/modopt/modopt'
@@ -1489,6 +1556,14 @@ class PCDmodSA(_PCD_SA, _PCDmod, _PCD_single):
 
 
 class BeliefPropogationq(CDMethod):
+    """
+    q: int
+        Initial number of communities (Required so far)
+
+    p_in: float, optional
+        .
+    """
+
     _input_format = 'null'
     q = None # must be specified (so far)
     initial = None   # Initial values for communities
@@ -1672,6 +1747,12 @@ class LinkCommunities(CDMethod):
 
     http://barabasilab.neu.edu/projects/linkcommunities/
     Link communities reveal multiscale complexity in networks, Nature (doi:10.1038/nature09182)
+
+
+    threshold: list of float
+        Threshold is edge density cutoff for communities.  May be
+        either a list or single number.  The first value is the
+        'default' communities returned.
     """
     _input_format = 'edgelist'
     graphfileExtension = '.pairs'
@@ -1684,6 +1765,7 @@ class LinkCommunities(CDMethod):
     list or single number.  The first value is the 'default'
     communities returned.
     """
+    _threshold_type = 'list(float)'
     def run(self):
         """Run link community calculation.
 
@@ -2008,12 +2090,15 @@ class CliquePerc(CDMethod):
     highest value possible, but
 
     Parameters:
-    min_k: int, default 3
+
+    min_k: int
         minimum clique size
-    max_k: int, default None
+
+    max_k: int, optional
         maximum clique size, or None or zero, in which case the method
         will self-terminate.
-    k: int, default None
+
+    k: int, optional
         As a shortcut, if k is set, this min_k and max_k are both set
         to this value.  Only this clique size is used for percolation
         then.
@@ -2067,6 +2152,10 @@ class SeqCliquePerc(CDMethod):
     percolation.' Physical Review E 78.2 (2008): 026109.
 
     Source code from https://git.becs.aalto.fi/complex-networks/scp
+
+    k: int
+        .
+
     """
     # This method has different limits: self-loops must be removed,
     # and graph must not have multiedges.
@@ -2123,6 +2212,21 @@ class Ganxis(CDMethod):
     weighted: bool, default True
         If true, use weights if present, and default to one.  If
         False, strip all weights so that all weights are equal to one.
+
+    overlaps: bool
+        .
+
+    threshold: float
+        .
+
+    maxiter: int
+        Maximum number of iterations.  Default in code 100.
+
+    trials:  int
+        Number of trials
+
+    loopfactor: float
+        .
 
     There are various other currently undocumented parameters.
     """
@@ -2251,6 +2355,7 @@ class GreedyCliqueExp(CDMethod):
         The proportion of nodes (phi) within a core clique that must
         have already been covered by other cliques, for the clique to
         be 'sufficiently covered' in the Clique Coveage Heuristic
+
     """
     _binary = 'greedycliqueexpansion/GCECommunityFinder/build/GCECommunityFinder'
     _input_format = 'edgelist'
