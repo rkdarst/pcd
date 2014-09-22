@@ -552,13 +552,15 @@ class _CommunitiesBase(object):
     def _Q_pcd(self, g, gamma=1.0):
         """Network modularity, computed using pcd C functions"""
         if gamma != 1.0: raise NotImplementedError('gamma != 1.0')
-        G = pcd.Graph.fromNetworkX(g)
+        from .old.models import Graph
+        G = Graph.fromNetworkX(g)
         self.load_pcd(G)
         return G.modularity()
     def _Q_pcd_energy(self, g, gamma=1.0):
         """Network modularity, computed using pcd C functions"""
         if gamma != 1.0: raise NotImplementedError('gamma != 1.0')
-        G = pcd.Graph.fromNetworkX(g)
+        from .old.models import Graph
+        G = Graph.fromNetworkX(g)
         G.enableModularity(None)
         self.load_pcd(G)
         energy = G.energy(gamma)
@@ -725,10 +727,12 @@ class _CommunitiesBase(object):
         Returns pcd.Graph with this community structure stored within
         it."""
         if g is None:
-            G = pcd.Graph(N=self.N, sparse=sparse)
+            from .old.models import Graph
+            G = Graph(N=self.N, sparse=sparse)
             G._makeNodeMap(self.nodes)
         else:
-            G = pcd.Graph.fromNetworkX(g, sparse=sparse)
+            from .old.models import Graph
+            G = Graph.fromNetworkX(g, sparse=sparse)
         G = self.load_pcd(G, clear=True)
         return G
     def to_pcd_cmtystate(self, G=None):

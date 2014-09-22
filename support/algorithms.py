@@ -970,15 +970,15 @@ class APM(CDMethod):
     _map_nodes_to_int = False
 
     def run(self):
-        import pcd.multiresolution
+        import pcd.old.multiresolution as multiresolution
         try:
             self.run_APM()
-        except pcd.multiresolution.NoResultsError:
+        except multiresolution.NoResultsError:
             self.cmtys = pcd.cmty.Communities(cmtynodes={0:set(self.g.nodes())})
             self.cmtys.label = "NullResults"
             self.results = [ self.cmtys ]
     def run_APM(self):
-        import pcd.auto
+        import pcd.old.auto as auto
 
         initial = self.initial
         if initial is None:
@@ -1000,7 +1000,7 @@ class APM(CDMethod):
                             plot=False))
 
         # At this point we are chdir'ed into the directory.
-        a = pcd.auto.Auto(options=options)
+        a = auto.Auto(options=options)
         a.run_g(self.g)
         self.auto = a
 
@@ -1483,7 +1483,8 @@ class _PCD_single(CDMethod):
     def _initG(self, G):  # for subclassing
         pass
     def run(self):
-        G = pcd.Graph.fromNetworkX(self.g)
+        from pcd.old.models import Graph
+        G = Graph.fromNetworkX(self.g)
         G.verbosity = self.verbosity
         if self.const_q:
             G.const_q = self.const_q

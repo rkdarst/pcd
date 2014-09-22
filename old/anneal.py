@@ -11,7 +11,6 @@ import random
 import networkx
 
 import cmodels
-import util
 
 log2 = lambda x: math.log(x, 2)
 def approxeq(a, b):
