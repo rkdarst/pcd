@@ -2374,7 +2374,7 @@ if __name__ == "__main__":
     #print g.adj['51']['68']
     print len(g), g.number_of_edges()
     print [len(_) for _ in networkx.connected_components(g)]
-    from fitz import interactnow
+    #from fitz import interactnow
 
     options['basename'] = os.path.basename(input)
 
@@ -2394,6 +2394,6 @@ if __name__ == "__main__":
     #r.cmtys.load_networkx_custom(g2, attrname='cmty')
     #networkx.write_gml(g2, options['basename']+'.gml')
 
-    from fitz import interactnow
+    #from fitz import interactnow
 
 
