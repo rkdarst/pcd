@@ -242,6 +242,21 @@ class TestCmtygraph(unittest.TestCase):
         self.assertEqual(cg.edge['b']['c']['weight'], 5)
         self.assertEqual(cg.edge['a']['c']['weight'], 3)
 
+def test_membershiplist():
+    """Test conversion to and from membership lists [c0, c1, c2, ...]
+    """
+    clist = [2, 2, 1, 1, 0, 0, 1, 2]
+    cmtys = cmty.Communities.from_membershiplist(clist)
+    assert len(cmtys) == 3
+    clist2 = cmtys.to_membershiplist()
+    assert_equal(clist, clist2)
+
+    # Test with nodelist
+    nodelist = range(7, 15)
+    cmtys = cmty.Communities.from_membershiplist(clist, nodelist=nodelist)
+    assert len(cmtys) == 3
+    clist2 = cmtys.to_membershiplist(nodelist=nodelist)
+    assert_equal(clist, clist2)
 
 # Test measures
 

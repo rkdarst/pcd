@@ -128,6 +128,8 @@ from_pcd(G): new instance
 from_networkx(g): new instance
    Constructor from networkx object with 'cmty' or 'cmtys' attributes
    on nodes.
+from_membershiplist(it): new instance
+   Communities from a membership list [c0, c1, c2, ...]
 
 to_dict(G): dict
    Convert to dictionary.
@@ -145,6 +147,9 @@ write_gml(g, fname):
 to_networkx_label(g):
 write_clusters(self, fname, ...):
     Write to a clusters file, consisting of one line per community.
+to_membershiplist(self, nodelist):
+    Return a membership list [c0, c1, c2, ...]
+
 
 Other
 ~~~~~
@@ -213,6 +218,7 @@ comms.nodecmtys()  # dict node -> set((c1, c2, ...))
 """
 
 import collections
+import itertools
 import numpy
 import os
 import re
@@ -712,6 +718,35 @@ class _CommunitiesBase(object):
                 if c not in cmtynodes: cmtynodes[c] = set()
                 cmtynodes[c].add(node)
         return cls.from_dict(cmtynodes=cmtynodes, nodes=nodes)
+    @classmethod
+    def from_membershiplist(cls, lst, nodelist=None):
+        """Create a new Communities object from a membership list
+
+        A membership list has only data on community assignment, and
+        assumes that these correspond to sorted zero-indexed integer
+        nodes.
+
+        Example::
+            [2, 2, 1, 1, 0]
+        maps to these communities::
+            {0:[4], 1:[2,3], 2:[0,1]}
+
+        nodelist: iterable, optional
+            If given, this is the assumed order of nodes.
+
+        Time complexity: O(N)
+        Memory complexity: O(N)
+        """
+        cmtynodes = { }
+        if nodelist is None:
+            # zero-indexed integers:
+            for n, c in enumerate(lst):
+                cmtynodes.setdefault(c, set()).add(n)
+        else:
+            # We are given a node list
+            for n, c in itertools.izip(nodelist, lst):
+                cmtynodes.setdefault(c, set()).add(n)
+        return cls.from_dict(cmtynodes=cmtynodes)
 
     #
     # Converting to other formats
@@ -964,6 +999,38 @@ class _CommunitiesBase(object):
         N = len(nodecmtys)
         assert set(nodecmtys) == set(range(len(nodecmtys)))
 
+
+    def to_membershiplist(self, nodelist=None):
+        """Return a membership list of these nodes.
+
+        A membership list is [c0, c1, c2, ...] for all nodes
+        corresonding to a node list [n0, n1, n2, ...].  This assumes
+        that all nodes have a fixed order, which is NOT a general
+        assumption of pcd.  As such, the `nodelist` argument should be
+        given, which is the node order.
+
+        If the communities overlap, an exception will be raised.
+
+        You want to specify nodelist if at all possible, even if it is
+        range(0, N-1), since it will save a lot of time sanity
+        checking the communities.
+
+        nodelist: iterable
+            Node list (see above).  If not given, compute the set of
+            nodes in the graph, check that it is set(0...N-1), and use
+            the list range(0, N-1).  N is number of nodes in this
+            cmtys object.
+
+        Time complexity: O(N)
+        Memory complexity: O(N)
+        """
+        if nodelist is None:
+            _nodeset = self.nodes
+            if _nodeset != set(range(len(_nodeset))):
+                raise ValueError("Can not automatically infer `nodes`.")
+            nodelist = xrange(len(_nodeset))
+        nodecmtys = self.nodecmtys_onetoone()
+        return [ nodecmtys[n] for n in nodelist ]
 
 
     #
