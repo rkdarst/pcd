@@ -946,7 +946,7 @@ class _CommunitiesBase(object):
                 print >> f_names, cname
             # Write actual communities.
             if mapping:
-                print >> f, ' '.join(str(x) for x in mapping[n] for n in cnodes)
+                print >> f, ' '.join(str(mapping[n]) for n in cnodes)
             else:
                 print >> f, ' '.join(str(x) for x in cnodes)
 
