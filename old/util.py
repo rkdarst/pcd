@@ -59,7 +59,10 @@ def VI(G0, G1):
 def In(G0, G1):
     """Normalized Mutual Information"""
     I = mutual_information(G0, G1)
-    In = 2.*I / (G0.entropy_python + G1.entropy_python)
+    Hs = G0.entropy_python + G1.entropy_python
+    if Hs == 0 and I == 0:
+        return 1.0
+    In = 2.*I / Hs
     return In
 
 
