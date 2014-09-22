@@ -559,7 +559,7 @@ class Infomap(CDMethod):
     initial = None
     trials = 10
     include_self_links = False
-    args = [ ]
+    _args = [ ]
     which_level = 0
     def run(self):
         args = [_get_file(self._binary),
@@ -583,7 +583,7 @@ class Infomap(CDMethod):
         env = { }
         if self.threads is not None:
             env.update({'OMP_NUM_THREADS': str(int(self.threads))})
-        args.extend(self.args)
+        args.extend(self._args)
         self.call_process(args, env=env)
 
     def read_cmtys(self):
