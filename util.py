@@ -279,8 +279,6 @@ class LogInterval(object):
                 break
 
 
-
-
 def matrix_swap_basis(array, a, b):
     """Swap rows a,b and columns a,b in a array."""
     array[a,:], array[b,:] = array[b,:].copy(), array[a,:].copy()
@@ -859,6 +857,11 @@ class Proxy(object):
 
 
 from sqlite import SQLiteDict
+
+from cmtycmp import nmi_python as In
+from cmtycmp import vi_python as vi
+from cmtycmp import nmi_overlap_LF_LF as NMI_LF
+
 
 if __name__ == "__main__":
     # tests

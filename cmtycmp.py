@@ -2,7 +2,9 @@ from functools import partial
 from math import log
 import subprocess
 
-from pcd.util import tmpdir_context
+# note: pcd.util imports names directly from this module, so be
+# careful with circular imports.
+import pcd.util
 
 log2 = lambda x: log(x, 2)
 
@@ -145,7 +147,7 @@ def nmi_overlap_LF_LF(cmtys1, cmtys2, check=True, use_existing=False):
     else:
         args.append(None)
 
-    with tmpdir_context(chdir=True, dir='.', prefix='tmp-nmi-'):
+    with pcd.util.tmpdir_context(chdir=True, dir='.', prefix='tmp-nmi-'):
         # Write community files, if they do not already exist.  These
         # must be written inside of the tmpdir_context context because
         # only in here does it know the right
