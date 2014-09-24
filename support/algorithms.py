@@ -2410,6 +2410,437 @@ class GreedyCliqueExp(CDMethod):
         return self.results
 
 
+class _IGraphAlgorithm(CDMethod):
+    """Community detection algorithms from the igraph library.
+
+    Igraph is a Python library for handling complex networks.  It
+    contains a variety of community detection methods under the GPLv2
+    license.
+
+    Documentation on the community detection methods in igraph is
+    available starting here:
+    http://igraph.org/python/doc/igraph.Graph-class.html#community_fastgreedy
+
+
+    References:
+
+    Csardi, Gabor, and Tamas Nepusz. 'The igraph software package for
+    complex network research.' InterJournal, Complex Systems 1695.5
+    (2006).
+    http://www.necsi.edu/events/iccs6/papers/c1602a3c126ba822d0bc4293371c.pdf
+    """
+    _input_format = 'null'
+    _processor = 'VertexClustering'
+    _argmap = { }
+    _nodemapZeroIndexed = True
+    _kwargs = { }
+    def run(self):
+        if self.weighted and not self._weightable:
+            NotImplementedError("This method can not use weights.")
+        vmap = self.vmap
+
+        # Create our keyword argument dictiory.  Sources:
+        # self._kwargs, then using self._argmap to get attribute
+        # options.
+        kwargs = { }
+        kwargs.update(self._kwargs)
+        for attrname, optname in self._argmap.iteritems():
+            if attrname == 'weights':
+                continue
+            kwargs[optname] = getattr(self, attrname)
+
+        # Create actual igraph object.
+        import igraph
+        ig = igraph.Graph(edges=[(vmap[a], vmap[b]) for a,b in self.g.edges_iter()])
+        try:
+            method = getattr(ig, self._method)
+        except AttributeError:
+            raise RuntimeError("Your version of igraph does not have the Graph.%s method"%
+                               self._method)
+        resultobject = method(**kwargs)
+
+        # do we do weights?
+        if self.weighted and self._weightable:
+            print "Using weighted: weighted"
+            ig.es['weight'] = 1.0  # default weight
+            for a, b, data in self.g.edges_iter(data=True):
+                ig[vmap[a], vmap[b]] = data.get('weight', 1.0)
+            weight_argument = self._argmap.get('weights', 'weights')
+            kwargs[weight_argument] = 'weight'
+            #from fitz import interactnow
+            print ig.es['weight']
+
+        processor = getattr(self, '_process_'+self._processor)
+        results = processor(resultobject)
+
+        self.results = results
+        self.cmtys = results[0]
+
+    def _process_VertexClustering(self, clu):
+        vmap_inv = self.vmap_inv
+        cmtys = { }
+        for idx in range(len(clu)):
+            cmtys[idx] = set()
+        for i, c in enumerate(clu.membership):
+            cmtys[c].add(vmap_inv[i])
+
+        cmtys = pcd.cmty.Communities(cmtys)
+        return [ cmtys ]
+
+    def read_cmtys(self):
+        return self.results
+
+class _IGraphAlgorithmDendogram(_IGraphAlgorithm):
+    dendogram_cut = None
+    _processor = 'dendogram'
+    def _process_dendogram(self, dend):
+        if self.dendogram_cut is None:
+            # Return either the upstream hint or the max modularity.
+            iclusters = dend.as_clustering()
+            results = self._process_VertexClustering(iclusters)
+            return results
+        if self.dendogram_cut == 'modmax':
+            cutat = dend.optimal_count
+            iclusters = dend.as_clustering(n=cutat)
+            results = self._process_VertexClustering(iclusters)
+            return results
+        if isinstance(self.dendogram_cut, (list, tuple)):
+            raise NotImplementedError("We don't support other dendogram cuts yet.")
+
+
+class IgraphCNM(_IGraphAlgorithmDendogram):
+    """Fast modularity method by Clauset-Newman-Moore
+
+
+    This algorithm merges individual nodes into communities in a way
+    that greedily maximizes the modularity score of the graph. It can
+    be proven that if no merge can increase the current modularity
+    score, the algorithm can be stopped since no further increase can
+    be achieved.
+
+    This algorithm is said to run almost in linear time on sparse
+    graphs.
+
+    This method returns the communities found by cutting the dendogram
+    at the maximum modularity level.
+
+
+    Reference: Reference: A. Clauset, M.E.J. Newman and C. Moore: Finding
+    community structure in very large networks. Phys. Rev. E 70, 066111
+    (2004).  http://arxiv.org/abs/cond-mat/0408187
+    """
+    _method = 'community_fastgreedy'
+    _weightable = True
+class IgraphInfomap(_IGraphAlgorithm):
+    """Infomap method as included in the igraph library.
+
+
+    References:
+
+    Rosvall, Martin, and Carl T. Bergstrom. Maps of random walks on
+    complex networks reveal community structure. Proceedings of the
+    National Academy of Sciences 105.4 (2008): 1118-1123.
+    http://www.pnas.org/content/105/4/1118.full
+
+    M. Rosvall, D. Axelsson, and C. T. Bergstrom. 'The map
+    equation.' The European Physical Journal-Special Topics 178.1
+    (2009): 13-23.
+    http://arxiv.org/abs/0906.1405
+    """
+    #vertex_weights  - not used
+    _weightable = True
+    trials = 10
+    _method = 'community_infomap'
+    _argmap = dict(trials='trials', weights='edge_weights')
+class IgraphModEVNaive(_IGraphAlgorithm):
+    """Naive leading Eigenvector of theb Modularity matrix.
+
+    A naive implementation of Newman's eigenvector community structure
+    detection. This function splits the network into two components
+    according to the leading eigenvector of the modularity matrix and
+    then recursively takes the given number of steps by splitting the
+    communities as individual networks. This is not the correct way,
+    however, see the reference for explanation. Consider using the
+    correct community_leading_eigenvector method instead.
+
+
+    q: int, optional
+        Number of clusters to detect.  If not given, continue
+        splitting until all leading eigenvector signs are the same.
+
+
+    References:
+
+    M.E.J Newman. 'Finding community structure in networks using
+    the eigenvectors of matrices.' Phys. Rev. E 74.3 (2006):
+    036104.
+    http://arxiv.org/abs/physics/0605087
+
+    """
+    # This method has the ability to return a dendogram, but is not
+    # enabled in pcd yet.
+    _method = 'community_leading_eigenvector_naive'
+    q = None
+    _weightable = False
+    _argmap = dict(q='clusters')
+class IgraphModEV(_IGraphAlgorithm):
+    """Leading Eigenvector of the Modularity matrix.
+
+    Newman's leading eigenvector method for detecting community
+    structure. This is the proper implementation of the recursive,
+    divisive algorithm: each split is done by maximizing the
+    modularity regarding the original network.
+
+
+    q: int, optional
+        Number of clusters to detect.  If not given, continue
+        splitting until all leading eigenvector signs are the same.
+
+
+    References:
+
+    M.E.J Newman. 'Finding community structure in networks using
+    the eigenvectors of matrices.' Phys. Rev. E 74.3 (2006):
+    036104.
+    http://arxiv.org/abs/physics/0605087
+    """
+    _method = 'community_leading_eigenvector'
+    q = None
+    _weightable = True
+    _argmap = dict(q='clusters')
+class IgraphLabelPropagation(_IGraphAlgorithm):
+    """RAK label propagation
+
+    Finds the community structure of the graph according to the label
+    propagation method of Raghavan et al. Initially, each vertex is
+    assigned a different label. After that, each vertex chooses the
+    dominant label in its neighbourhood in each iteration. Ties are
+    broken randomly and the order in which the vertices are updated is
+    randomized before every iteration. The algorithm ends when
+    vertices reach a consensus. Note that since ties are broken
+    randomly, there is no guarantee that the algorithm returns the
+    same community structure after each run. In fact, they frequently
+    differ. See the paper of Raghavan et al on how to come up with an
+    aggregated community structure.
+
+
+    initial: communities object
+        Initial configuration upon starting (not implemented yet)
+
+    fixed: iterable
+        Nodes to hold fixed (not implemented yet)
+
+
+    References:
+
+    Raghavan, Usha Nandini, Reka Albert, and Soundar Kumara. 'Near
+    linear time algorithm to detect community structures in
+    large-scale networks.' Physical Review E 76.3 (2007): 036106.
+    http://arxiv.org/abs/0709.2938
+    """
+    #initial = None
+    #fixed = None
+    _method = 'community_label_propagation'
+    _weightable = True
+class IgraphLouvain(_IGraphAlgorithm):
+    """Louvain method (fast unfolding)
+
+    This is a bottom-up algorithm: initially every vertex belongs to a
+    separate community, and vertices are moved between communities
+    iteratively in a way that maximizes the vertices' local
+    contribution to the overall modularity score. When a consensus is
+    reached (i.e. no single move would increase the modularity score),
+    every community in the original graph is shrank to a single vertex
+    (while keeping the total weight of the adjacent edges) and the
+    process continues on the next level. The algorithm stops when it
+    is not possible to increase the modularity any more after
+    shrinking the communities to vertices.
+
+
+    References:
+
+    Vincent D. Blondel,Jean-Loup Guillaume, Renaud Lambiotte, and
+    Etienne Lefebvre. 'Fast unfolding of communities in large
+    networks.' J. Stat Mech.: Theory and Experiment 2008.10 (2008):
+    P10008.
+    http://arxiv.org/abs/0803.0476
+    """
+    # list of VertexClusterings
+    _method = 'community_multilevel'
+    _weightable = True
+    _kwargs = dict(return_levels=True)
+    _processor = 'VertexClusteringList'
+    def _process_VertexClusteringList(self, resultobj):
+        results = [ ]
+        for clu in resultobj:
+            r = self._process_VertexClustering(clu)
+            results.extend(r)
+        return results
+class IgraphModularity(_IGraphAlgorithm):
+    """Optimal modularity via linear programming.
+
+    Calculates the optimal modularity score of the graph and the
+    corresponding community structure.
+
+    This function uses the GNU Linear Programming Kit to solve a large
+    integer optimization problem in order to find the optimal
+    modularity score and the corresponding community structure,
+    therefore it is unlikely to work for graphs larger than a few
+    (less than a hundred) vertices. Consider using one of the
+    heuristic approaches instead if you have such a large graph.
+
+
+    References:
+    """
+    # membership vector
+    _method = 'community_optimal_modularity'
+    _processor = 'modlist'
+    _weightable = True
+    def _process_modlist(self, obj):
+        """Process results format of the membership list
+        """
+        vmap_inv = self.vmap_inv
+        import igraph.clustering
+        if isinstance(obj, igraph.clustering.VertexClustering):
+            memvec = obj.membership
+            mod = None
+        else:
+            memvec, mod = obj
+        cmtys = { }
+        for i, c in enumerate(memvec):
+            if c not in cmtys: cmtys[c] = set()
+            cmtys[c].add(vmap_inv[i])
+        cmtys = pcd.cmty.Communities(cmtys)
+        cmtys.modularity = mod
+        return [ cmtys ]
+class IgraphGN(_IGraphAlgorithmDendogram):
+    """Edge betweenness dendogram.
+
+    Community structure based on the betweenness of the edges in the
+    network.
+
+    The idea is that the betweenness of the edges connecting two
+    communities is typically high, as many of the shortest paths
+    between nodes in separate communities go through them. So we
+    gradually remove the edge with the highest betweenness and
+    recalculate the betweennesses after every removal. This way sooner
+    or later the network falls of to separate components. The result
+    of the clustering will be represented by a dendrogram.
+
+
+    q: int, optional
+        Number of communities to detect.  This, in practice, specifies
+        the level at which to cut the dendogram.  If this is not
+        given, return maximal modularity cut.  FIXME: make this work
+
+
+    References:
+
+    Girvan, Michelle, and Mark EJ Newman. 'Community structure in
+    social and biological networks.' Proceedings of the National
+    Academy of Sciences 99.12 (2002): 7821-7826.
+    http://arxiv.org/abs/cond-mat/0112110v1
+    """
+    # dendogram
+    _method = 'community_edge_betweenness'
+    _kwargs = dict(directed=False)
+    _argmap = dict(q='clusters')
+    _weightable = True
+    q = None
+class IgraphSpinglass(_IGraphAlgorithm):
+    """Potts model (spin glass) community detection
+
+    Finds the community structure of the graph according to the
+    spinglass community detection method of Reichardt & Bornholdt.
+
+
+    q: int, default 25
+        Number of communities to detect.  This is an upper limit, not
+        a fixed number.
+
+    synchronous: bool
+        Syncronous updates?  If True, update all spins at the same
+        time, otherwise one-by-one.
+
+    start_temp: float
+        Start temperature of simulated annealing
+
+    stop_temp: float
+        Stop temperature of simulated annealing.
+
+    cool_fact: float
+        Simulated annealing temperature step multiplier.
+
+    update_rule: str
+        Null model for graph.  'config' for configuration model,
+        'simple' for random graph.
+
+    gamma: float
+        Relative trade-off between internal and external interactions.
+        High gamma produces smaller communities.  See references for
+        details.
+
+    implementation: str
+        Implementation to use.  'orig' is faster but can not handle
+        negative weights, or 'neg' can handle negative weights.
+
+    lambda_: float
+        Like gamma for the 'neg' implementation.
+
+
+    References:
+
+    J. Reichardt and S. Bornholdt: Statistical mechanics of community
+    detection. Phys. Rev. E. 74:016110 (2006).
+    http://arxiv.org/abs/cond-mat/0603718
+
+    V.A. Traag and J. Bruggeman: Community detection in networks with
+    positive and negative links. Phys Rev E 80:036115 (2009).
+    http://arxiv.org/abs/0811.2329
+    """
+    _weightable = True
+    _method = 'community_spinglass'
+    _argmap = dict(q='spins', synchronous='parupdate',
+                   start_temp='start_temp', stop_temp='stop_temp', cool_fact='cool_fact',
+                   update_rule='update_rule', gamma='gamma', implementation='implementation',
+                   lambda_='lambda_',
+                   )
+    q = 25   # upstream default
+    synchronous = False
+    start_temp = 1
+    stop_temp = 0.1
+    cool_fact = .99
+    update_rule = 'config' # 'config' (configuration model) or 'simple' (random graph)
+    gamma = 1
+    implementation = 'orig' # or 'neg' for negative weights
+    lambda_ = 1
+class IgraphWalktrap(_IGraphAlgorithmDendogram):
+    """Walktrap
+
+    Community detection algorithm of Latapy & Pons, based on random
+    walks.
+
+    The basic idea of the algorithm is that short random walks tend to
+    stay in the same community. The result of the clustering will be
+    represented as a dendrogram.
+
+
+    steps: int, default 4
+        Number of steps in the random walk to take.
+
+
+    References:
+
+    Pascal Pons and Matthieu Latapy: Computing communities in large
+    networks using random walks.  Computer and Information
+    Sciences-ISCIS 2005. Springer Berlin Heidelberg, 2005. 284-293.
+    http://arxiv.org/abs/physics/0512106
+    """
+    # dendogram
+    _method = 'community_walktrap'
+    steps = 4
+    _weightable = True
+    _argmap = dict(steps='steps')
 
 
 

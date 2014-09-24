@@ -15,6 +15,8 @@ methods_exclude = set(('CDMethod',
                        'BeliefPropogationZ',
                        'BeliefPropogationq',
                        'PCDmodSA',   # works but slow.
+
+                       'IgraphModEVNaive',   # not in all versions of igraph
                        ))
 
 # These methods don't pass the two-clique test
