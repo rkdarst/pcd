@@ -858,9 +858,13 @@ class Proxy(object):
 
 from sqlite import SQLiteDict
 
-from cmtycmp import nmi_python as In
-from cmtycmp import vi_python as vi
-from cmtycmp import nmi_overlap_LF_LF as NMI_LF
+import cmtycmp
+def In(*args, **kwargs):
+    return cmtycmp.nmi(*args, **kwargs)
+def vi(*args, **kwargs):
+    return cmtycmp.vi(*args, **kwargs)
+def NMI_LF(*args, **kwargs):
+    return cmtycmp.nmi_LFK(*args, **kwargs)
 
 
 if __name__ == "__main__":
