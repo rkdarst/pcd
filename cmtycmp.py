@@ -68,11 +68,11 @@ def vi_pcd(cmtys1, cmtys2):
     from .old.util import VI
     return VI(
         _cmtys_to_pcdgraph(cmtys1), _cmtys_to_pcdgraph(cmtys2))
-def nmi_overlap_LF_pcd(cmtys1, cmtys2):
+def nmi_LFK_pcd(cmtys1, cmtys2):
     from .old.util import mutual_information_overlap
     return mutual_information_overlap(
         _cmtys_to_pcdgraph(cmtys1), _cmtys_to_pcdgraph(cmtys2))
-def nmi_overlap_LF_pcdpy(cmtys1, cmtys2):
+def nmi_LFK_pcdpy(cmtys1, cmtys2):
     from .old.util import mutual_information_overlap_python
     return mutual_information_overlap_python(
         _cmtys_to_pcdgraph(cmtys1), _cmtys_to_pcdgraph(cmtys2))
@@ -81,7 +81,7 @@ def nmi_overlap_LF_pcdpy(cmtys1, cmtys2):
 #
 # External code: Overlap NMI by L and F
 #
-def nmi_overlap_LF_LF(cmtys1, cmtys2, check=True, use_existing=False):
+def nmi_LFK_LF(cmtys1, cmtys2, check=True, use_existing=False):
     """Compute NMI using the overlap-including definition.
 
     This uses the external code 'mutual3/mutual' to calculate the
@@ -174,8 +174,9 @@ def nmi_overlap_LF_LF(cmtys1, cmtys2, check=True, use_existing=False):
                 args[0], ret))
         nmi = float(stdout.split(':', 1)[1])
     return nmi
-NMI_LF = nmi_overlap_LF_LF
-ovIn_LF = nmi_overlap_LF_LF
+# backwards compatability aliases
+NMI_LF = nmi_LFK_LF
+ovIn_LF = nmi_LFK_LF
 
 
 
@@ -221,8 +222,8 @@ measures = {
     'mutual_information':
         ['mutual_information_python', 'mutual_information_pcd'],
     'nmi': ['nmi_python', 'nmi_igraph', 'nmi_pcd'],
-    'nmi_overlap': ['nmi_overlap_LF_LF', 'nmi_overlap_LF_pcd',
-                    'nmi_overlap_LF_pcdpy'],
+    'nmi': ['nmi_LFK_LF', 'nmi_LFK_pcd',
+                    'nmi_LFK_pcdpy'],
     'rand': ['rand_igraph'],
     'adjusted_rand': ['adjusted_rand_igraph'],
     }
@@ -232,6 +233,6 @@ measures = {
 nmi = nmi_python
 vi = vi_python
 mutual_information = mutual_information_python
-nmi_overlap_LF = nmi_overlap_LF_LF
+nmi_LFK = nmi_LFK_LF
 rand = rand_igraph
 adjusted_rand = adjusted_rand_igraph

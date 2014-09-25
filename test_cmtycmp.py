@@ -34,10 +34,10 @@ cmtys_random_2A = Communities(
 skipped_tests = [
     # LF code returns 0.0 instead of 1.0 for identical partitions.  I
     # think this is a bug.
-    ('nmi_overlap_LF_LF', id(cmtys_one), id(cmtys_one)),
+    ('nmi_LFK_LF', id(cmtys_one), id(cmtys_one)),
     # LF also returns 0.0 when any one partition has only one
     # community.  Is this expected behavior or a bug?
-    ('nmi_overlap_LF_LF', id(cmtys_one), id(cmtys_random_1A)),
+    ('nmi_LFK_LF', id(cmtys_one), id(cmtys_random_1A)),
 
     # igraph might might use natural log instead of log2.  In
     # cmtycmp.py, igraph functions are changed to return in bits
@@ -46,12 +46,12 @@ skipped_tests = [
     #('vi_igraph',         id(cmtys_random_1A), id(cmtys_random_2A)),
 
     # This returns nan.
-    ('nmi_overlap_LF_pcdpy',         id(cmtys_one), id(cmtys_random_1A)),
+    ('nmi_LFK_pcdpy',         id(cmtys_one), id(cmtys_random_1A)),
 
     # This is basically correct, but only to 2 places, not 6.  Or it
     # could be the _LF implementation is off.  FIXME.
-    ('nmi_overlap_LF_pcd', id(cmtys_random_1A), id(cmtys_random_2A)),
-    ('nmi_overlap_LF_pcdpy', id(cmtys_random_1A), id(cmtys_random_2A)),
+    ('nmi_LFK_pcd', id(cmtys_random_1A), id(cmtys_random_2A)),
+    ('nmi_LFK_pcdpy', id(cmtys_random_1A), id(cmtys_random_2A)),
     ]
 
 
