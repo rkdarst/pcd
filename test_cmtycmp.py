@@ -54,6 +54,21 @@ skipped_tests = [
     ('nmi_LFK_pcdpy', id(cmtys_random_1A), id(cmtys_random_2A)),
     ]
 
+def _do_test_same(func, cmtys):
+    x = func(cmtys, cmtys)
+    assert_almost_equal(x, 1.0)
+
+def test_same():
+    for name, implementations in cmtycmp.measures.iteritems():
+        if name in ('vi', 'mutual_information'):
+            continue
+        for impl in implementations:
+            if impl in ('nmi_LFK_LF', 'adjusted_rand_igraph'):
+                continue
+            yield _do_test_same, getattr(cmtycmp, impl), cmtys_one
+            yield _do_test_same, getattr(cmtycmp, impl), cmtys_random_1A
+
+
 
 def _do_test_one(measure, cmtys=None):
     implementations = cmtycmp.measures[measure]

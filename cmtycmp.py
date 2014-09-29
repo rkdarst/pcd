@@ -1,16 +1,26 @@
+from collections import defaultdict
 from functools import partial
 from math import log
 import subprocess
 
+import pcd.cmty
 # note: pcd.util imports names directly from this module, so be
 # careful with circular imports.
 import pcd.util
 
 log2 = lambda x: log(x, 2)
 
+def limit_to_overlap(cmtys1, cmtys2, nodes=None):
+    if nodes is None:
+        nodes = cmtys1.nodes & cmtys2.nodes
+    cmtys1new = pcd.cmty.CmtyLimitNodes(cmtys1, nodes)
+    cmtys2new = pcd.cmty.CmtyLimitNodes(cmtys2, nodes)
+    return cmtys1new, cmtys2new
 
-#
-# Simple python-based implementations.
+
+# Simple python-based implementations.  These are naive O(n^2)
+# implementations, whose only purpose is for pedagogy and unit-testing
+# comparison with the efficient python2 implementations.
 #
 def mutual_information_python(cmtys1, cmtys2):
     MI = 0.0
@@ -47,8 +57,148 @@ def nmi_python(cmtys1, cmtys2):
         return float('nan')
     In = 2.*I / Hs
     return In
-
 In = nmi_python
+
+
+# More efficient implementations using the confusion matrix.
+def mutual_information_python2(cmtys1, cmtys2):
+    N = len(cmtys1.nodes)
+    assert N == len(cmtys2.nodes)
+    # Compute cofusion matrix
+    confusion = defaultdict(int)
+    nodecmtys2 = cmtys2.nodecmtys_onetoone()
+    for cname, cnodes in cmtys1.iteritems():
+        for node in cnodes:
+            confusion[(cname, nodecmtys2[node])] += 1
+    # Compute actual MI
+    MI = 0.0
+    sizes1 = cmtys1.cmtysizes()
+    sizes2 = cmtys2.cmtysizes()
+    for (c1, c2), overlap in confusion.iteritems():
+        MI += ((overlap / float(N))
+               * log2(overlap*N / float(sizes1[c1]*sizes2[c2])))
+    return MI
+def vi_python2(cmtys1, cmtys2):
+    """Variation of Information"""
+    I = mutual_information_python2(cmtys1, cmtys2)
+    VI = entropy_python(cmtys1) + entropy_python(cmtys2) - 2*I
+    return VI
+def nmi_python2(cmtys1, cmtys2):
+    I = mutual_information_python2(cmtys1, cmtys2)
+    Hs = entropy_python(cmtys1) + entropy_python(cmtys2)
+    if Hs == 0 and I == 0:
+        return 1.0
+    if Hs == 0:
+        return float('nan')
+    In = 2.*I / Hs
+    return In
+def nmi_LFK_python_oneway(cmtys1, cmtys2):
+    # Compute cofusion matrix
+    confusion = defaultdict(lambda: defaultdict(int))
+    nodecmtys2 = cmtys2.nodecmtys()
+    for cname, cnodes in cmtys1.iteritems():
+        for node in cnodes:
+            for c2 in nodecmtys2[node]:
+                confusion[cname][c2] += 1
+    sizes1 = cmtys1.cmtysizes()
+    sizes2 = cmtys2.cmtysizes()
+    # Compute actual MI
+    overlaps = { }
+
+    def h(p):
+        if p==0 or p==1: return 0
+        return -p * log(p,2)
+
+    def measure(c1, c2, overlap):
+        hP11 = h((              overlap )/N)
+        hP10 = h((sizes1[c1] - overlap  )/N)
+        hP01 = h((sizes2[c2] - overlap  )/N)
+        hP00 = h((N -  sizes1[c1] + sizes2[c2] - overlap)/N)
+        if hP11 + hP00 <= hP01 + hP10:
+            # We want to exclude ones matching this condition.  Return
+            # 'inf' and it will be excluded from the min() function
+            # wrapping this one.
+            return float('inf')
+        hPY1 = h(  (  sizes2[c2]) / N)
+        hPY0 = h(  (N-sizes2[c2]) / N)
+        return hP11+hP00+hP01+hP10 - hPY1 - hPY0
+
+    for c1, data in confusion.iteritems():
+        for x in y:
+            pass
+    for (c1, c2), overlap in confusion.iteritems():
+        MI += ((overlap / float(N))
+               * log2(overlap*N / float(sizes1[c1]*sizes2[c2])))
+    return MI
+
+def recl_python2(cmtys1, cmtys2, weighted=True):
+    """Recall: how well cmtys2 is matched by cmtys1.
+
+    Consider cmtys1 to be 'true' communities, and cmtys2 to be
+    detected communities.  Recall measures how well the known
+    communities are detected.  Extra detected communities do not
+    affect this result."""
+    confusion = defaultdict(lambda: defaultdict(int))
+    nodecmtys2 = cmtys2.nodecmtys()
+    for cname, cnodes in cmtys1.iteritems():
+        for node in cnodes:
+            for c2 in nodecmtys2.get(node, []):
+                confusion[cname][c2] += 1
+    sizes1 = cmtys1.cmtysizes()
+    sizes2 = cmtys2.cmtysizes()
+
+    recls = [ ]
+    #sizes = [ ]
+    for c1name, others in confusion.iteritems():
+        size = sizes1[c1name]
+        #if weighted:
+        #    sizes.append(size)
+        others = [ overlap/float(size + sizes2[c2name] - overlap)
+                   for c2name, overlap in others.iteritems() ]
+        if not others:
+            recls.append(0.0)
+        else:
+            recls.append(max(others))
+    if weighted == 2:
+        return (sum(x*sizes1[cname]
+                    for x, cname in zip(recls, confusion.iterkeys()))
+               / sum(sizes1.itervalues()))
+    elif weighted:
+        if sum(recls) == 0:
+            return 0.0
+        sizes1weighted = { }
+        nodecmtys1 = cmtys1.nodecmtys()
+        for cname, cnodes in cmtys1.iteritems():
+            sizes1weighted[cname] = sum(1./len(nodecmtys1[n]) for n in cnodes)
+        return (sum(x*sizes1weighted[cname]
+                    for x, cname in zip(recls, confusion.iterkeys()))
+               / float(len(nodecmtys1)))
+    else:
+        return sum(recls) / float(len(recls))
+def prec_python2(cmtys1, cmtys2, weighted=True):
+    """Precision: hew well cmtys1 matches cmtys2.
+
+    Consider cmtys1 to be 'true' communities, and cmtys2 to be
+    detected communities.  Precision measures how well the detected
+    communities all match the known.  Extra known communities do not
+    affect this result."""
+    return recl_python2(cmtys2, cmtys1, weighted=weighted)
+def F1_python2(cmtys1, cmtys2, weighted=True):
+    """The harmonic mean of recall and precision.
+
+    This is a symmetric measure."""
+    recl = recl_python2(cmtys1, cmtys2, weighted=weighted)
+    prec = prec_python2(cmtys1, cmtys2, weighted=weighted)
+    return (2.0 * prec * recl) / (prec + recl)
+def recl_uw_python2(cmtys1, cmtys2):
+    """Unweighted recall"""
+    return recl_python2(cmtys1, cmtys2, weighted=False)
+def prec_uw_python2(cmtys1, cmtys2):
+    """Unweighted precision"""
+    return prec_python2(cmtys1, cmtys2, weighted=False)
+def F1_uw_python2(cmtys1, cmtys2):
+    """Unweighted F1"""
+    return F1_python2(cmtys1, cmtys2, weighted=False)
 
 
 #
@@ -211,21 +361,32 @@ def _similarity_igraph(cmtys1, cmtys2, method):
     return val
 
 
-vi_igraph = partial(_similarity_igraph, method='meila')
-nmi_igraph = partial(_similarity_igraph, method='danon')
-rand_igraph = partial(_similarity_igraph, method='rand')
-adjusted_rand_igraph = partial(_similarity_igraph, method='adjusted_rand')
+def vi_igraph(cmtys1, cmtys2, **kwargs):
+    return _similarity_igraph(cmtys1, cmtys2, method='meila', **kwargs)
+def nmi_igraph(cmtys1, cmtys2, **kwargs):
+    return _similarity_igraph(cmtys1, cmtys2, method='danon', **kwargs)
+def rand_igraph(cmtys1, cmtys2, **kwargs):
+    return _similarity_igraph(cmtys1, cmtys2, method='rand', **kwargs)
+def adjusted_rand_igraph(cmtys1, cmtys2, **kwargs):
+    return _similarity_igraph(cmtys1, cmtys2, method='adjusted_rand', **kwargs)
 
 
 measures = {
-    'vi': ['vi_python', 'vi_igraph', 'vi_pcd'],
+    'vi': ['vi_python', 'vi_igraph', 'vi_pcd', 'vi_python2'],
     'mutual_information':
-        ['mutual_information_python', 'mutual_information_pcd'],
-    'nmi': ['nmi_python', 'nmi_igraph', 'nmi_pcd'],
-    'nmi': ['nmi_LFK_LF', 'nmi_LFK_pcd',
-                    'nmi_LFK_pcdpy'],
+        ['mutual_information_python', 'mutual_information_pcd',
+         'mutual_information_python2'],
+    'nmi': ['nmi_python', 'nmi_igraph', 'nmi_pcd', 'nmi_python2'],
+    'nmi_LFK': ['nmi_LFK_LF', 'nmi_LFK_pcd',
+                'nmi_LFK_pcdpy', ],
     'rand': ['rand_igraph'],
     'adjusted_rand': ['adjusted_rand_igraph'],
+    'F1':   ['F1_python2'],
+    'recl': ['recl_python2'],
+    'prec': ['prec_python2'],
+    'F1_uw':   ['F1_uw_python2'],
+    'recl_uw': ['recl_uw_python2'],
+    'prec_uw': ['prec_uw_python2'],
     }
 
 # Standard implementations
@@ -236,3 +397,6 @@ mutual_information = mutual_information_python
 nmi_LFK = nmi_LFK_LF
 rand = rand_igraph
 adjusted_rand = adjusted_rand_igraph
+F1 = F1_python2
+recl = recl_python2
+prec = prec_python2
