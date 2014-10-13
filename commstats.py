@@ -347,7 +347,7 @@ class Statter(object):
         import matplotlib.cm as cm
         import matplotlib.colors as mcolors
         colormap = cm.get_cmap('jet')
-        normmap = mcolors.Normalize(vmin=0, vmax=len(data))
+        normmap = mcolors.Normalize(vmin=0, vmax=len(self.label_order))
 
         label_order = self.label_order
         if not label_order:
@@ -448,7 +448,7 @@ class DistStatter(Statter):
         import matplotlib.cm as cm
         import matplotlib.colors as mcolors
         colormap = cm.get_cmap('jet')
-        normmap = mcolors.Normalize(vmin=0, vmax=len(data))
+        normmap = mcolors.Normalize(vmin=0, vmax=len(self.label_order))
 
         from functools import partial
 
@@ -597,7 +597,7 @@ class CmtySize(Statter):
 
 #from . import nxutil_c
 class CmtyDensity(Statter):
-    log_y = False
+    log_y = True
     ylabel = 'edge density'
     def calc(self, g, cmtys, cache=None):
         adj = g.adj
