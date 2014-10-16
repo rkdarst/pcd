@@ -325,6 +325,10 @@ class Statter(object):
         calculation from data collection, for possible future
         parallelism."""
         self.accumulate(self.calc2(g, cmtys, cache=cache), label=label)
+    def add_statter(self, sttr):
+        """Add data in another statter to this one."""
+        for label in sttr.label_order:
+            self.accumulate(sttr._data[label], label)
 
     quantiles = None
     def write(self, fname, axopts={}, title=None):
