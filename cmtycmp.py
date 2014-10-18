@@ -1,6 +1,6 @@
 from collections import defaultdict
 from functools import partial
-from math import log
+from math import log, sqrt
 import subprocess
 
 import pcd.cmty
@@ -91,6 +91,23 @@ def nmi_python2(cmtys1, cmtys2):
     if Hs == 0:
         return float('nan')
     In = 2.*I / Hs
+    return In
+def nmiG_python2(cmtys1, cmtys2):
+    """NMI with geometric mean in denominator.
+
+    Reference:
+
+    Cluster Ensembles : A Knowledge Reuse Framework for Combining
+    Multiple Partitions, A. Strehl and J. Ghosh, Journal of Machine
+    Learning Research 3 (2002) 583-617
+    """
+    I = mutual_information_python2(cmtys1, cmtys2)
+    Hs = entropy_python(cmtys1) * entropy_python(cmtys2)
+    if Hs == 0 and I == 0:
+        return 1.0
+    if Hs == 0:
+        return float('nan')
+    In = I / sqrt(Hs)
     return In
 def _nmi_LFK_python2_HXY_norm(cmtys1, cmtys2):
     """One half of the LFK NMI."""
@@ -410,6 +427,7 @@ measures = {
         ['mutual_information_python', 'mutual_information_pcd',
          'mutual_information_python2'],
     'nmi': ['nmi_python', 'nmi_igraph', 'nmi_pcd', 'nmi_python2'],
+    'nmiG': ['nmiG_python2', ],
     'nmi_LFK': ['nmi_LFK_LF', #'nmi_LFK_pcd',
                 'nmi_LFK_pcdpy', 'nmi_LFK_python2'],
     'rand': ['rand_igraph'],
