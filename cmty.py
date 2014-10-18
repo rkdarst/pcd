@@ -993,11 +993,44 @@ class _CommunitiesBase(object):
             f_names.close()
 
 
-    def write_clu(self, fname):
-        """Write pajek .clu file (one line per node)"""
-        nodecmtys = self.nodecmtys()
+    def write_pajek(self, fname, nodelist=None):
+        """Write pajek .clu file (one line per node).
+
+        This format can only handle non-overlapping, fully-spanning,
+        consecutive-ID communities.
+
+        Arguments:
+
+        fname: string or file object
+            Location to write data
+
+        nodelist: iterable
+            Pajek format does not store node IDs, so node IDs must be
+            pre-determined.  As such, this format traditionally only
+            can hold consecutive ordered (integer) IDs, which is not
+            an assumption of pcd.  Thus, nodelist must specify that
+            ordering.  If it is not specified, assume an ordering [0,
+            N-1] and raise an error if it is not correct."""
+        nodecmtys = self.nodecmtys_onetoone()
         N = len(nodecmtys)
-        assert set(nodecmtys) == set(range(len(nodecmtys)))
+        # If nodelist is not given, require nodes be [0, N-1]
+        if not nodelist:
+            nodelist = list(xrange(N))
+            if set(nodecmtys) != set(range(N)):
+                raise RuntimeError("Set ")
+        # Find real file object.
+        if not hasattr(fname, 'write'):
+            f = open(fname, 'w')
+        else:
+            f = fname
+        # Write header data
+        if getattr(self, 'label', None):
+            print >> f, '#', self.label
+        print >> f, '#', time.ctime()
+        print >> f, "*vertices"
+        # Actual writing.
+        for n in nodelist:
+            print >> f, nodecmtys[n]
 
 
     def to_membershiplist(self, nodelist=None):
