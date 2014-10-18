@@ -92,7 +92,8 @@ def nmi_python2(cmtys1, cmtys2):
         return float('nan')
     In = 2.*I / Hs
     return In
-def nmi_LFK_python_oneway(cmtys1, cmtys2):
+def _nmi_LFK_python2_HXY_norm(cmtys1, cmtys2):
+    """One half of the LFK NMI."""
     # Compute cofusion matrix
     confusion = defaultdict(lambda: defaultdict(int))
     nodecmtys2 = cmtys2.nodecmtys()
@@ -100,36 +101,68 @@ def nmi_LFK_python_oneway(cmtys1, cmtys2):
         for node in cnodes:
             for c2 in nodecmtys2[node]:
                 confusion[cname][c2] += 1
-    sizes1 = cmtys1.cmtysizes()
-    sizes2 = cmtys2.cmtysizes()
-    # Compute actual MI
-    overlaps = { }
+    c1sizes = cmtys1.cmtysizes()
+    c2sizes = cmtys2.cmtysizes()
+    # Total community sizes
+    N1 = float(len(cmtys1.nodes))
+    N2 = float(len(cmtys2.nodes))
+    N  = float(len(cmtys1.nodes | cmtys2.nodes))
 
+    # These definitions correspond to the definitions in the LFK
+    # paper, pretty much.
     def h(p):
         if p==0 or p==1: return 0
         return -p * log(p,2)
-
-    def measure(c1, c2, overlap):
-        hP11 = h((              overlap )/N)
-        hP10 = h((sizes1[c1] - overlap  )/N)
-        hP01 = h((sizes2[c2] - overlap  )/N)
-        hP00 = h((N -  sizes1[c1] + sizes2[c2] - overlap)/N)
+    def H(size, N):
+        return h(size/N) + h((N-size)/N)
+    def H2(c1size, c2size, overlap, N):
+        hP11 = h((         overlap  )/N)
+        hP10 = h((c1size - overlap  )/N)
+        hP01 = h((c2size - overlap  )/N)
+        hP00 = h((N -  c1size - c2size + overlap)/N)
         if hP11 + hP00 <= hP01 + hP10:
             # We want to exclude ones matching this condition.  Return
             # 'inf' and it will be excluded from the min() function
             # wrapping this one.
             return float('inf')
-        hPY1 = h(  (  sizes2[c2]) / N)
-        hPY0 = h(  (N-sizes2[c2]) / N)
+        hPY1 = h(  (  c2size) / N)
+        hPY0 = h(  (N-c2size) / N)
         return hP11+hP00+hP01+hP10 - hPY1 - hPY0
 
-    for c1, data in confusion.iteritems():
-        for x in y:
-            pass
-    for (c1, c2), overlap in confusion.iteritems():
-        MI += ((overlap / float(N))
-               * log2(overlap*N / float(sizes1[c1]*sizes2[c2])))
-    return MI
+    # The main NMI loop.  For every community in cmtys1, find the best
+    # matching community (as seen by H2) and take the arithmetic mean.
+    # This will later be upgraded to consider weighting by community
+    # size.
+    from pcd.util import Averager
+    HX_Y = Averager()
+    for c1name, c2name_overlaps in confusion.iteritems():
+        c1size = c1sizes[c1name]
+        # Best matching other community.
+        HX_Yhere = min(H2(c1size, c2sizes[c2name], overlap, N)
+                       for c2name, overlap in c2name_overlaps.iteritems())
+        # Handle the case of no matches.
+        if HX_Yhere == float('inf'):
+            HX_Yhere = H(c1size, N1)
+        # Norm and return.
+        _ = H(c1size, N1)
+        if _ == 0:
+            HX_Y += 0
+        else:
+            HX_Y += HX_Yhere / _
+    return HX_Y.mean
+def nmi_LFK_python2(cmtys1, cmtys2):
+    """NMI of LFK (overlapping)
+
+    This implementation matches the results of the LF-distributed one.
+    It is not yet maximally efficient, and also does not yet have the
+    weighted options.
+    """
+    #print _nmi_LFK_python2_HXY_norm(cmtys1, cmtys2)
+    #print _nmi_LFK_python2_HXY_norm(cmtys2, cmtys1)
+    N = 1 - .5 * (_nmi_LFK_python2_HXY_norm(cmtys1, cmtys2)
+                  + _nmi_LFK_python2_HXY_norm(cmtys2, cmtys1) )
+    return N
+
 
 def recl_python2(cmtys1, cmtys2, weighted=True):
     """Recall: how well cmtys2 is matched by cmtys1.
@@ -377,8 +410,8 @@ measures = {
         ['mutual_information_python', 'mutual_information_pcd',
          'mutual_information_python2'],
     'nmi': ['nmi_python', 'nmi_igraph', 'nmi_pcd', 'nmi_python2'],
-    'nmi_LFK': ['nmi_LFK_LF', 'nmi_LFK_pcd',
-                'nmi_LFK_pcdpy', ],
+    'nmi_LFK': ['nmi_LFK_LF', #'nmi_LFK_pcd',
+                'nmi_LFK_pcdpy', 'nmi_LFK_python2'],
     'rand': ['rand_igraph'],
     'adjusted_rand': ['adjusted_rand_igraph'],
     'F1':   ['F1_python2'],
