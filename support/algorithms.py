@@ -353,12 +353,15 @@ class CDMethod(object):
         self._stdout_fname = binary_name+'.stdout'+stdout_suffix
         disk_stdout = open(self._stdout_fname, 'w')
         # Write the command lines we are running
-        disk_stdout.write(repr(list(args))+'\n')
-        disk_stdout.write("self attributes: %s\n"%(
+        disk_stdout.write("Command line: %s\n"%repr(list(args)))
+        if env_new_string:
+            disk_stdout.write("Environment variables: %s\n"%env_new_string)
+        disk_stdout.write("Algorithm instance attributes: %s\n"%(
             pcd.util.listAttributes(self, exclude=['_randseed', 'vmap', 'vmap_inv'],
                                     exclude_deep=['initial', ]),))
-        disk_stdout.write("Process times: %s\n"%(os.times(),))
-        disk_stdout.write("Beginning run at %s\n\n\n"%time.ctime())
+        disk_stdout.write("Process times (os.times()): %s\n"%(os.times(),))
+        disk_stdout.write("Beginning run at %s\n"%time.ctime())
+        disk_stdout.write("==========\n\n\n")
         disk_stdout.flush()
         #time_start = time.time()
 
@@ -385,7 +388,7 @@ class CDMethod(object):
                 splitter.wait()
 
             #print "call_process time elapsed (s):", time.time() - time_start
-            disk_stdout.write('\n\n\n')
+            disk_stdout.write('\n\n\n==========\n')
             disk_stdout.write("Ending run at %s\n"%time.ctime())
             disk_stdout.write("Process times: %s\n"%(os.times(),))
             disk_stdout.write("Return value: %s\n"%ret)
