@@ -80,9 +80,12 @@ def read_any(fname):
         if reader is not None:
             return reader(fname)
     # Look inside for the schema:
-    if _test_pajek(fname):    return networkx.read_pajek(fname)
-    if _test_gml(fname):      return networkx.read_gml(fname)
-    if _test_edgelist(fname): return networkx.read_edgelist(fname, data=[('weight', float)])
+    data = open(fname).read(512)
+    if _test_pajek(data):    return networkx.read_pajek(fname)
+    if _test_gml(data):      return networkx.read_gml(fname)
+    if _test_edgelist(data): return networkx.read_edgelist(fname, data=[('weight', float)])
+    if _test_gexf(data):     return networkx.read_gexf(fname)
+    if _test_graphml(data):  return networkx.read_graphml(fname)
 
     # So it is probably an edgelist.
 
@@ -98,7 +101,7 @@ def _get_reader(name):
     """
     return getattr(networkx, 'read_'+name, None)
 
-def _test_pajek(fname):
+def _test_pajek(data):
     """Does this look like a pajek file?
 
     Pajek files have a '*Vertices' string (case insensitive
@@ -106,20 +109,18 @@ def _test_pajek(fname):
 
     ^\*Vertices[ \t]+[0-9]+
     """
-    data = open(fname).read(512)
     if re.search(r'^\*Vertices[ \t]+[0-9]+', data, re.I|re.M):
         return True
-def _test_gml(fname):
+def _test_gml(data):
     """Does this look like a gml file?
 
     gml files have this regex in the first 512 bytes:
 
     '^[ \t]*graph\s[\s*$'
     """
-    data = open(fname).read(512)
     if re.search(r'^[ \t]*graph\s\[[ \t]*$', data, re.I|re.M):
         return True
-def _test_edgelist(fname):
+def _test_edgelist(data):
     """Does this look like an edgelist file?
 
     edgelist files match this regex in the first 512 bytes:
@@ -135,10 +136,28 @@ def _test_edgelist(fname):
         - space, any other text trailing:   (\s+(.*?))?
     - any trailing whitespace, end of line:  \s*$
     """
-    data = open(fname, 'U').read(512)
     #lines = data.split('\n')
     #lines = [ l.strip() for l in lines if l.strip() and l[0]!='#']
-    if re.search(r'^(?!#)\S+[ \t]+\S+([ \t]+[-0-9.e]+([ \t]+(.*?))?)?[ \t]*$', data, re.I|re.M):
+    if re.search(r'^(?!#)\S+[ \t]+\S+([ \t]+[-0-9.e]+([ \t]+(.*?))?)?[ \t]*$',
+                 data, re.I|re.M):
+        return True
+def _test_gexf(data):
+    """Does this look like a gexf file?
+
+    http://gexf.net/format/
+    <gexf xmlns="http://www.gexf.net/*">
+    """
+    if re.search(r'<gexf[^>]* xmlns="http://www.gexf.net/\S+"[^>]*>',
+                 data, re.I):
+        return True
+def _test_graphml(data):
+    """Does this look like a graphml file?
+
+    https://en.wikipedia.org/wiki/GraphML
+    <graphml xmlns="http://graphml.graphdrawing.org/*">
+    """
+    if re.search(r'<graphml[^>]* xmlns="http://graphml.graphdrawing.org/\S+"[^>]*>',
+                 data, re.I):
         return True
 
 
