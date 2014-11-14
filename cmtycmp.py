@@ -17,6 +17,24 @@ def limit_to_overlap(cmtys1, cmtys2, nodes=None):
     cmtys2new = pcd.cmty.CmtyLimitNodes(cmtys2, nodes)
     return cmtys1new, cmtys2new
 
+def confusion(cmtys1, cmtys2):
+    """Return the confusion matrix between two communities.
+
+    Communities can include overlapping nodes.  This function is fully general.
+
+    Returns: dict of cmty_id_1->(dicts of cmty_id_2->overlap count)"""
+    confusion = { }
+    nodecmtys2 = cmtys2.nodecmtys()
+    for cname1, nodes1 in cmtys1.iteritems():
+        for n1 in nodes1:
+            for cname2 in nodecmtys2[n1]:
+                if cname1 not in confusion:
+                    confusion[cname1] = { }
+                if cname2 not in confusion[cname1]:
+                    confusion[cname1][cname2] = 0
+                confusion[cname1][cname2] += 1
+    return confusion
+
 
 # Simple python-based implementations.  These are naive O(n^2)
 # implementations, whose only purpose is for pedagogy and unit-testing
@@ -58,6 +76,9 @@ def nmi_python(cmtys1, cmtys2):
     In = 2.*I / Hs
     return In
 In = nmi_python
+def _frac_detected(cmtys1, cmtys2, ovmode='overlap'):
+    # overlap modes: overlap, newman
+    return cmtys1.frac_detected(cmtys2, ovmode)
 
 
 # More efficient implementations using the confusion matrix.
@@ -83,6 +104,17 @@ def vi_python2(cmtys1, cmtys2):
     I = mutual_information_python2(cmtys1, cmtys2)
     VI = entropy_python(cmtys1) + entropy_python(cmtys2) - 2*I
     return VI
+def vi_norm_python2(cmtys1, cmtys2):
+    """Normalized Variation of Information.
+
+    This is variation of information, divided by log(N), which is the
+    upper bound."""
+    VI = vi_python2(cmtys1, cmtys2)
+    # mutual_information_python2 ensures that cmtys1.nodes ==
+    # cmtys2.nodes.
+    N = len(cmtys1.nodes)
+    NVI = VI / float(N)
+    return NVI
 def nmi_python2(cmtys1, cmtys2):
     I = mutual_information_python2(cmtys1, cmtys2)
     Hs = entropy_python(cmtys1) + entropy_python(cmtys2)
