@@ -131,7 +131,7 @@ class CDMethod(object):
                                   # call .run(), .read_cmtys() etc.
     weighted = False              # Write a weighted edgelist/turn on weights?
 
-    def __init__(self, g, dir=None, basename=None, **kwargs):
+    def __init__(self, g, dir=None, basename=None, cache=None, **kwargs):
         """
         Arguments:
 
@@ -185,6 +185,21 @@ class CDMethod(object):
             # attribute can be accessed.  This may be used when the
             # class is wrapped in a partial object.
             return
+        if cache:
+            if isinstance(cache, str):
+                if os.path.exists(cache):
+                    data = pickle.load(open(cache, 'rb'))
+                    self.results = data['results']
+                    self.cmtys = data['cmtys']
+                    return
+            if len(cache) > 1 and hasattr(cache[0], '__getitem__'):
+                key = cache[1]
+                cache_d = cache[0]
+                if key in cache_d:
+                    self.results = cache_d[key]['results']
+                    self.cmtys   = cache_d[key]['cmtys']
+                    return
+        #
         self.dir = dir
         self.basename = basename
         self.gen_filenames()
@@ -219,6 +234,16 @@ class CDMethod(object):
                                    local=locals())
         if self.delete_tmpdir:
             shutil.rmtree(self.dir)
+        # Write data to cache, if needed
+        if cache:
+            data = dict(cmtys=self.cmtys, results=self.results)
+            if isinstance(cache, str):
+                if os.path.exists(cache):
+                    pickle.dump(data, open(cache, 'wb'))
+            if len(cache) > 1 and hasattr(cache[0], '__getitem__'):
+                key = cache[1]
+                cache_d = cache[0]
+                cache_d[key] = data
 
     # Utility methods
     @classmethod
