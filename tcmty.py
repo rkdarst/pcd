@@ -29,6 +29,11 @@ class TemporalCommunities(object):
     @classmethod
     def from_tcommlist(cls, fname, time_type=float, node_type=str,
                        cmty_type=str):
+        """Load temporal communities from a tcommlist.
+
+        Tcommlist consists of successive lines of this format:
+          time-value node-id cmty-id.
+        """
         tcmtys = { }
         f = open(fname)
         for line in f:
@@ -48,6 +53,41 @@ class TemporalCommunities(object):
             else:
                 nodeset = cmtys[c]
             nodeset.add(n)
+
+        self = cls(dict((t, cmty.Communities(cmtynodes))
+                        for t, cmtynodes in tcmtys.iteritems()))
+        return self
+    @classmethod
+    def from_tmatrix(cls, fname, node_list=None,
+                     time_list=None):
+        """Load temporal communities from a temporal matrix.
+
+        Node IDs and times are not included.  Communitties must be
+        covering and non-overlapping.  Each line consistes of the
+        communities, of nodes range(0, N).  Community IDs start at 0
+        and advance incrementally.
+        """
+        tcmtys = { }
+        f = open(fname)
+        time_counter = 0
+        for line in f:
+            line = line.strip()
+            if line.startswith('#'): continue
+
+            t = time
+            time_counter += 1
+            if t not in tcmtys:
+                cmtys = tcmtys[t] = { }
+            else:
+                cmtys = tcmtys[t]
+
+            node_cmtys = (cmty_type(x) for x in line.split())
+            for n, c in enumerate(node_cmtys):
+                if c not in cmtys:
+                    nodeset = cmtys[c] = set()
+                else:
+                    nodeset = cmtys[c]
+                nodeset.add(n)
 
         self = cls(dict((t, cmty.Communities(cmtynodes))
                         for t, cmtynodes in tcmtys.iteritems()))
