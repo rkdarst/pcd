@@ -17,15 +17,31 @@ def limit_to_overlap(cmtys1, cmtys2, nodes=None):
     cmtys2new = pcd.cmty.CmtyLimitNodes(cmtys2, nodes)
     return cmtys1new, cmtys2new
 
-def confusion(cmtys1, cmtys2):
-    """Return the confusion matrix between two communities.
+def _get_data(cmtys1, cmtys2):
+    """Return important data between two communities.  This is
+    designed to be a general function for use within other comparison
+    functions.
 
-    Communities can include overlapping nodes.  This function is fully general.
+    Returns a tuple: (confusion, sizes1, sizes2).
 
-    Returns: dict of cmty_id_1->(dicts of cmty_id_2->overlap count)"""
+    confusion: the confusion matrix
+    sizes1:    dictionary cname->len(cmty) for cmtys1
+    sizes1:    dictionary cname->len(cmty) for cmtys2.
+    """
     confusion = { }
-    nodecmtys2 = cmtys2.nodecmtys()
+    sizes1 = { }
+    sizes2 = { }
+    # calculate nodecmtys2 here for greater efficiency, so we can
+    # calculate sizes2 at the same time.
+    #nodecmtys2 = cmtys2.nodecmtys()
+    nodecmtys2 = defaultdict(set)
+    for cname2, nodes2 in cmtys2.iteritems():
+        sizes2[cname2] = len(nodes2)
+        for n2 in nodes2:
+            nodecmtys2[n2].add(cname2)
+    # Main loop
     for cname1, nodes1 in cmtys1.iteritems():
+        sizes1[cname1] = len(nodes1)
         for n1 in nodes1:
             for cname2 in nodecmtys2[n1]:
                 if cname1 not in confusion:
@@ -33,7 +49,17 @@ def confusion(cmtys1, cmtys2):
                 if cname2 not in confusion[cname1]:
                     confusion[cname1][cname2] = 0
                 confusion[cname1][cname2] += 1
-    return confusion
+    #
+    return confusion, sizes1, sizes2
+
+def confusion(cmtys1, cmtys2):
+    """Return the confusion matrix between two communities.
+
+    Communities can include overlapping nodes.  This function is fully general.
+
+    Returns: dict of cmty_id_1->(dicts of cmty_id_2->overlap count)"""
+    d = _get_data(cmtys1, cmtys2)
+    return d[0]
 
 
 # Simple python-based implementations.  These are naive O(n^2)
