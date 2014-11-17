@@ -1,5 +1,6 @@
 from collections import defaultdict
 from functools import partial
+import itertools
 from math import log, sqrt
 import subprocess
 
@@ -105,6 +106,14 @@ In = nmi_python
 def _frac_detected(cmtys1, cmtys2, ovmode='overlap'):
     # overlap modes: overlap, newman
     return cmtys1.frac_detected(cmtys2, ovmode)
+def jaccard_python(cmtys1, cmtys2):
+    set1 = set()
+    set2 = set()
+    for cname, cnodes in cmtys1.iteritems():
+        set1.update(frozenset((a,b)) for a,b in itertools.combinations(cnodes, 2))
+    for cname, cnodes in cmtys2.iteritems():
+        set2.update(frozenset((a,b)) for a,b in itertools.combinations(cnodes, 2))
+    return len(set1 & set2) / float(len(set1 | set2))
 
 
 # More efficient implementations using the confusion matrix.
@@ -307,6 +316,44 @@ def prec_uw_python2(cmtys1, cmtys2):
 def F1_uw_python2(cmtys1, cmtys2):
     """Unweighted F1"""
     return F1_python2(cmtys1, cmtys2, weighted=False)
+def jaccard_python2(cmtys1, cmtys2):
+    """Jaccard index of two partitions.
+
+    I do not have a reference for this measure, and the name is not
+    very descriptive of what it does.  It is said to be that
+    implemented in radatools, but I have not checked this myself:
+    http://deim.urv.cat/~sergio.gomez/radatools.php.
+
+    Mathematical explanation:
+
+    For cmtys1, take the set S1 of all pairs of nodes a,b where a and
+    b are in the same community.  Do the same for cmtys2 to produce
+    S2.  The pairs (a,b) are unordered.
+
+    The jaccard score is  |S1 interset S2| / |S1 union S2|
+
+    Returns:
+        the score (float)
+    """
+    same = 0
+    c1pairs = 0
+    c2pairs = 0
+
+    def comb2(n):
+        return n*(n-1)/2.0
+
+    confusion, sizes1, sizes2 = _get_data(cmtys1, cmtys2)
+    #for c1name, others in confusion.iteritems():
+    #    for c2name, overlap in others.iteritems():
+    #        same += comb2(overlap)
+    ovPairs = sum(comb2(overlap) for c1name, others in confusion.iteritems()
+                              for overlap in others.itervalues())
+    c1pairs = sum(comb2(n) for n in sizes1.itervalues())
+    c2pairs = sum(comb2(n) for n in sizes2.itervalues())
+
+    return ovPairs / float(c1pairs + c2pairs - ovPairs)
+
+
 
 
 #
@@ -496,6 +543,7 @@ measures = {
     'F1_uw':   ['F1_uw_python2'],
     'recl_uw': ['recl_uw_python2'],
     'prec_uw': ['prec_uw_python2'],
+    'jaccard': ['jaccard_python2', 'jaccard_python'],
     }
 
 # Standard implementations
@@ -509,3 +557,4 @@ adjusted_rand = adjusted_rand_igraph
 F1 = F1_python2
 recl = recl_python2
 prec = prec_python2
+jaccard = jaccard_python2
