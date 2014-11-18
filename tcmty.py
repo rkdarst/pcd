@@ -3,6 +3,7 @@
 
 from . import cmty
 
+from pcd.util import leval
 
 class TemporalCommunities(object):
 
@@ -16,9 +17,16 @@ class TemporalCommunities(object):
             yield t
     def __getitem__(self, t):
         return self._tcmtys[t]
+    def __len__(self):
+        return self._tcmtys.__len__()
     def iteritems(self):
         for t in self:
             yield t, self[t]
+    def __str__(self):
+        return '<%s object with Nt=%s at 0x%x>'%(
+            self.__class__.__name__,
+            len(self),
+            id(self))
 
     # Modification
     def add_time(self, t, cmtys):
@@ -27,8 +35,24 @@ class TemporalCommunities(object):
 
     # Input
     @classmethod
-    def from_tcommlist(cls, fname, time_type=float, node_type=str,
-                       cmty_type=str):
+    def open_any(cls, fname, time_type=float, node_type=leval,
+                 cmty_type=leval):
+        """Automatically open file, detecting type via contents.
+        """
+        lines = open(fname).read(1024).split()
+        lines = [ x.strip() for x in lines ]
+        lines = [ x for x in lines if len(x)>0 and not x.startswith('#') ]
+        if len(lines[0].split()) >= 5:
+            return cls.from_tmatrix(fname)
+        else:
+            return cls.from_tcommlist(fname,
+                                      time_type=time_type,
+                                      node_type=node_type,
+                                      cmty_type=cmty_type)
+
+    @classmethod
+    def from_tcommlist(cls, fname, time_type=float, node_type=leval,
+                       cmty_type=leval):
         """Load temporal communities from a tcommlist.
 
         Tcommlist consists of successive lines of this format:
@@ -41,8 +65,8 @@ class TemporalCommunities(object):
             if line.startswith('#'): continue
             t, n, c = line.split()
             t = time_type(t)
-            n = time_type(n)
-            c = time_type(c)
+            n = node_type(n)
+            c = cmty_type(c)
 
             if t not in tcmtys:
                 cmtys = tcmtys[t] = { }
@@ -59,7 +83,7 @@ class TemporalCommunities(object):
         return self
     @classmethod
     def from_tmatrix(cls, fname, node_list=None,
-                     time_list=None):
+                     time_list=None, cmty_type=leval):
         """Load temporal communities from a temporal matrix.
 
         Node IDs and times are not included.  Communitties must be
@@ -74,7 +98,7 @@ class TemporalCommunities(object):
             line = line.strip()
             if line.startswith('#'): continue
 
-            t = time
+            t = time_counter
             time_counter += 1
             if t not in tcmtys:
                 cmtys = tcmtys[t] = { }
@@ -100,4 +124,18 @@ class TemporalCommunities(object):
             for c, nodes in cmtys.iteritems():
                 for n in nodes:
                     print >> f, t, n, c
+    def write_tmatrix(self, fname):
+        f = open(fname, 'w')
+        for t, cmtys in self.iteritems():
+            nodecmtys = cmtys.nodecmtys_onetoone()
+            nodes = sorted(nodecmtys)
+            for n in nodes:
+                print >> f, ' '.join([str(nodecmtys[n]) for n in nodes])
 
+
+
+if __name__ == '__main__':
+    import sys
+    tcmtys = TemporalCommunities.open_any(sys.argv[1])
+    print tcmtys
+    from fitz import interactnow
