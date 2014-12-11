@@ -864,7 +864,7 @@ def In(*args, **kwargs):
 def vi(*args, **kwargs):
     return cmtycmp.vi(*args, **kwargs)
 def NMI_LF(*args, **kwargs):
-    return cmtycmp.nmi_LFK(*args, **kwargs)
+    return cmtycmp.nmi_LFK_LF(*args, **kwargs)
 
 
 if __name__ == "__main__":

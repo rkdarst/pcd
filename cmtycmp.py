@@ -565,7 +565,7 @@ vi = vi_python2
 vi_norm = vi_norm_python2
 nmi = nmi_python2
 nmiG = nmiG_python2
-nmi_LFK = nmi_LFK_LF
+nmi_LFK = nmi_LFK_python2
 
 rand = rand_igraph
 adjusted_rand = adjusted_rand_igraph
