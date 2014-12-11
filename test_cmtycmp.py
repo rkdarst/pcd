@@ -60,7 +60,7 @@ def _do_test_same(func, cmtys):
 
 def test_same():
     for name, implementations in cmtycmp.measures.iteritems():
-        if name in ('vi', 'mutual_information'):
+        if name in ('vi', 'mutual_information', 'vi_norm'):
             continue
         for impl in implementations:
             if impl in ('nmi_LFK_LF', 'adjusted_rand_igraph'):

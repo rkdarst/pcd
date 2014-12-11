@@ -93,6 +93,17 @@ def vi_python(cmtys1, cmtys2):
     I = mutual_information_python(cmtys1, cmtys2)
     VI = entropy_python(cmtys1) + entropy_python(cmtys2) - 2*I
     return VI
+def vi_norm_python(cmtys1, cmtys2):
+    """Normalized Variation of Information.
+
+    This is variation of information, divided by log(N), which is the
+    upper bound."""
+    VI = vi_python(cmtys1, cmtys2)
+    # mutual_information_python2 ensures that cmtys1.nodes ==
+    # cmtys2.nodes.
+    N = len(cmtys1.nodes)
+    NVI = VI / float(N)
+    return NVI
 def nmi_python(cmtys1, cmtys2):
     I = mutual_information_python(cmtys1, cmtys2)
     Hs = entropy_python(cmtys1) + entropy_python(cmtys2)
@@ -528,6 +539,7 @@ def adjusted_rand_igraph(cmtys1, cmtys2, **kwargs):
 
 measures = {
     'vi': ['vi_python', 'vi_igraph', 'vi_pcd', 'vi_python2'],
+    'vi_norm': ['vi_norm_python', 'vi_norm_python2'],
     'mutual_information':
         ['mutual_information_python', 'mutual_information_pcd',
          'mutual_information_python2'],
@@ -548,13 +560,19 @@ measures = {
 
 # Standard implementations
 
-nmi = nmi_python
-vi = vi_python
-mutual_information = mutual_information_python
+mutual_information = mutual_information_python2
+vi = vi_python2
+vi_norm = vi_norm_python2
+nmi = nmi_python2
+nmiG = nmiG_python2
 nmi_LFK = nmi_LFK_LF
+
 rand = rand_igraph
 adjusted_rand = adjusted_rand_igraph
 F1 = F1_python2
 recl = recl_python2
 prec = prec_python2
+F1_uw = F1_uw_python2
+recl_uw = recl_uw_python2
+prec_uw = prec_uw_python2
 jaccard = jaccard_python2
