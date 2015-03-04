@@ -13,6 +13,10 @@ class PowerLaw(object):
     = 1/N * x**power
     """
     tol = 1e-12
+    def __str__(self):
+        return '%s(power=%s, %s)'%(self.__class__.__name__, self.power,
+                ", ".join("%s=%s"%(k,v) for k,v in sorted(self.orig_args.items())
+                          if v is not None))
     @staticmethod
     def integrate(x, power):
         """Integral from zero to x"""
@@ -30,6 +34,7 @@ class PowerLaw(object):
 
     def __init__(self, power, xmin=None, xmax=None, xmean=None):
         self.power = power
+        self.orig_args = dict(xmin=xmin, xmax=xmax, xmean=xmean)
         if xmin == 'inf': xmin = float('-inf')
         if xmax == 'inf': xmax = float('inf')
         if xmin is not None and xmax is not None:
@@ -138,6 +143,7 @@ if __name__ == "__main__":
         print kwargs
 
         p = PowerLaw(**kwargs)
+        print p
         print 'norm:', p.norm
         print 'mean:', p.mean()
         print 'std: ', p.std()
