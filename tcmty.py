@@ -35,7 +35,7 @@ class TemporalCommunities(object):
 
     # Input
     @classmethod
-    def open_any(cls, fname, time_type=float, node_type=leval,
+    def open_any(cls, fname, time_type=leval, node_type=leval,
                  cmty_type=leval):
         """Automatically open file, detecting type via contents.
         """
@@ -49,9 +49,9 @@ class TemporalCommunities(object):
                                       time_type=time_type,
                                       node_type=node_type,
                                       cmty_type=cmty_type)
-
+    from_auto = open_any
     @classmethod
-    def from_tcommlist(cls, fname, time_type=float, node_type=leval,
+    def from_tcommlist(cls, fname, time_type=leval, node_type=leval,
                        cmty_type=leval):
         """Load temporal communities from a tcommlist.
 
@@ -129,8 +129,7 @@ class TemporalCommunities(object):
         for t, cmtys in self.iteritems():
             nodecmtys = cmtys.nodecmtys_onetoone()
             nodes = sorted(nodecmtys)
-            for n in nodes:
-                print >> f, ' '.join([str(nodecmtys[n]) for n in nodes])
+            print >> f, ' '.join([str(nodecmtys[n]) for n in nodes])
 
 
 
