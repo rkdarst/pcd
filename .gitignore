@@ -1,0 +1,17 @@
+*.pyc
+old/imatrix_t.h
+old/imatrix_t.py
+old/_cmodels.so
+old/cmodels.o
+old/SFMT.o
+_bashhist
+
+# doc/_build is the build location, and doc/api is auto-generated
+doc/_build
+doc/api
+
+
+.#*
+#*#
+.nfs*
+*~
