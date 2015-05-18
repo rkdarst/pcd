@@ -8,7 +8,7 @@ for represting community objects (stored in different forms, such as a
 dict or file on disk).
 
 Iterators
-=========
+---------
 
 The most general method of accessing communities is by iterating
 through them.  This allows on to implement streaming schemes, for
@@ -45,7 +45,7 @@ constructor.  This distinction is relevant to the difference between
 
 
 Methods implemented using only iterators
-========================================
+----------------------------------------
 
 Given the four iterators above, many things can be calculated
 automatically.  These methods are implemented in the _CommunitiesBase
@@ -164,7 +164,7 @@ There is a lot more that isn't documented.
 
 
 Other classes
-=============
+-------------
 
 Communities:
     This is the main class which uses a dict as community storage.
@@ -183,7 +183,7 @@ CommunityUnion:
 
 
 Community interface
-===================
+-------------------
 
 Summary of the above copy and pasted from somewhere else.  The above
 is much more complete.

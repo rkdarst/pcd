@@ -36,6 +36,7 @@ extensions = [
     'sphinx.ext.mathjax',
     'sphinx.ext.ifconfig',
     'sphinx.ext.viewcode',
+    #'sphinx.ext.numpydoc',
 ]
 
 # Add any paths that contain templates here, relative to this directory.
@@ -268,3 +269,6 @@ texinfo_documents = [
 
 # Example configuration for intersphinx: refer to the Python standard library.
 intersphinx_mapping = {'http://docs.python.org/': None}
+
+autodoc_default_flags = ['members', 'undoc-members', 'private-members',
+                          'show-inheritance', 'special-members']
