@@ -9,7 +9,10 @@ import pcd.cmty
 # careful with circular imports.
 import pcd.util
 
-log2 = lambda x: log(x, 2)
+
+# log2: from lambda to function (recommended in pep8)
+#log2 = lambda x: log(x, 2)
+def log2(x): return log(x, 2)
 
 def limit_to_overlap(cmtys1, cmtys2, nodes=None):
     if nodes is None:
@@ -56,12 +59,13 @@ def _get_data(cmtys1, cmtys2):
 def confusion(cmtys1, cmtys2):
     """Return the confusion matrix between two communities.
 
-    Communities can include overlapping nodes.  This function is fully general.
+    Communities can include overlapping nodes.
+    This function is fully general.
 
-    Returns: dict of cmty_id_1->(dicts of cmty_id_2->overlap count)"""
+    Returns: dict of cmty_id_1->(dicts of cmty_id_2->overlap count)
+    """
     d = _get_data(cmtys1, cmtys2)
     return d[0]
-
 
 # Simple python-based implementations.  These are naive O(n^2)
 # implementations, whose only purpose is for pedagogy and unit-testing
@@ -69,8 +73,8 @@ def confusion(cmtys1, cmtys2):
 #
 def mutual_information_python(cmtys1, cmtys2):
     MI = 0.0
-    N = len(cmtys1.nodes)
-    assert N == len(cmtys2.nodes)
+    N = cmtys1.N#len(cmtys1.nodes)
+    assert N == cmtys2.N#len(cmtys2.nodes)
     for c1name, c1nodes in cmtys1.iteritems():
         for c2name, c2nodes in cmtys2.iteritems():
             n1 = len(c1nodes)
@@ -80,30 +84,35 @@ def mutual_information_python(cmtys1, cmtys2):
                 continue
             MI += (n_shared/float(N)) * log2(n_shared*N/float(n1*n2))
     return MI
+    
 def entropy_python(cmtys):
     H = 0.0
-    N = float(len(cmtys.nodes))
+    N = float(cmtys.N)#float(len(cmtys.nodes))
     for cnodes in cmtys.itervalues():
         n = len(cnodes)
         if n == 0: continue
         H += n/N * log2(n/N)
     return -H
+    
 def vi_python(cmtys1, cmtys2):
     """Variation of Information"""
     I = mutual_information_python(cmtys1, cmtys2)
     VI = entropy_python(cmtys1) + entropy_python(cmtys2) - 2*I
     return VI
+    
 def vi_norm_python(cmtys1, cmtys2):
     """Normalized Variation of Information.
 
     This is variation of information, divided by log(N), which is the
-    upper bound."""
+    upper bound.
+    """
     VI = vi_python(cmtys1, cmtys2)
     # mutual_information_python2 ensures that cmtys1.nodes ==
     # cmtys2.nodes.
-    N = len(cmtys1.nodes)
-    NVI = VI / float(N)
+    N = cmtys1.N#len(cmtys1.nodes)
+    NVI = VI / log2(N)
     return NVI
+    
 def nmi_python(cmtys1, cmtys2):
     I = mutual_information_python(cmtys1, cmtys2)
     Hs = entropy_python(cmtys1) + entropy_python(cmtys2)
@@ -113,24 +122,30 @@ def nmi_python(cmtys1, cmtys2):
         return float('nan')
     In = 2.*I / Hs
     return In
+    
 In = nmi_python
 def _frac_detected(cmtys1, cmtys2, ovmode='overlap'):
     # overlap modes: overlap, newman
     return cmtys1.frac_detected(cmtys2, ovmode)
+    
 def jaccard_python(cmtys1, cmtys2):
     set1 = set()
     set2 = set()
-    for cname, cnodes in cmtys1.iteritems():
-        set1.update(frozenset((a,b)) for a,b in itertools.combinations(cnodes, 2))
-    for cname, cnodes in cmtys2.iteritems():
-        set2.update(frozenset((a,b)) for a,b in itertools.combinations(cnodes, 2))
-    return len(set1 & set2) / float(len(set1 | set2))
 
+    for cname, cnodes in cmtys1.iteritems():
+        set1.update(frozenset((a,b)) 
+                        for a,b in itertools.combinations(cnodes, 2))
+
+    for cname, cnodes in cmtys2.iteritems():
+        set2.update(frozenset((a,b)) 
+                        for a,b in itertools.combinations(cnodes, 2))
+
+    return len(set1 & set2) / float(len(set1 | set2))
 
 # More efficient implementations using the confusion matrix.
 def mutual_information_python2(cmtys1, cmtys2):
-    N = len(cmtys1.nodes)
-    assert N == len(cmtys2.nodes)
+    N = cmtys1.N#len(cmtys1.nodes)
+    assert N == cmtys2.N#len(cmtys2.nodes)
     # Compute cofusion matrix
     confusion = defaultdict(int)
     nodecmtys2 = cmtys2.nodecmtys_onetoone()
@@ -145,22 +160,26 @@ def mutual_information_python2(cmtys1, cmtys2):
         MI += ((overlap / float(N))
                * log2(overlap*N / float(sizes1[c1]*sizes2[c2])))
     return MI
+
 def vi_python2(cmtys1, cmtys2):
     """Variation of Information"""
     I = mutual_information_python2(cmtys1, cmtys2)
     VI = entropy_python(cmtys1) + entropy_python(cmtys2) - 2*I
     return VI
+
 def vi_norm_python2(cmtys1, cmtys2):
     """Normalized Variation of Information.
 
     This is variation of information, divided by log(N), which is the
-    upper bound."""
+    upper bound.
+    """
     VI = vi_python2(cmtys1, cmtys2)
     # mutual_information_python2 ensures that cmtys1.nodes ==
     # cmtys2.nodes.
-    N = len(cmtys1.nodes)
-    NVI = VI / float(N)
+    N = cmtys1.N#len(cmtys1.nodes)
+    NVI = VI / log2(N)
     return NVI
+    
 def nmi_python2(cmtys1, cmtys2):
     I = mutual_information_python2(cmtys1, cmtys2)
     Hs = entropy_python(cmtys1) + entropy_python(cmtys2)
@@ -170,6 +189,7 @@ def nmi_python2(cmtys1, cmtys2):
         return float('nan')
     In = 2.*I / Hs
     return In
+
 def nmiG_python2(cmtys1, cmtys2):
     """NMI with geometric mean in denominator.
 
@@ -187,6 +207,7 @@ def nmiG_python2(cmtys1, cmtys2):
         return float('nan')
     In = I / sqrt(Hs)
     return In
+    
 def _nmi_LFK_python2_HXY_norm(cmtys1, cmtys2):
     """One half of the LFK NMI."""
     # Compute cofusion matrix
@@ -207,7 +228,7 @@ def _nmi_LFK_python2_HXY_norm(cmtys1, cmtys2):
     # paper, pretty much.
     def h(p):
         if p==0 or p==1: return 0
-        return -p * log(p,2)
+        return -p * log2(p)
     def H(size, N):
         return h(size/N) + h((N-size)/N)
     def H2(c1size, c2size, overlap, N):
@@ -216,7 +237,7 @@ def _nmi_LFK_python2_HXY_norm(cmtys1, cmtys2):
         hP01 = h((c2size - overlap  )/N)
         hP00 = h((N -  c1size - c2size + overlap)/N)
         if hP11 + hP00 <= hP01 + hP10:
-            # We want to exclude ones matching this condition.  Return
+            # We want to exclude ones matching this condition. Return
             # 'inf' and it will be excluded from the min() function
             # wrapping this one.
             return float('inf')
@@ -224,7 +245,7 @@ def _nmi_LFK_python2_HXY_norm(cmtys1, cmtys2):
         hPY0 = h(  (N-c2size) / N)
         return hP11+hP00+hP01+hP10 - hPY1 - hPY0
 
-    # The main NMI loop.  For every community in cmtys1, find the best
+    # The main NMI loop. For every community in cmtys1, find the best
     # matching community (as seen by H2) and take the arithmetic mean.
     # This will later be upgraded to consider weighting by community
     # size.
@@ -245,6 +266,7 @@ def _nmi_LFK_python2_HXY_norm(cmtys1, cmtys2):
         else:
             HX_Y += HX_Yhere / _
     return HX_Y.mean
+    
 def nmi_LFK_python2(cmtys1, cmtys2):
     """NMI of LFK (overlapping)
 
@@ -258,14 +280,14 @@ def nmi_LFK_python2(cmtys1, cmtys2):
                   + _nmi_LFK_python2_HXY_norm(cmtys2, cmtys1) )
     return N
 
-
 def recl_python2(cmtys1, cmtys2, weighted=True):
     """Recall: how well cmtys2 is matched by cmtys1.
 
     Consider cmtys1 to be 'true' communities, and cmtys2 to be
     detected communities.  Recall measures how well the known
     communities are detected.  Extra detected communities do not
-    affect this result."""
+    affect this result.
+    """
     confusion = defaultdict(lambda: defaultdict(int))
     nodecmtys2 = cmtys2.nodecmtys()
     for cname, cnodes in cmtys1.iteritems():
@@ -275,18 +297,19 @@ def recl_python2(cmtys1, cmtys2, weighted=True):
     sizes1 = cmtys1.cmtysizes()
     sizes2 = cmtys2.cmtysizes()
 
-    recls = [ ]
-    #sizes = [ ]
+    recls = []
+    #sizes = []
     for c1name, others in confusion.iteritems():
         size = sizes1[c1name]
         #if weighted:
         #    sizes.append(size)
-        others = [ overlap/float(size + sizes2[c2name] - overlap)
-                   for c2name, overlap in others.iteritems() ]
+        others = [overlap/float(size + sizes2[c2name] - overlap)
+                   for c2name, overlap in others.iteritems()]
         if not others:
             recls.append(0.0)
         else:
             recls.append(max(others))
+            
     if weighted == 2:
         return (sum(x*sizes1[cname]
                     for x, cname in zip(recls, confusion.iterkeys()))
@@ -303,43 +326,51 @@ def recl_python2(cmtys1, cmtys2, weighted=True):
                / float(len(nodecmtys1)))
     else:
         return sum(recls) / float(len(recls))
+        
 def prec_python2(cmtys1, cmtys2, weighted=True):
     """Precision: hew well cmtys1 matches cmtys2.
 
     Consider cmtys1 to be 'true' communities, and cmtys2 to be
     detected communities.  Precision measures how well the detected
-    communities all match the known.  Extra known communities do not
-    affect this result."""
+    communities all match the known. Extra known communities do not
+    affect this result.
+    """
     return recl_python2(cmtys2, cmtys1, weighted=weighted)
+    
 def F1_python2(cmtys1, cmtys2, weighted=True):
     """The harmonic mean of recall and precision.
 
-    This is a symmetric measure."""
+    This is a symmetric measure.
+    """
     recl = recl_python2(cmtys1, cmtys2, weighted=weighted)
     prec = prec_python2(cmtys1, cmtys2, weighted=weighted)
     return (2.0 * prec * recl) / (prec + recl)
+    
 def recl_uw_python2(cmtys1, cmtys2):
     """Unweighted recall"""
     return recl_python2(cmtys1, cmtys2, weighted=False)
+    
 def prec_uw_python2(cmtys1, cmtys2):
     """Unweighted precision"""
     return prec_python2(cmtys1, cmtys2, weighted=False)
+    
 def F1_uw_python2(cmtys1, cmtys2):
     """Unweighted F1"""
     return F1_python2(cmtys1, cmtys2, weighted=False)
+    
 def jaccard_python2(cmtys1, cmtys2):
     """Jaccard index of two partitions.
 
     I do not have a reference for this measure, and the name is not
-    very descriptive of what it does.  It is said to be that
+    very descriptive of what it does. It is said to be that
     implemented in radatools, but I have not checked this myself:
     http://deim.urv.cat/~sergio.gomez/radatools.php.
 
     Mathematical explanation:
 
     For cmtys1, take the set S1 of all pairs of nodes a,b where a and
-    b are in the same community.  Do the same for cmtys2 to produce
-    S2.  The pairs (a,b) are unordered.
+    b are in the same community. Do the same for cmtys2 to produce
+    S2. The pairs (a,b) are unordered.
 
     The jaccard score is  |S1 interset S2| / |S1 union S2|
 
@@ -364,35 +395,36 @@ def jaccard_python2(cmtys1, cmtys2):
 
     return ovPairs / float(c1pairs + c2pairs - ovPairs)
 
-
-
-
 #
 # Old implementation from my pcd C code
 #
 def _cmtys_to_pcdgraph(cmtys):
     return cmtys.to_pcd()
+    
 def mutual_information_pcd(cmtys1, cmtys2):
     from .old.util import mutual_information_c
     return mutual_information_c(
         _cmtys_to_pcdgraph(cmtys1), _cmtys_to_pcdgraph(cmtys2))
+
 def nmi_pcd(cmtys1, cmtys2):
     from .old.util import In
     return In(
         _cmtys_to_pcdgraph(cmtys1), _cmtys_to_pcdgraph(cmtys2))
+
 def vi_pcd(cmtys1, cmtys2):
     from .old.util import VI
     return VI(
         _cmtys_to_pcdgraph(cmtys1), _cmtys_to_pcdgraph(cmtys2))
+
 def nmi_LFK_pcd(cmtys1, cmtys2):
     from .old.util import mutual_information_overlap
     return mutual_information_overlap(
         _cmtys_to_pcdgraph(cmtys1), _cmtys_to_pcdgraph(cmtys2))
+
 def nmi_LFK_pcdpy(cmtys1, cmtys2):
     from .old.util import mutual_information_overlap_python
     return mutual_information_overlap_python(
         _cmtys_to_pcdgraph(cmtys1), _cmtys_to_pcdgraph(cmtys2))
-
 
 #
 # External code: Overlap NMI by L and F
@@ -421,7 +453,7 @@ def nmi_LFK_LF(cmtys1, cmtys2, check=True, use_existing=False):
         re-writing the file.  WARNING: if you use this, you must
         ensure that there are no comments within the file, or anything
         else which make cause the program to break.
-        """
+    """
     from pcd.support.algorithms import _get_file
     from pcd.cmty import CommunityFile
     binary = _get_file('mutual3/mutual')
@@ -436,9 +468,11 @@ def nmi_LFK_LF(cmtys1, cmtys2, check=True, use_existing=False):
     # check that community files are valid for the program:
     if check:
         for nodes in cmtys1.itervalues():
-            assert all(isinstance(x, (int, float)) or _is_float_str(x) for x in nodes )
+            assert all(isinstance(x, (int, float))
+                           or _is_float_str(x) for x in nodes )
         for nodes in cmtys2.itervalues():
-            assert all(isinstance(x, (int, float)) or _is_float_str(x) for x in nodes )
+            assert all(isinstance(x, (int, float)) 
+                           or _is_float_str(x) for x in nodes )
 
     # We must use os.path.abspath *outside* of the tmpdir_context, or
     # else the absolute path will be wrong.
@@ -490,6 +524,7 @@ def nmi_LFK_LF(cmtys1, cmtys2, check=True, use_existing=False):
                 args[0], ret))
         nmi = float(stdout.split(':', 1)[1])
     return nmi
+    
 # backwards compatability aliases
 NMI_LF = nmi_LFK_LF
 ovIn_LF = nmi_LFK_LF
