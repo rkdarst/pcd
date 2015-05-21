@@ -52,6 +52,8 @@ skipped_tests = [
     # could be the _LF implementation is off.  FIXME.
     ('nmi_LFK_pcd', id(cmtys_random_1A), id(cmtys_random_2A)),
     ('nmi_LFK_pcdpy', id(cmtys_random_1A), id(cmtys_random_2A)),
+
+    ('adjusted_rand_igraph', id(cmtys_one), id(cmtys_one))
     ]
 
 def _do_test_same(func, cmtys):
@@ -63,7 +65,8 @@ def test_same():
         if name in ('vi', 'mutual_information', 'vi_norm'):
             continue
         for impl in implementations:
-            if impl in ('nmi_LFK_LF', 'adjusted_rand_igraph'):
+            if impl in ('nmi_LFK_LF', 'adjusted_rand_igraph',
+                        'omega_index_python'):
                 continue
             yield _do_test_same, getattr(cmtycmp, impl), cmtys_one
             yield _do_test_same, getattr(cmtycmp, impl), cmtys_random_1A

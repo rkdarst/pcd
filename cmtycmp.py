@@ -10,9 +10,10 @@ import pcd.cmty
 import pcd.util
 
 
-# log2: from lambda to function (recommended in pep8)
-#log2 = lambda x: log(x, 2)
+# log2: from lambda to function (pep8)
 def log2(x): return log(x, 2)
+
+def comb2(n): return n*(n-1.0)/2.0
 
 def limit_to_overlap(cmtys1, cmtys2, nodes=None):
     if nodes is None:
@@ -22,7 +23,7 @@ def limit_to_overlap(cmtys1, cmtys2, nodes=None):
     return cmtys1new, cmtys2new
 
 def _get_data(cmtys1, cmtys2):
-    """Return important data between two communities.  This is
+    """Return important data between two communities. This is
     designed to be a general function for use within other comparison
     functions.
 
@@ -67,14 +68,14 @@ def confusion(cmtys1, cmtys2):
     d = _get_data(cmtys1, cmtys2)
     return d[0]
 
-# Simple python-based implementations.  These are naive O(n^2)
+# Simple python-based implementations. These are naive O(n^2)
 # implementations, whose only purpose is for pedagogy and unit-testing
 # comparison with the efficient python2 implementations.
 #
 def mutual_information_python(cmtys1, cmtys2):
     MI = 0.0
-    N = cmtys1.N#len(cmtys1.nodes)
-    assert N == cmtys2.N#len(cmtys2.nodes)
+    N = cmtys1.N
+    assert N == cmtys2.N
     for c1name, c1nodes in cmtys1.iteritems():
         for c2name, c2nodes in cmtys2.iteritems():
             n1 = len(c1nodes)
@@ -87,7 +88,7 @@ def mutual_information_python(cmtys1, cmtys2):
     
 def entropy_python(cmtys):
     H = 0.0
-    N = float(cmtys.N)#float(len(cmtys.nodes))
+    N = float(cmtys.N)
     for cnodes in cmtys.itervalues():
         n = len(cnodes)
         if n == 0: continue
@@ -109,8 +110,9 @@ def vi_norm_python(cmtys1, cmtys2):
     VI = vi_python(cmtys1, cmtys2)
     # mutual_information_python2 ensures that cmtys1.nodes ==
     # cmtys2.nodes.
-    N = cmtys1.N#len(cmtys1.nodes)
+    N = cmtys1.N
     NVI = VI / log2(N)
+    # similarity would be 1 - NVI here
     return NVI
     
 def nmi_python(cmtys1, cmtys2):
@@ -144,8 +146,8 @@ def jaccard_python(cmtys1, cmtys2):
 
 # More efficient implementations using the confusion matrix.
 def mutual_information_python2(cmtys1, cmtys2):
-    N = cmtys1.N#len(cmtys1.nodes)
-    assert N == cmtys2.N#len(cmtys2.nodes)
+    N = cmtys1.N
+    assert N == cmtys2.N
     # Compute cofusion matrix
     confusion = defaultdict(int)
     nodecmtys2 = cmtys2.nodecmtys_onetoone()
@@ -176,7 +178,7 @@ def vi_norm_python2(cmtys1, cmtys2):
     VI = vi_python2(cmtys1, cmtys2)
     # mutual_information_python2 ensures that cmtys1.nodes ==
     # cmtys2.nodes.
-    N = cmtys1.N#len(cmtys1.nodes)
+    N = cmtys1.N
     NVI = VI / log2(N)
     return NVI
     
@@ -243,6 +245,7 @@ def _nmi_LFK_python2_HXY_norm(cmtys1, cmtys2):
             return float('inf')
         hPY1 = h(  (  c2size) / N)
         hPY0 = h(  (N-c2size) / N)
+        # -(hPY1 + hPY0) = -H(c2size, N)
         return hP11+hP00+hP01+hP10 - hPY1 - hPY0
 
     # The main NMI loop. For every community in cmtys1, find the best
@@ -284,8 +287,8 @@ def recl_python2(cmtys1, cmtys2, weighted=True):
     """Recall: how well cmtys2 is matched by cmtys1.
 
     Consider cmtys1 to be 'true' communities, and cmtys2 to be
-    detected communities.  Recall measures how well the known
-    communities are detected.  Extra detected communities do not
+    detected communities. Recall measures how well the known
+    communities are detected. Extra detected communities do not
     affect this result.
     """
     confusion = defaultdict(lambda: defaultdict(int))
@@ -328,10 +331,10 @@ def recl_python2(cmtys1, cmtys2, weighted=True):
         return sum(recls) / float(len(recls))
         
 def prec_python2(cmtys1, cmtys2, weighted=True):
-    """Precision: hew well cmtys1 matches cmtys2.
+    """Precision: how well cmtys1 matches cmtys2.
 
     Consider cmtys1 to be 'true' communities, and cmtys2 to be
-    detected communities.  Precision measures how well the detected
+    detected communities. Precision measures how well the detected
     communities all match the known. Extra known communities do not
     affect this result.
     """
@@ -358,6 +361,39 @@ def F1_uw_python2(cmtys1, cmtys2):
     """Unweighted F1"""
     return F1_python2(cmtys1, cmtys2, weighted=False)
     
+def count_pairs(cmtys1, cmtys2):
+    """Counts pairs that are used in pair counting methods.
+    a = pairs of nodes that are in the same community in both partitions
+    b = pairs of nodes that are in the same community in cmtys1 and in
+        different communities in cmtys2
+    c = pairs of nodes that are in different communities in cmtys1 and
+        in the same community in cmtys2
+    d = pairs of nodes that are in different communities in both 
+        partitions    
+    all = all possible pairs
+    """    
+    # pair counting methods require nodes to be the same
+    assert cmtys1.N == cmtys2.N
+    
+    pairs = {'a':0, 'b':0, 'c':0, 'd':0, 'all':0}
+    ab = 0
+    ac = 0
+
+    confusion, sizes1, sizes2 = _get_data(cmtys1, cmtys2)
+    a = sum(comb2(overlap) for c1name, others in confusion.iteritems()
+                                     for overlap in others.itervalues())
+    ab = sum(comb2(n) for n in sizes1.itervalues())
+    ac = sum(comb2(n) for n in sizes2.itervalues())
+    
+    
+    pairs['all'] = comb2(cmtys1.N)   
+    pairs['a'] = a
+    pairs['b'] = ab-a
+    pairs['c'] = ac-a
+    pairs['d'] = pairs['all'] - ab - ac + a
+    
+    return pairs
+    
 def jaccard_python2(cmtys1, cmtys2):
     """Jaccard index of two partitions.
 
@@ -372,11 +408,14 @@ def jaccard_python2(cmtys1, cmtys2):
     b are in the same community. Do the same for cmtys2 to produce
     S2. The pairs (a,b) are unordered.
 
-    The jaccard score is  |S1 interset S2| / |S1 union S2|
+    The jaccard score is  |S1 intersect S2| / |S1 union S2|
 
     Returns:
         the score (float)
     """
+
+    # reusable functionality moved to count_pairs()    
+    '''    
     same = 0
     c1pairs = 0
     c2pairs = 0
@@ -389,12 +428,77 @@ def jaccard_python2(cmtys1, cmtys2):
     #    for c2name, overlap in others.iteritems():
     #        same += comb2(overlap)
     ovPairs = sum(comb2(overlap) for c1name, others in confusion.iteritems()
-                              for overlap in others.itervalues())
+                                     for overlap in others.itervalues())
     c1pairs = sum(comb2(n) for n in sizes1.itervalues())
     c2pairs = sum(comb2(n) for n in sizes2.itervalues())
 
     return ovPairs / float(c1pairs + c2pairs - ovPairs)
+    '''
+    pairs = count_pairs(cmtys1, cmtys2)
+    return pairs['a'] / (pairs['all'] - pairs['d'])
 
+# for igraph implementation comparisons
+def rand_python(cmtys1, cmtys2):
+    pairs = count_pairs(cmtys1, cmtys2)
+    return (pairs['a'] + pairs['d']) / pairs['all']
+    
+def adjusted_rand_python(cmtys1, cmtys2):
+    # method should return 1.0 for the same partitions, but there are
+    # some exceptions where the method isn't defined, so let's just
+    # return 1.0 for the same partitions always    
+    if cmtys1 == cmtys2:
+        return 1.0
+        
+    pairs = count_pairs(cmtys1, cmtys2)
+    ab = pairs['a'] + pairs['b']
+    ac = pairs['a'] + pairs['c']
+    M = float(ab*ac)/pairs['all']
+    
+    return (pairs['a'] - M) / (0.5*(ab+ac) - M)
+
+def omega_index_python(cmtys1, cmtys2):
+    assert cmtys1.N == cmtys2.N
+    
+    if cmtys1.q == 1 or cmtys2.q == 1 or cmtys1 == cmtys2:
+        # need to check if this measure would scale so that same
+        # partitions would mean value 1.0 rather than returning 'nan'
+        return float('nan')
+    
+    pairs1 = []
+    pairs2 = []
+
+    for cname, cnodes in cmtys1.iteritems():
+        pairs1.extend(frozenset((a,b)) 
+                        for a,b in itertools.combinations(cnodes, 2))
+
+    for cname, cnodes in cmtys2.iteritems():
+        pairs2.extend(frozenset((a,b)) 
+                        for a,b in itertools.combinations(cnodes, 2)) 
+    
+    # compute how many times each node pair with nodes in the same
+    # community occur
+    pair_freq1 = {pair:pairs1.count(pair) for pair in pairs1}
+    pair_freq2 = {pair:pairs2.count(pair) for pair in pairs2}
+    
+    # reverse mapping of the pair frequency (t_j(C) as a dict with j as
+    # the key)
+    t1 = {}
+    for k,v in pair_freq1.iteritems():
+        t1.setdefault(v, set()).add(k)
+    
+    t2 = {}
+    for k,v in pair_freq2.iteritems():
+        t2.setdefault(v, set()).add(k)
+    
+    omega_u = 0
+    omega_e = 0
+    for i in xrange(max(cmtys1.q, cmtys2.q)+1):
+        omega_u += len(t1.get(i, set()) & t2.get(i, set()))
+        omega_e += len(t1.get(i, set())) * len(t2.get(i, set()))
+    omega_u = omega_u / comb2(cmtys1.N)
+    omega_e = omega_e / comb2(cmtys1.N)**2
+    
+    return (omega_u - omega_e) / (1 - omega_e)
 #
 # Old implementation from my pcd C code
 #
@@ -438,19 +542,19 @@ def nmi_LFK_LF(cmtys1, cmtys2, check=True, use_existing=False):
     If the communities object is a pcd.cmty.CommunityFile, has a fname
     attribute, and it exists and doesn't end in .gz or .bz2, and the
     argument use_existing is true, then this file will be used for the
-    input to the NMI code.  The NMI code is very dumb, and does not
+    input to the NMI code. The NMI code is very dumb, and does not
     remove comments, and uses only floating-point or integer node IDs,
     and does not give any type of error if these conditions are not
-    met.  Thus, only enable use_existing if you can vouch for the.
+    met. Thus, only enable use_existing if you can vouch for the.
 
     check: bool, default True
         If true, check that all node names are either representable as
-        integers or floating point numbers.  This can either be python
+        integers or floating point numbers. This can either be python
         integers or floats, or strings of those.
     use_existing: bool, default False
         If true, and community object has a '.fname' attribute, and
         that file exists, use that as the input filename instead of
-        re-writing the file.  WARNING: if you use this, you must
+        re-writing the file. WARNING: if you use this, you must
         ensure that there are no comments within the file, or anything
         else which make cause the program to break.
     """
@@ -498,7 +602,7 @@ def nmi_LFK_LF(cmtys1, cmtys2, check=True, use_existing=False):
         args.append(None)
 
     with pcd.util.tmpdir_context(chdir=True, dir='.', prefix='tmp-nmi-'):
-        # Write community files, if they do not already exist.  These
+        # Write community files, if they do not already exist. These
         # must be written inside of the tmpdir_context context because
         # only in here does it know the right
         if args[1] is None:
@@ -524,12 +628,10 @@ def nmi_LFK_LF(cmtys1, cmtys2, check=True, use_existing=False):
                 args[0], ret))
         nmi = float(stdout.split(':', 1)[1])
     return nmi
-    
+
 # backwards compatability aliases
 NMI_LF = nmi_LFK_LF
 ovIn_LF = nmi_LFK_LF
-
-
 
 #
 # Igraph-based implementations
@@ -543,6 +645,7 @@ def to_membership_list(*cmtys_list):
         results.append(clist)
 
     return results, nodes
+
 def _similarity_igraph(cmtys1, cmtys2, method):
     """Calculate community similarity using igraph
 
@@ -582,8 +685,8 @@ measures = {
     'nmiG': ['nmiG_python2', ],
     'nmi_LFK': ['nmi_LFK_LF', #'nmi_LFK_pcd',
                 'nmi_LFK_pcdpy', 'nmi_LFK_python2'],
-    'rand': ['rand_igraph'],
-    'adjusted_rand': ['adjusted_rand_igraph'],
+    'rand': ['rand_igraph', 'rand_python'],
+    'adjusted_rand': ['adjusted_rand_igraph', 'adjusted_rand_python'],
     'F1':   ['F1_python2'],
     'recl': ['recl_python2'],
     'prec': ['prec_python2'],
@@ -591,6 +694,7 @@ measures = {
     'recl_uw': ['recl_uw_python2'],
     'prec_uw': ['prec_uw_python2'],
     'jaccard': ['jaccard_python2', 'jaccard_python'],
+    'omega': ['omega_index_python']
     }
 
 # Standard implementations
@@ -603,7 +707,7 @@ nmiG = nmiG_python2
 nmi_LFK = nmi_LFK_python2
 
 rand = rand_igraph
-adjusted_rand = adjusted_rand_igraph
+adjusted_rand = adjusted_rand_python
 F1 = F1_python2
 recl = recl_python2
 prec = prec_python2
@@ -611,3 +715,4 @@ F1_uw = F1_uw_python2
 recl_uw = recl_uw_python2
 prec_uw = prec_uw_python2
 jaccard = jaccard_python2
+omega = omega_index_python

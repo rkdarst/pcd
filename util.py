@@ -12,6 +12,7 @@ import networkx
 
 floateq = lambda x,y: abs(x-y) <= 5e-6*max(abs(x),abs(y))
 
+
 def distance(p1, p2, boxsize=None):
     d = numpy.subtract(p1, p2)
     if not boxsize is None:
@@ -38,11 +39,13 @@ class DictToAttr(object):
     def __getattr__(self, attrname):        return self.obj[attrname]
     def __setattr__(self, attrname, value): self.obj[attrname] = value
 
+
 # This class is copied from fitz.mathutil
 class Averager(object):
     """Numerically Stable Averager
 
-    Calculate averages and standard deviations in a numerically stable way.
+    Calculate averages and standard deviations in a numerically stable 
+    way.
 
     From the 'On-Line Algorithm' from
     http://en.wikipedia.org/wiki/Algorithms_for_calculating_variance
@@ -52,18 +55,20 @@ class Averager(object):
     For example, to average numpy arrays of ten values, use:
       Averager(datatype=lambda: numpy.zeros(10))
     """
+    
     def __init__(self, datatype=float):
         self._n      = 0
         self._mean   = datatype()   # mean
         self._M2     = datatype()   # variance accumulator
+        
     def __setstate__(self, state):
         if 'n' in state:
             state['_n'] = state['n']
             del state['n']
         self.__dict__.update(state)
+        
     def add(self, value):
-        """Add a new number to the dataset.
-        """
+        """Add a new number to the dataset."""
         if isinstance(value, Averager):
             # Add a sub-averager
             return self._add_child(value)
@@ -75,8 +80,8 @@ class Averager(object):
         self._mean = mean
         self._M2 = M2
         return self
+        
     __iadd__ = add
-
     def _add_child(self, child):
         if hasattr(self, "_child"):
             self._child.add(child)
@@ -90,18 +95,20 @@ class Averager(object):
         if hasattr(self, "_child"):
             return self._n + self._child.n
         return self._n
+        
     @property
     def mean(self):
         """Mean"""
         if hasattr(self, "_child"):
             #if self._n > 1e3 and self._child.n > 1e3:
             #    # Large value one
-            #    return (self._n*self._mean + self._child.n*self._child.mean) /\
+            #    return (self._n*self._mean + self._child.n*self._child.mean)/\
             #           (self._n + self._child.n)
 
             delta = self._child.mean - self._mean
             return self._mean + delta * self._child.n/(self._n+self._child.n)
         return self._mean
+        
     @property
     def M2(self):
         """M2 algorithm parameter"""
@@ -110,47 +117,61 @@ class Averager(object):
             return self._M2 + self._child.M2 + \
                    delta**2 * (self._n*self._child.n)/(self._n+self._child.n)
         return self._M2
+        
     @property
     def std(self):
         """Population standard deviation"""
         if self.n == 0: return float('nan')
         return math.sqrt(self.M2 / self.n)
+        
     @property
     def stdsample(self):
         """Sample standard deviation"""
         if self.n <= 1: return float('nan')
         return math.sqrt(self.M2 / (self.n-1))
+  
     @property
     def stdmean(self):
         """(Sample) standard deviation of the mean.  std / sqrt(n)"""
         if self.n <= 1: return float('nan')
         return math.sqrt(self.M2 / ((self.n-1)*self.n))
+    
     @property
     def var(self):
         """Population variance"""
         if self.n == 0: return float('nan')
         return self.M2 / self.n
+    
     @property
     def varsample(self):
         """Sample variance"""
         if self.n <= 1: return float('nan')
         return self.M2 / (self.n-1)
+    
     def proxy(self, expr):
         """Proxy for computing other"""
         return _AvgProxy(main=self, expr=expr)
+    
     def proxygen(self, expr):
         return lambda: self.proxy(expr=expr)
+
+
 class _AvgProxy(object):
+    
     def __init__(self, main, expr):
         self.main = main
         self.expr = expr
+        
     def add(self, x):
         raise "You can't add values to proxy objects"
+        
     @property
     def mean(self):
         return eval(self.expr, dict(o=self.main))
+        
 
 class AutoAverager(object):
+    
     def __init__(self, datatype=float, newAverager=Averager,
                  depth=1, auto_proxy=[]):
         """
@@ -171,6 +192,7 @@ class AutoAverager(object):
         self.data = { }
         self.data_list = [ ]
         self.auto_proxy = auto_proxy
+        
     def __getitem__(self, name, newAverager=None, do_proxy=True):
         # newAverager is used for proxy objects.
         if name not in self.data:
@@ -193,9 +215,12 @@ class AutoAverager(object):
                 for suffix, expr in self.auto_proxy:
                     self.add_proxy(name, name+suffix, expr=expr)
         return self.data[name]
+        
     get = __getitem__
+    
     def add(self, name, val, do_proxy=True):
         self.get(name, do_proxy=do_proxy).add(val)
+        
     def remove(self, name_or_index):
         if isinstance(name_or_index, int):
             name = self.names[-1]
@@ -204,9 +229,11 @@ class AutoAverager(object):
         else:
             del self.data[name]
             self.names.remove(name)
+            
     def __iter__(self):
         for key in self.names:
             return (key, self.data[key])
+            
     def add_proxy(self, name_orig, name_new, expr):
         """Add a proxy object.
 
@@ -214,20 +241,29 @@ class AutoAverager(object):
         .add_proxy('q', 'q_std', 'o.stdmean')"""
         if name_new not in self.data:
             self.get(name_new, newAverager=self[name_orig].proxygen(expr))
+            
     def column(self, name, attrname='mean'):
         assert self.depth == 2
-        return [getattr(self.data[name_][name], attrname) for name_ in self.names]
+        return [getattr(self.data[name_][name], attrname) 
+        for name_ in self.names]
+ 
     def column_names(self):
         return self.data[self.names[0]].names
+
     def table(self, attrname='mean'):
         assert self.depth == 2
         return zip(*(self.column(name, attrname=attrname)
                      for name in self.column_names()))
+                         
+                         
 class _DerivProxy(_AvgProxy):
+    
     def __init__(self, main, name, t):
         self.main = main
+        
     def add(self, x):
         raise "You can't add values to proxy objects"
+        
     @property
     def mean(self):
         idx = main.names.index(t)
@@ -235,11 +271,13 @@ class _DerivProxy(_AvgProxy):
             return float('nan')
         return (main[t+1][name].mean-main[t-1][name].mean)/2.
 
+
 # This class is copied from fitz.loginterval
 class LogInterval(object):
     """
     interval - how many
     """
+    
     # How many
     interval = 10
     def __init__(self, low=None, high=None,
@@ -253,15 +291,19 @@ class LogInterval(object):
             self._indexlow  = int(floor(round(self.index(low), 10)))
         if high:
             self._indexhigh = int(ceil(round(self.index(high), 10)))
+            
     def value(self, index):
         return self.offset * self.expConstant**index
+        
     def index(self, value):
         return log(value/self.offset) / (log(self.interval)/self.density)
+        
     def indexes(self):
         return tuple(range(self._indexlow, self._indexhigh+1))
+        
     def values(self):
         return tuple(self.value(i) for i in self.indexes())
-
+        
     def __iter__(self, maxValue=None):
         # We have an upper bound
         if hasattr(self, '_indexhigh'):
@@ -283,6 +325,7 @@ def matrix_swap_basis(array, a, b):
     """Swap rows a,b and columns a,b in a array."""
     array[a,:], array[b,:] = array[b,:].copy(), array[a,:].copy()
     array[:,a], array[:,b] = array[:,b].copy(), array[:,a].copy()
+
 
 def networkx_from_matrix(array, ignore_diagonal=True, ignore_values=()):
     """Convert a interactions matrix to a networkx graph.
@@ -312,7 +355,6 @@ def networkx_from_matrix(array, ignore_diagonal=True, ignore_values=()):
     return g
 
 
-
 def color_graph(g):
     """Color a networkX graph.
 
@@ -335,10 +377,11 @@ def color_graph(g):
             colors |= set((color,))
         g.node[n]['color'] = color
     return colors
+    
 
 class ColorMapper(object):
-    """Helper class for color mapping
-    """
+    """Helper class for color mapping"""
+    
     def __init__(self, g, colormap_name='gist_rainbow',
                  colorizer=color_graph):
         """Initialize the system, set up normalization
@@ -368,13 +411,17 @@ class ColorMapper(object):
         """Return an integer representing the color of th given node."""
         return self.g.node[c]['color']
 
+
 def wrap_coords(coords, boxsize):
     """Wrap coordinates to [0, boxsize)"""
     #return coords - boxsize*numpy.floor(coords/boxsize)
     return coords % boxsize
+    
+    
 def wrap_dists(coords, boxsize):
     """Wrap coordinates to [-boxsize/2, boxsize/2)"""
     return coords - boxsize*numpy.floor((coords/boxsize)+.5)
+
 
 def mean_position(coords, boxsize):
     r0 = coords[0]
@@ -384,11 +431,13 @@ def mean_position(coords, boxsize):
     mean %= boxsize
     return mean
 
+
 def mean_position2(coords, boxsize):
     """Handles wrapped particles"""
     coords = coords[list(nodelist)]
     return coords.mean(axis=0)
 #def uniform_image(coords, boxsize):
+
 
 def check_sparse_symmetric(G):
     for i, row in enumerate(G.simatrixId):
@@ -398,9 +447,11 @@ def check_sparse_symmetric(G):
             invindex = numpy.where(G.simatraxId[j, :G.simatrixN[j]]==i)[0][0]
             difference = G.simatrix[j]
 
+
 def leval(s):
     try:                              return ast.literal_eval(s)
     except (ValueError,SyntaxError):  return s
+
 
 def args_to_dict(l):
     kwargs = { }
@@ -409,6 +460,7 @@ def args_to_dict(l):
         k, v = arg.split('=', 1)
         kwargs[k] = leval(v)
     return kwargs
+
 
 def eval_gamma_str(gammas):
     """Parse a gamma string of the form 'low,high[,density]'.
@@ -419,7 +471,8 @@ def eval_gamma_str(gammas):
     dict(low=LOW,high=HIGH[,density=DENSITY]).
 
     If a single integer or float is given, then only this value is
-    returned as an integer."""
+    returned as an integer.
+    """
     gammas = leval(gammas)
     if isinstance(gammas, (tuple,list)):
         if len(gammas) == 2:
@@ -428,6 +481,7 @@ def eval_gamma_str(gammas):
             gammas = dict(low=gammas[0], high=gammas[1], density=gammas[2])
         gammas['start'] = .01
     return gammas
+
 
 def extremawhere(a, mask, func=numpy.max):
     """Returns location of extrema.
@@ -461,6 +515,7 @@ def extremawhere(a, mask, func=numpy.max):
     w = longest_plateau[len(longest_plateau)//2]
     return w
 
+
 def extrema(a, mask, func=numpy.max):
     """Return extrema of an array, subject to mask.
 
@@ -469,7 +524,6 @@ def extrema(a, mask, func=numpy.max):
     is.
 
     mask - only consider these values as being used for the maximum.
-
     """
     return a[extremawhere(a, mask, func)]
 
@@ -494,8 +548,10 @@ def fraction_defined(G0, G1, ill=False):
         n_detected += cmtyIntersect(G0,c0, G1,c1)
         # Considering only well-defined nodes:
         if ill:
-            #print 'ill defined: ', len([ n for n in G0._graph.nodes() if G0._graph.node[n]['ill'] ])
-            #print 'well defined: ', len([ n for n in G0._graph.nodes() if not G0._graph.node[n]['ill'] ])
+            #print 'ill defined: ', len([ n for n in G0._graph.nodes() 
+            #                               if G0._graph.node[n]['ill'] ])
+            #print 'well defined: ', len([ n for n in G0._graph.nodes() 
+            #                                if not G0._graph.node[n]['ill'] ])
             plantedNodes = set(G0.cmtyContents(c0))
             wellDefinedPlantedNodes = set(n for n in plantedNodes
                               if not G0._graph.node[G0._nodeLabel[n]]['ill'])
@@ -505,18 +561,23 @@ def fraction_defined(G0, G1, ill=False):
     if ill:
         return (
             float(n_detected) / G0.N,
-            float(n_welldef_detected) / n_welldef if n_welldef else float('nan'),
-            )
+            float(n_welldef_detected) / n_welldef if n_welldef 
+                                                  else float('nan'), )
     else:
         raise NotImplementedError
+
 
 def hasrealattr(obj, name):
     print obj.name
     return hasattr(obj, name) and not hasattr(getattr(obj,name), '__get__')
+
+
 def listAttributes(obj, depth=1, exclude=[], exclude_deep=[]):
     """Return dict of trivial attributes.
 
-    Given an object, return a dict attr:value of all int,long,float,string attributes.  If depth>0, allow tuples"""
+    Given an object, return a dict attr:value of all int,long,float,
+    string attributes.  If depth>0, allow tuples
+    """
     attrs = { }
     #excludeNames = set(('__init__',))
     for name in dir(obj):
@@ -532,6 +593,8 @@ def listAttributes(obj, depth=1, exclude=[], exclude_deep=[]):
         if _isTrivialType(value, depth=depth):
             attrs[name] = value
     return attrs
+
+
 _NoneType = type(None)
 def _isTrivialType(t, depth=0):
     if isinstance(t, (int,long,float,str,bool,_NoneType)):
@@ -544,9 +607,11 @@ def _isTrivialType(t, depth=0):
                all(_isTrivialType(x, depth=depth-1) for x in t.itervalues())
     return False
 
+
 import contextlib
 import shutil
 import tempfile
+
 @contextlib.contextmanager
 def chdir_context(dirname):
     """Context manager for chdir.
@@ -559,7 +624,8 @@ def chdir_context(dirname):
     os.chdir(olddir)
 
 @contextlib.contextmanager
-def tmpdir_context(chdir=False, delete=True, suffix='', prefix='tmp', dir=None):
+def tmpdir_context(chdir=False, delete=True, suffix='', prefix='tmp',
+                   dir=None):
     """Context manager for temporary directories.
 
     Create a temporary directory using context manager.  If 'chdir' is
@@ -569,7 +635,8 @@ def tmpdir_context(chdir=False, delete=True, suffix='', prefix='tmp', dir=None):
     cleanup.  Other arguments (suffix, prefix, dir) are passed to
     tempfile.mkdtemp.
 
-    Theb context argument is the tmpdir name, absolute path."""
+    Theb context argument is the tmpdir name, absolute path.
+    """
     olddir = os.getcwd()
     tmpdir = tempfile.mkdtemp(suffix=suffix, prefix=prefix, dir=dir)
     if chdir:
