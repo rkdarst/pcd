@@ -3,6 +3,7 @@ from functools import partial
 import itertools
 from math import log, sqrt
 import subprocess
+import numpy
 
 import pcd.cmty
 # note: pcd.util imports names directly from this module, so be
@@ -124,8 +125,15 @@ def nmi_python(cmtys1, cmtys2):
         return float('nan')
     In = 2.*I / Hs
     return In
+
+def nmi_max_python(cmtys1, cmtys2):
+    if cmtys1 == cmtys2:
+        return 1.0
+    I = mutual_information_python(cmtys1, cmtys2)
+    H = max(entropy_python(cmtys1), entropy_python(cmtys2))
+    return I/H
     
-In = nmi_python
+In = nmi_python # what is this for?
 def _frac_detected(cmtys1, cmtys2, ovmode='overlap'):
     # overlap modes: overlap, newman
     return cmtys1.frac_detected(cmtys2, ovmode)
@@ -415,25 +423,25 @@ def jaccard_python2(cmtys1, cmtys2):
     """
 
     # reusable functionality moved to count_pairs()    
-    '''    
-    same = 0
-    c1pairs = 0
-    c2pairs = 0
-
-    def comb2(n):
-        return n*(n-1)/2.0
-
-    confusion, sizes1, sizes2 = _get_data(cmtys1, cmtys2)
-    #for c1name, others in confusion.iteritems():
-    #    for c2name, overlap in others.iteritems():
-    #        same += comb2(overlap)
-    ovPairs = sum(comb2(overlap) for c1name, others in confusion.iteritems()
-                                     for overlap in others.itervalues())
-    c1pairs = sum(comb2(n) for n in sizes1.itervalues())
-    c2pairs = sum(comb2(n) for n in sizes2.itervalues())
-
-    return ovPairs / float(c1pairs + c2pairs - ovPairs)
-    '''
+      
+#    same = 0
+#    c1pairs = 0
+#    c2pairs = 0
+#
+#    def comb2(n):
+#        return n*(n-1)/2.0
+#
+#    confusion, sizes1, sizes2 = _get_data(cmtys1, cmtys2)
+#    #for c1name, others in confusion.iteritems():
+#    #    for c2name, overlap in others.iteritems():
+#    #        same += comb2(overlap)
+#    ovPairs = sum(comb2(overlap) for c1name, others in confusion.iteritems()
+#                                     for overlap in others.itervalues())
+#    c1pairs = sum(comb2(n) for n in sizes1.itervalues())
+#    c2pairs = sum(comb2(n) for n in sizes2.itervalues())
+#
+#    return ovPairs / float(c1pairs + c2pairs - ovPairs)
+    
     pairs = count_pairs(cmtys1, cmtys2)
     return pairs['a'] / (pairs['all'] - pairs['d'])
 
@@ -499,6 +507,86 @@ def omega_index_python(cmtys1, cmtys2):
     omega_e = omega_e / comb2(cmtys1.N)**2
     
     return (omega_u - omega_e) / (1 - omega_e)
+    
+def fowlkes_mallows_python(cmtys1, cmtys2):
+    pairs = count_pairs(cmtys1, cmtys2)
+    ab = pairs['a'] + pairs['b']
+    ac = pairs['a'] + pairs['c']
+    
+    return pairs['a'] / sqrt(ab*ac)
+
+# this measure is not symmetric
+def minkowski_coeff_python(cmtys1, cmtys2):
+    # need to still check what should be returned if cmtys1==cmtys2 and 
+    # q==N
+    if cmtys1.q == cmtys1.N:
+        return float('nan')
+    pairs = count_pairs(cmtys1, cmtys2)
+    
+    ab = pairs['a'] + pairs['b']
+    ac = pairs['a'] + pairs['c']
+    
+    return pairs['a'] / sqrt(ab*ac)
+
+def gamma_coeff_python(cmtys1, cmtys2):
+    pairs = count_pairs(cmtys1, cmtys2)
+    ab = pairs['a'] + pairs['b']
+    ac = pairs['a'] + pairs['c']
+    
+    if cmtys1.q == 1 or cmtys2.q == 1:
+        return float('nan')
+    elif cmtys1 == cmtys2:
+        return (pairs['all']-pairs['a'])/pairs['d']
+
+    return ((pairs['all'] * pairs['a'] - ab*ac) / 
+                sqrt(ab*ac*(pairs['all']-ab)*(pairs['all']-ac)))
+
+# there is something similar in cmty.cmty_mapping but it doesn't
+# seem to maximize the overlap sum
+# there is probably some nice recursion solution for this
+
+# !!!REMEMBER TO CHECK THAT WORKS FOR cmtys1.q < cmtys2.q !!!
+def classification_accuracy_python(cmtys1, cmtys2):
+    assert cmtys1.N == cmtys2.N
+    overlaps = numpy.zeros(shape=(cmtys1.q, cmtys2.q), dtype=int)
+    
+    for i1, (c1, n1) in enumerate(cmtys1.iteritems()):
+        for i2, (c2, n2) in enumerate(cmtys2.iteritems()):
+            overlaps[i1,i2] = len(set(n1) & set(n2))
+
+    cmtys2_indx = range(cmtys2.q)
+    def recr(i, j, prev):
+        left = [n for n in cmtys2_indx if n not in prev]
+        if left and i+1 < cmtys1.q:
+            for k in left:
+               for l in recr(i+1, k, prev+[k]):
+                   yield l
+        else:
+            sum_ = 0
+            for i_,j_ in enumerate(prev):
+                sum_ += overlaps[i_,j_]     
+            yield sum_
+    
+    max_ = 0
+    for j in xrange(cmtys2.q):
+        maxpath = max(recr(0, j, [j]))
+        if maxpath > max_:
+            max_ = maxpath
+    
+    return max_/cmtys1.N
+     
+
+def norm_van_dongen_python(cmtys1, cmtys2):
+    assert cmtys1.N == cmtys2.N    
+    overlaps = numpy.zeros(shape=(cmtys1.q, cmtys2.q), dtype=int)
+    
+    for i1, (c1, n1) in enumerate(cmtys1.iteritems()):
+        for i2, (c2, n2) in enumerate(cmtys2.iteritems()):
+            overlaps[i1,i2] = len(set(n1) & set(n2))
+            
+    return 1 - (1/(2*cmtys1.N))*(sum([max(row) for row in overlaps]) +
+                                 sum([max(col) for col in overlaps.T]))
+
 #
 # Old implementation from my pcd C code
 #
@@ -694,7 +782,13 @@ measures = {
     'recl_uw': ['recl_uw_python2'],
     'prec_uw': ['prec_uw_python2'],
     'jaccard': ['jaccard_python2', 'jaccard_python'],
-    'omega': ['omega_index_python']
+    'omega': ['omega_index_python'],
+    'nmi_max': ['nmi_max_python'],
+    'fowlkes_mallows': ['fowlkes_mallows_python'],
+    'minkowski': ['minkowski_coeff_python'],
+    'gamma_coeff': ['gamma_coeff_python'],
+    'classification_error': ['classification_accuracy_python'],
+    'nvd': ['norm_van_dongen_python']
     }
 
 # Standard implementations
@@ -705,6 +799,7 @@ vi_norm = vi_norm_python2
 nmi = nmi_python2
 nmiG = nmiG_python2
 nmi_LFK = nmi_LFK_python2
+nmi_max = nmi_max_python
 
 rand = rand_igraph
 adjusted_rand = adjusted_rand_python
@@ -716,3 +811,8 @@ recl_uw = recl_uw_python2
 prec_uw = prec_uw_python2
 jaccard = jaccard_python2
 omega = omega_index_python
+fowlkes_mallows = fowlkes_mallows_python
+minkowski = minkowski_coeff_python
+gamma_coeff = gamma_coeff_python
+classification_error = classification_accuracy_python
+nvd = norm_van_dongen_python
