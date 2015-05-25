@@ -543,11 +543,10 @@ def gamma_coeff_python(cmtys1, cmtys2):
 
 # there is something similar in cmty.cmty_mapping but it doesn't
 # seem to maximize the overlap sum
-# there is probably some nice recursion solution for this
-
-# !!!REMEMBER TO CHECK THAT WORKS FOR cmtys1.q < cmtys2.q !!!
+# there is probably some nicer solution for this (hungarian algrotihm)
 def classification_accuracy_python(cmtys1, cmtys2):
     assert cmtys1.N == cmtys2.N
+
     overlaps = numpy.zeros(shape=(cmtys1.q, cmtys2.q), dtype=int)
     
     for i1, (c1, n1) in enumerate(cmtys1.iteritems()):
@@ -586,6 +585,49 @@ def norm_van_dongen_python(cmtys1, cmtys2):
             
     return 1 - (1/(2*cmtys1.N))*(sum([max(row) for row in overlaps]) +
                                  sum([max(col) for col in overlaps.T]))
+
+# distance metrics do not handle overlapping currently
+# need to check if they should/can
+def calculate_meet(cmtys1, cmtys2):
+    meet = set()
+    for c1, n1 in cmtys1.iteritems():
+        for c2, n2 in cmtys2.iteritems():
+            if set(n1) & set(n2):
+                meet.add(frozenset(set(n1) & set(n2)))
+            
+    return meet
+    
+def distance_moved_python(cmtys1, cmtys2):
+    assert cmtys1.N == cmtys2.N
+    meet = calculate_meet(cmtys1, cmtys2)
+    # NO IDEA IF THIS WORKS GENERALLY
+    m = 2.0*len(meet) - (cmtys1.q + cmtys2.q) + 2*abs(cmtys1.q - cmtys2.q)
+
+    return 1 - m/cmtys1.N
+    
+def distance_division_python(cmtys1, cmtys2):
+    assert cmtys1.N == cmtys2.N
+    meet = calculate_meet(cmtys1, cmtys2)
+    d = 0
+    
+    for c1,n1 in cmtys1.iteritems():
+        n = set(n1)
+        for m in meet:
+            if not n: break                
+            if m.issubset(n):
+                d += 1
+                n = n-m
+                    
+    for c2,n2 in cmtys2.iteritems():
+        n = set(n2)
+        for m in meet:
+            if not n: break
+            if m.issubset(n):
+                d += 1
+                n = n-m
+                
+    print d, meet
+    return 1 - float(d)/cmtys1.N
 
 #
 # Old implementation from my pcd C code
@@ -788,7 +830,9 @@ measures = {
     'minkowski': ['minkowski_coeff_python'],
     'gamma_coeff': ['gamma_coeff_python'],
     'classification_error': ['classification_accuracy_python'],
-    'nvd': ['norm_van_dongen_python']
+    'nvd': ['norm_van_dongen_python'],
+    'distance_m': ['distance_moved_python'],
+    'distance_d': ['distance_division_python']
     }
 
 # Standard implementations
@@ -816,3 +860,5 @@ minkowski = minkowski_coeff_python
 gamma_coeff = gamma_coeff_python
 classification_error = classification_accuracy_python
 nvd = norm_van_dongen_python
+distance_m = distance_moved_python
+distance_d = distance_division_python

@@ -29,6 +29,16 @@ cmtys_random_2A = Communities(
      3: set([1, 9, 10, 12, 13, 21, 29, 32, 38, 40, 50, 59, 62, 64, 67,
              69, 70, 72, 76, 77, 87, 93, 94])}
     )
+cmtys_random_3A = Communities(
+    {0: set([68, 73, 98, 20, 43, 17, 23, 27, 67, 28, 53, 89, 78, 95, 
+             42, 62, 85, 33, 86, 46, 44, 4, 63, 90, 34, 47, 76, 31, 
+             55, 30, 25, 56, 88, 72, 8, 35, 40, 36, 77, 38, 80, 14, 
+             96, 1, 99, 3, 82, 51, 87, 41, 19]),
+     1: set([74, 50, 39, 83, 24, 37, 13, 21, 84, 18, 54, 16, 64, 9, 
+             81, 69, 91, 93, 12, 57, 15, 2, 48, 52, 66, 60, 61, 58, 5,
+             10, 11, 45, 71, 7, 22, 70, 65, 75, 92, 59, 79, 94, 6, 29,
+             26, 49, 32, 97, 0])}
+    )
 
 
 skipped_tests = [
@@ -38,6 +48,9 @@ skipped_tests = [
     # LF also returns 0.0 when any one partition has only one
     # community.  Is this expected behavior or a bug?
     ('nmi_LFK_LF', id(cmtys_one), id(cmtys_random_1A)),
+    ('nmi_LFK_LF', id(cmtys_random_1A), id(cmtys_one)),
+    ('nmi_LFK_LF', id(cmtys_random_3A), id(cmtys_one)),
+    ('nmi_LFK_LF', id(cmtys_one), id(cmtys_random_3A)),
 
     # igraph might might use natural log instead of log2.  In
     # cmtycmp.py, igraph functions are changed to return in bits
@@ -46,16 +59,23 @@ skipped_tests = [
     #('vi_igraph',         id(cmtys_random_1A), id(cmtys_random_2A)),
 
     # This returns nan.
-    ('nmi_LFK_pcdpy',         id(cmtys_one), id(cmtys_random_1A)),
+    ('nmi_LFK_pcdpy', id(cmtys_one), id(cmtys_random_1A)),
+    ('nmi_LFK_pcdpy', id(cmtys_random_1A), id(cmtys_one)),
+    
+    # returns >1 while other LFK measures return something somewhat intelligent
+    ('nmi_LFK_pcdpy', id(cmtys_one), id(cmtys_random_3A)),
+    ('nmi_LFK_pcdpy', id(cmtys_random_3A), id(cmtys_one)),
 
     # This is basically correct, but only to 2 places, not 6.  Or it
     # could be the _LF implementation is off.  FIXME.
     ('nmi_LFK_pcd', id(cmtys_random_1A), id(cmtys_random_2A)),
+    ('nmi_LFK_pcd', id(cmtys_random_2A), id(cmtys_random_1A)),
     ('nmi_LFK_pcdpy', id(cmtys_random_1A), id(cmtys_random_2A)),
+    ('nmi_LFK_pcdpy', id(cmtys_random_2A), id(cmtys_random_1A)),
+    ('nmi_LFK_pcdpy', id(cmtys_random_2A), id(cmtys_random_3A)),
     
     # Returns nan, even though it should return 1.0
     ('adjusted_rand_igraph', id(cmtys_one), id(cmtys_one)),
-    
     ]
 
 def _do_test_same(func, cmtys):
@@ -98,23 +118,38 @@ def _do_test_one(measure, cmtys=None):
                                             name2, v2))
 #def _assert_one(msg, v1, v2)
 
-
 def test_one():
     for name in cmtycmp.measures:
         yield _do_test_one, name, (cmtys_one, cmtys_one)
 
-def test_random():
+def test_random1():
     for name in cmtycmp.measures:
         yield _do_test_one, name, (cmtys_random_1A, cmtys_random_1A)
 
-def test_random_one():
+def test_one_random1():
     for name in cmtycmp.measures:
         yield _do_test_one, name, (cmtys_one, cmtys_random_1A)
 
-def test_random_random():
+def test_one_random3():
     for name in cmtycmp.measures:
-        yield _do_test_one, name, (cmtys_random_1A, cmtys_random_2A)
+        yield _do_test_one, name, (cmtys_random_3A, cmtys_one)
 
+def test_random2_random3():
+    for name in cmtycmp.measures:
+        yield _do_test_one, name, (cmtys_random_2A, cmtys_random_3A)
 
+def test_distance1():
+    A = Communities({0: set([1,2,3,4,5,6]),1: set([7,8,9])})
+    B = Communities({0: set([1,2,4,5,7,8]),1: set([3,6]),2: set([9])})
+    t = cmtycmp.distance_division_python(A,B)
+    print
+    assert_almost_equal(t, 2.0/3, places=6, msg="testdistance1 %f"%(t))
+    
+def test_distance2():
+    A = Communities({0: set([1,2,3,4,5,6]),1: set([7,8,9])})
+    B = Communities({0: set([1,2,4,5,7,8]),1: set([3,6]),2: set([9])})
+    t = cmtycmp.distance_moved_python(A,B)
+    print
+    assert_almost_equal(t, 4.0/9, places=6, msg="testdistance2 %f"%(t))   
     #cmtys = (cmtys_one, cmtys_one)
     #cmtys = (cmtys_random_1A, cmtys_random_1A)
