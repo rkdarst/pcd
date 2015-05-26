@@ -658,6 +658,60 @@ def distance_division_python(cmtys1, cmtys2):
                 
     return 1 - d/cmtys1.N
 
+
+# binary in- and exclusivity and scaled inclusivity
+# only give scores for node classification similarity
+def compute_cluster_comparison_matrix(cmtys1, cmtys2):
+    assert cmtys1.N == cmtys2.N
+    # cmtys1 is the reference partition
+    X = numpy.zeros(shape=(cmtys2.q, cmtys1.q), dtype=float)
+    cmty_pairs = []
+    
+    for i1, (c1, n1) in enumerate(cmtys2.iteritems()):
+        row = []
+        for i2, (c2, n2) in enumerate(cmtys1.iteritems()):
+            set1 = set(n1)
+            set2 = set(n2)
+            X[i1,i2] = len(set1 & set2)**2 / (len(set1)*len(set2))
+            row.append((n1,n2))
+        cmty_pairs.append(row)
+    return X,cmty_pairs
+
+# what to do in the case of two equally good clusters?, which nodes get points
+def binary_exclusive_python(cmtys1, cmtys2):
+    X, cmty_pairs = compute_cluster_comparison_matrix(cmtys1, cmtys2)
+    nodescores = {n:0 for n in cmtys2.nodes}
+    col_maxs = numpy.argmax(X, axis=0)
+    for j,i in enumerate(col_maxs):
+        for n in cmty_pairs[i][j][0]:
+            nodescores[n] += 1
+            
+    return nodescores
+
+def binary_inclusive_python(cmtys1, cmtys2, threshold):
+    X, cmty_pairs = compute_cluster_comparison_matrix(cmtys1, cmtys2)
+    nodescores = {n:0 for n in cmtys2.nodes}
+    rows, cols = numpy.where(X >= threshold)
+    for i in rows:
+        for j in cols:
+            for n in cmty_pairs[i][j][0]:
+                nodescores[n] += 1
+                
+    return nodescores
+
+# can't do bias correction without comparing multiple partitions
+# at the same time
+def scaled_inclusivity_python(cmtys1, cmtys2):
+    X, cmty_pairs = compute_cluster_comparison_matrix(cmtys1, cmtys2)
+    nodescores = {n:0 for n in cmtys2.nodes}
+    col_maxs = numpy.argmax(X, axis=0)
+    for j,i in enumerate(col_maxs):
+        for pair in cmty_pairs[i][j]:
+            for n in set(pair[0]) & set(pair[1]):
+                nodescores[n] += X[i,j]
+            
+    return nodescores
+
 #
 # Old implementation from my pcd C code
 #
