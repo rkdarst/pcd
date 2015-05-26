@@ -33,11 +33,11 @@ cmtys_random_3A = Communities(
     {0: set([68, 73, 98, 20, 43, 17, 23, 27, 67, 28, 53, 89, 78, 95, 
              42, 62, 85, 33, 86, 46, 44, 4, 63, 90, 34, 47, 76, 31, 
              55, 30, 25, 56, 88, 72, 8, 35, 40, 36, 77, 38, 80, 14, 
-             96, 1, 99, 3, 82, 51, 87, 41, 19]),
+             96, 1, 99, 3, 82, 51, 87, 41]),
      1: set([74, 50, 39, 83, 24, 37, 13, 21, 84, 18, 54, 16, 64, 9, 
              81, 69, 91, 93, 12, 57, 15, 2, 48, 52, 66, 60, 61, 58, 5,
              10, 11, 45, 71, 7, 22, 70, 65, 75, 92, 59, 79, 94, 6, 29,
-             26, 49, 32, 97, 0])}
+             26, 49, 32, 97, 0, 19])}
     )
 
 
@@ -153,3 +153,8 @@ def test_distance2():
     assert_almost_equal(t, 4.0/9, places=6, msg="testdistance2 %f"%(t))   
     #cmtys = (cmtys_one, cmtys_one)
     #cmtys = (cmtys_random_1A, cmtys_random_1A)
+    
+def test_distance3():
+    t = cmtycmp.distance_moved_python(cmtys_one,cmtys_random_3A)
+    print
+    assert_almost_equal(t, 0.5, places=6, msg="testdistance3 %f"%(t))      
