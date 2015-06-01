@@ -1,5 +1,6 @@
 from nose.tools import assert_almost_equal
 import unittest
+from math import isnan
 
 from pcd.cmty import Communities
 
@@ -40,6 +41,7 @@ cmtys_random_3A = Communities(
              26, 49, 32, 97, 0, 19])}
     )
 
+communities = [cmtys_one, cmtys_random_1A, cmtys_random_2A, cmtys_random_3A]
 
 skipped_tests = [
     # LF code returns 0.0 instead of 1.0 for identical partitions.  I
@@ -88,10 +90,14 @@ def test_same():
             continue
         for impl in implementations:
             if impl in ('nmi_LFK_LF', 'adjusted_rand_igraph',
-                        'omega_index_python','gamma_coeff_python'):
+                        'omega_index_python','gamma_coeff_python',
+                        'minkowski_coeff_python', 'norm_van_dongen_python',
+                        'classification_accuracy_python'):
                 continue
-            yield _do_test_same, getattr(cmtycmp, impl), cmtys_one
-            yield _do_test_same, getattr(cmtycmp, impl), cmtys_random_1A
+            for c in communities:
+                if (impl, id(c), id(c)) in skipped_tests:
+                    continue
+                yield _do_test_same, getattr(cmtycmp, impl), c
 
 def _do_test_one(measure, cmtys=None):
     implementations = cmtycmp.measures[measure]
@@ -158,3 +164,61 @@ def test_distance3():
     t = cmtycmp.distance_moved_python(cmtys_one,cmtys_random_3A)
     print
     assert_almost_equal(t, 0.5, places=6, msg="testdistance3 %f"%(t))      
+
+def test_measures():
+    answers = {
+    'mutual_information' : (0, 0, 0.954434003),
+    'vi' : (0, 3, 0.856844122),
+    'vi_norm' : (0, 1, 0.285614707),
+    'nmi' : (1, 0, 0.690190417),
+    #'nmiG' : (0,0,0),
+    'nmi_LFK' : (1, 0.5, 0.554047694),
+    'nmi_max' : (1, 0, 0.526939508),
+    'rand' : (1, 0, 0.75),
+    'adjusted_rand' : (1, 0, 0.478723404),
+    #'F1' : (0,0,0),
+    #'recl' : (0,0,0),
+    #'prec' : (0,0,0),
+    #'F1_uw' : (0,0,0),
+    #'recl_uw' : (0,0,0),
+    #'prec_uw' : (0,0,0),
+    'jaccard' : (1, 0, 0.461538462),
+    'omega' : (float('nan'), 0, 0.478723404),
+    'fowlkes_mallows' : (1, float('nan'), 0.67936622),
+    'minkowski' : (0, 1, 0.733799386),
+    'gamma_coeff' : (float('nan'), float('nan'), 0.560968194),
+    'classification_error' : (0, 0.875, 0.25),
+    'nvd' : (0, 0.4375, 0.125),
+    'distance_m' : (1, 0.125, 0.75),
+    'distance_d' : (1, 0.125, 0.75)}
+
+    t = 8
+    l = range(t)
+    O = Communities({0: l})
+    P = Communities({0: l[:5], 1: l[5:]})
+    Q = Communities({0: [0,1,2], 1: [3], 2: [4], 3: [5,6,7]})
+    W = Communities({i: [i] for i in l})
+
+    for measure, impl in cmtycmp.measures.iteritems():
+        # make a generator (yield thingie) to break this into multiple
+        # tests
+        if measure not in answers: continue
+        OO,OW,PQ = answers[measure]
+        for i in impl:
+            yield _do_test_assert_measure_equal, O, O, OO, 'OO', i
+            yield _do_test_assert_measure_equal, O, W, OW, 'OW', i
+            yield _do_test_assert_measure_equal, P, Q, PQ, 'PQ', i
+            
+def _do_test_assert_measure_equal(A, B, comp, name, measure):
+    func = getattr(cmtycmp, measure)
+    m = func(A,B)
+    if ( isnan(m) and isnan(comp) ) or \
+            measure in ['nmi_LFK_LF', 'nmi_LFK_pcdpy']:
+        return
+    if measure in ['adjusted_rand_igraph', 'omega_index_python'] \
+            and cmtycmp.is_nodewise_equal(A,B):
+        return
+    print
+    assert_almost_equal(comp, m, places=6, 
+    msg=("Measure %s for comparison %s is not equal to the calculated value: "
+    "%s != %s")%(measure, name, m, comp))

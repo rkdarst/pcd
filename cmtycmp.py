@@ -1,5 +1,6 @@
 from collections import defaultdict
 from functools import partial
+from copy import deepcopy
 import itertools
 from math import log, sqrt
 import subprocess
@@ -15,6 +16,26 @@ import pcd.util
 def log2(x): return log(x, 2)
 
 def comb2(n): return n*(n-1.0)/2.0
+
+# equal in the sense of what (most) measures consider equal
+def is_equal(cmtys1, cmtys2):
+    if cmtys1.q == cmtys2.q and cmtys1.N == cmtys2.N:
+        node_n1 = sorted(cmtys1.cmtysizes().values())
+        node_n2 = sorted(cmtys2.cmtysizes().values())
+        if node_n2 == node_n1:
+            return True    
+    return False
+    
+# equality check for measures that care about specific nodes 
+# for example pair counting measures
+def is_nodewise_equal(cmtys1, cmtys2):
+    if cmtys1.q == cmtys2.q and cmtys1.N == cmtys2.N:
+        nodesets = set(frozenset(i) for i in cmtys1.itervalues())
+        for v in cmtys2.itervalues():
+            nodesets.discard(set(v))
+        if not nodesets:
+            return True
+    return False
 
 def limit_to_overlap(cmtys1, cmtys2, nodes=None):
     if nodes is None:
@@ -127,7 +148,8 @@ def nmi_python(cmtys1, cmtys2):
     return In
 
 def nmi_max_python(cmtys1, cmtys2):
-    if cmtys1 == cmtys2:
+    assert cmtys1.N == cmtys2.N
+    if is_equal(cmtys1, cmtys2) or (cmtys1.q == 1 and cmtys2.q == 1):
         return 1.0
     I = mutual_information_python(cmtys1, cmtys2)
     H = max(entropy_python(cmtys1), entropy_python(cmtys2))
@@ -454,7 +476,9 @@ def adjusted_rand_python(cmtys1, cmtys2):
     # method should return 1.0 for the same partitions, but there are
     # some exceptions where the method isn't defined, so let's just
     # return 1.0 for the same partitions always    
-    if cmtys1 == cmtys2:
+    assert cmtys1.N == cmtys2.N
+
+    if is_nodewise_equal(cmtys1, cmtys2) or (cmtys1.q == 1 and cmtys2.q == 1):
         return 1.0
         
     pairs = count_pairs(cmtys1, cmtys2)
@@ -467,26 +491,29 @@ def adjusted_rand_python(cmtys1, cmtys2):
 def omega_index_python(cmtys1, cmtys2):
     assert cmtys1.N == cmtys2.N
     
-    if cmtys1.q == 1 or cmtys2.q == 1 or cmtys1 == cmtys2:
+    if (cmtys1.q == 1 and cmtys2.q == 1) or is_nodewise_equal(cmtys1, cmtys2):
         # need to check if this measure would scale so that same
         # partitions would mean value 1.0 rather than returning 'nan'
         return float('nan')
     
-    pairs1 = []
-    pairs2 = []
+    pairs = {frozenset((a,b)): 0
+                        for a,b in itertools.combinations(cmtys1.nodes, 2)}
 
+    pair_freq1 = deepcopy(pairs)
+    pair_freq2 = deepcopy(pairs)
+    
     for cname, cnodes in cmtys1.iteritems():
-        pairs1.extend(frozenset((a,b)) 
-                        for a,b in itertools.combinations(cnodes, 2))
+        for i in (frozenset((a,b)) 
+                for a,b in itertools.combinations(cnodes, 2)):
+            pair_freq1[i] += 1
 
     for cname, cnodes in cmtys2.iteritems():
-        pairs2.extend(frozenset((a,b)) 
-                        for a,b in itertools.combinations(cnodes, 2)) 
+        for i in (frozenset((a,b)) 
+                for a,b in itertools.combinations(cnodes, 2)):
+            pair_freq2[i] += 1 
     
     # compute how many times each node pair with nodes in the same
     # community occur
-    pair_freq1 = {pair:pairs1.count(pair) for pair in pairs1}
-    pair_freq2 = {pair:pairs2.count(pair) for pair in pairs2}
     
     # reverse mapping of the pair frequency (t_j(C) as a dict with j as
     # the key)
@@ -498,8 +525,8 @@ def omega_index_python(cmtys1, cmtys2):
     for k,v in pair_freq2.iteritems():
         t2.setdefault(v, set()).add(k)
     
-    omega_u = 0
-    omega_e = 0
+    omega_u = 0.0
+    omega_e = 0.0
     for i in xrange(max(cmtys1.q, cmtys2.q)+1):
         omega_u += len(t1.get(i, set()) & t2.get(i, set()))
         omega_e += len(t1.get(i, set())) * len(t2.get(i, set()))
@@ -512,7 +539,7 @@ def fowlkes_mallows_python(cmtys1, cmtys2):
     pairs = count_pairs(cmtys1, cmtys2)
     ab = pairs['a'] + pairs['b']
     ac = pairs['a'] + pairs['c']
-    
+    if not (ab and ac): return float('nan') 
     return pairs['a'] / sqrt(ab*ac)
 
 # this measure is not symmetric
@@ -523,19 +550,20 @@ def minkowski_coeff_python(cmtys1, cmtys2):
         return float('nan')
     pairs = count_pairs(cmtys1, cmtys2)
     
-    ab = pairs['a'] + pairs['b']
-    ac = pairs['a'] + pairs['c']
-    
-    return pairs['a'] / sqrt(ab*ac)
+    if not (pairs['a'] or pairs['b']):
+        return float('nan')
+        
+    return sqrt((pairs['b'] + pairs['c']) / (pairs['a'] + pairs['b']))
 
 def gamma_coeff_python(cmtys1, cmtys2):
     pairs = count_pairs(cmtys1, cmtys2)
     ab = pairs['a'] + pairs['b']
     ac = pairs['a'] + pairs['c']
     
-    if cmtys1.q == 1 or cmtys2.q == 1:
+    if cmtys1.q == 1 or cmtys2.q == 1 or \
+        cmtys1.q == cmtys1.N or cmtys2.q == cmtys2.N:
         return float('nan')
-    elif cmtys1 == cmtys2:
+    elif is_nodewise_equal(cmtys1, cmtys2):
         return (pairs['all']-pairs['a'])/pairs['d']
 
     return ((pairs['all'] * pairs['a'] - ab*ac) / 
@@ -543,7 +571,7 @@ def gamma_coeff_python(cmtys1, cmtys2):
 
 # there is something similar in cmty.cmty_mapping but it doesn't
 # seem to maximize the overlap sum
-# there is probably some nicer solution for this (hungarian algrotihm)
+# there is probably some nicer solution for this (hungarian algorithm)
 def classification_accuracy_python(cmtys1, cmtys2):
     assert cmtys1.N == cmtys2.N
 
@@ -572,7 +600,7 @@ def classification_accuracy_python(cmtys1, cmtys2):
         if maxpath > max_:
             max_ = maxpath
     
-    return max_/cmtys1.N
+    return 1 - float(max_)/cmtys1.N
      
 
 def norm_van_dongen_python(cmtys1, cmtys2):
@@ -583,7 +611,7 @@ def norm_van_dongen_python(cmtys1, cmtys2):
         for i2, (c2, n2) in enumerate(cmtys2.iteritems()):
             overlaps[i1,i2] = len(set(n1) & set(n2))
             
-    return 1 - (1/(2*cmtys1.N))*(sum([max(row) for row in overlaps]) +
+    return 1 - (1.0/(2*cmtys1.N))*(sum([max(row) for row in overlaps]) +
                                  sum([max(col) for col in overlaps.T]))
 
 # distance metrics do not handle overlapping currently

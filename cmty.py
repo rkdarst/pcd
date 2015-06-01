@@ -1053,7 +1053,7 @@ class _CommunitiesBase(object):
         for cname, cnodes in self.iteritems():
             # Both the name and nodes must be nonempty
             if len(cnodes) == 0:
-                raise ValueError("Can not write empty community %s"%c)
+                raise ValueError("Can not write empty community %s"%cname)
             if isinstance(cname, str) and len(cname) == 0:
                 raise ValueError("Can not write empty community label '%s'"%
                                  cname)
