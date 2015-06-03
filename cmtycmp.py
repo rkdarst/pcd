@@ -572,7 +572,7 @@ def gamma_coeff_python(cmtys1, cmtys2):
 # there is something similar in cmty.cmty_mapping but it doesn't
 # seem to maximize the overlap sum
 # there is probably some nicer solution for this (hungarian algorithm)
-def classification_accuracy_python(cmtys1, cmtys2):
+def classification_error_python(cmtys1, cmtys2):
     assert cmtys1.N == cmtys2.N
 
     overlaps = numpy.zeros(shape=(cmtys1.q, cmtys2.q), dtype=int)
@@ -940,7 +940,7 @@ measures = {
     'fowlkes_mallows': ['fowlkes_mallows_python'],
     'minkowski': ['minkowski_coeff_python'],
     'gamma_coeff': ['gamma_coeff_python'],
-    'classification_error': ['classification_accuracy_python'],
+    'classification_error': ['classification_error_python'],
     'nvd': ['norm_van_dongen_python'],
     'distance_m': ['distance_moved_python'],
     'distance_d': ['distance_division_python']
@@ -969,7 +969,7 @@ omega = omega_index_python
 fowlkes_mallows = fowlkes_mallows_python
 minkowski = minkowski_coeff_python
 gamma_coeff = gamma_coeff_python
-classification_error = classification_accuracy_python
+classification_error = classification_error_python
 nvd = norm_van_dongen_python
 distance_m = distance_moved_python
 distance_d = distance_division_python

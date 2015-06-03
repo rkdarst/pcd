@@ -92,7 +92,7 @@ def test_same():
             if impl in ('nmi_LFK_LF', 'adjusted_rand_igraph',
                         'omega_index_python','gamma_coeff_python',
                         'minkowski_coeff_python', 'norm_van_dongen_python',
-                        'classification_accuracy_python'):
+                        'classification_error_python'):
                 continue
             for c in communities:
                 if (impl, id(c), id(c)) in skipped_tests:
@@ -200,8 +200,6 @@ def test_measures():
     W = Communities({i: [i] for i in l})
 
     for measure, impl in cmtycmp.measures.iteritems():
-        # make a generator (yield thingie) to break this into multiple
-        # tests
         if measure not in answers: continue
         OO,OW,PQ = answers[measure]
         for i in impl:
