@@ -627,12 +627,14 @@ def classification_accuracy_python2(cmtys1, cmtys2):
     if dq:
         if cmtys2.q > cmtys1.q:
             shape = (dq,maxq)
+            ax = 0
         else:    
             shape = (maxq,dq)
+            ax = 1
         # add -maxval rows/columns to fill the matrix to square matrix
         z = numpy.full(shape, M.min())
-        M = numpy.concatenate((M,z))
-
+        M = numpy.concatenate((M,z), axis=ax)
+    
 
     def step3_1(mat):
         assigned = (mat == 0)
@@ -708,7 +710,7 @@ def classification_accuracy_python2(cmtys1, cmtys2):
         minval = numpy.min(mat[numpy.nonzero(leftover)])
         mat += minval*addition
         return mat
-  
+    
     # step1
     # find row minimum for each row and subtract it from the row       
     M = (M.T - M.min(axis=1)).T
@@ -1093,7 +1095,7 @@ measures = {
     'fowlkes_mallows': ['fowlkes_mallows_python'],
     'minkowski': ['minkowski_coeff_python'],
     'gamma_coeff': ['gamma_coeff_python'],
-    'classification_error': ['classification_error_python'],
+    'classification_error': ['classification_error_python2'],
     'nvd': ['norm_van_dongen_python'],
     'distance_m': ['distance_moved_python'],
     'distance_d': ['distance_division_python']
@@ -1122,7 +1124,7 @@ omega = omega_index_python
 fowlkes_mallows = fowlkes_mallows_python
 minkowski = minkowski_coeff_python
 gamma_coeff = gamma_coeff_python
-classification_error = classification_accuracy_python
+classification_error = classification_error_python2
 nvd = norm_van_dongen_python
 distance_m = distance_moved_python
 distance_d = distance_division_python
