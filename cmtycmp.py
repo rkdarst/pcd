@@ -211,7 +211,10 @@ def vi_norm_python2(cmtys1, cmtys2):
     N = cmtys1.N
     NVI = VI / log2(N)
     return NVI
-    
+
+def vi_norm_python2_rev(cmtys1, cmtys2):
+    return 1 - vi_norm_python2(cmtys1, cmtys2)
+   
 def nmi_python2(cmtys1, cmtys2):
     I = mutual_information_python2(cmtys1, cmtys2)
     Hs = entropy_python(cmtys1) + entropy_python(cmtys2)
@@ -552,8 +555,9 @@ def minkowski_coeff_python(cmtys1, cmtys2):
     
     if not (pairs['a'] or pairs['b']):
         return float('nan')
-        
+    
     return sqrt((pairs['b'] + pairs['c']) / (pairs['a'] + pairs['b']))
+
 
 def gamma_coeff_python(cmtys1, cmtys2):
     pairs = count_pairs(cmtys1, cmtys2)
@@ -572,7 +576,7 @@ def gamma_coeff_python(cmtys1, cmtys2):
 # there is something similar in cmty.cmty_mapping but it doesn't
 # seem to maximize the overlap sum
 # there is probably some nicer solution for this (hungarian algorithm)
-def classification_error_python(cmtys1, cmtys2):
+def classification_accuracy_python(cmtys1, cmtys2):
     assert cmtys1.N == cmtys2.N
 
     overlaps = numpy.zeros(shape=(cmtys1.q, cmtys2.q), dtype=int)
@@ -600,8 +604,154 @@ def classification_error_python(cmtys1, cmtys2):
         if maxpath > max_:
             max_ = maxpath
     
-    return 1 - float(max_)/cmtys1.N
-     
+    return float(max_)/cmtys1.N
+
+def classification_error_python(cmtys1, cmtys2):
+    return 1 - classification_accuracy_python(cmtys1, cmtys2)
+
+def classification_accuracy_python2(cmtys1, cmtys2):
+    assert cmtys1.N == cmtys2.N
+
+    overlaps = numpy.zeros(shape=(cmtys1.q, cmtys2.q), dtype=int)    
+
+    for i1, (c1, n1) in enumerate(cmtys1.iteritems()):
+        for i2, (c2, n2) in enumerate(cmtys2.iteritems()):
+            overlaps[i1,i2] = len(set(n1) & set(n2))
+
+    maxq = max(cmtys1.q, cmtys2.q) 
+    minq = min(cmtys1.q, cmtys2.q)
+    dq = maxq-minq
+    
+    # - overlaps, because we're trying to find maximum path
+    M = -overlaps
+    if dq:
+        if cmtys2.q > cmtys1.q:
+            shape = (dq,maxq)
+        else:    
+            shape = (maxq,dq)
+        # add -maxval rows/columns to fill the matrix to square matrix
+        z = numpy.full(shape, M.min())
+        M = numpy.concatenate((M,z))
+
+
+    def step3_1(mat):
+        assigned = (mat == 0)
+        assigned_rows = set()
+        assigned_cols = set()
+        
+        row_q = range(maxq)
+        while row_q:
+            row_q.sort(key=lambda x: len(numpy.where(assigned[x,:])[0]))
+            i = row_q.pop(0)
+            
+            assigned_rows.add(i)
+            row = assigned[i,:]
+            
+            cols = set(numpy.where(row)[0])
+            if not (cols - assigned_cols): continue
+           
+            j = list(cols - assigned_cols)[0]
+            # choose column with least amount of nonassigned zeros
+            t = maxq
+            for c in (cols - assigned_cols):
+                col_zeros = len(numpy.where(assigned[:,c])[0])
+                if col_zeros < t:
+                    j = c
+                    t = col_zeros
+            assigned_cols.add(j)
+
+            col = assigned[:, j]
+            row[:] = False
+            col[:] = False
+            row[j] = True    
+        
+        return assigned
+    
+    def step3_2(mat, assigned):
+        zeros = (mat == 0)
+        marked_cols = set()
+        unmarked_rows = set(range(maxq))
+        # 'drawing lines'
+        
+        newly_marked_rows = [i for i,row in enumerate(assigned) \
+                                        if numpy.count_nonzero(row)==0]
+        while newly_marked_rows:
+            i = newly_marked_rows.pop()
+            unmarked_rows.discard(i)
+            for c in numpy.where(zeros[i,:])[0]:
+                if c in marked_cols: continue
+                marked_cols.add(c)
+                for r in numpy.where(assigned[:, c])[0]:
+                    if r in unmarked_rows:
+                        newly_marked_rows.append(r)
+                        
+        return unmarked_rows, marked_cols
+        
+    def step4(rows, cols):
+        if len(rows) + len(cols) == maxq:
+            return True
+        return False
+    
+    def step5(mat, rows, cols):
+        # find minimum value from elements left over
+        leftover = numpy.ones((maxq,maxq))
+        # addition matrix
+        addition = -numpy.ones((maxq,maxq))
+        # check all marked cols/unmarked rows, +1 to those
+        # so double marked get 1 as the multiplier while marked get 0
+        for r in rows:
+            leftover[r, :] = 0
+            addition[r, :] += 1
+        for c in cols:
+            leftover[:, c] = 0
+            addition[:, c] += 1
+        minval = numpy.min(mat[numpy.nonzero(leftover)])
+        mat += minval*addition
+        return mat
+  
+    # step1
+    # find row minimum for each row and subtract it from the row       
+    M = (M.T - M.min(axis=1)).T
+    # check if we can assign
+    a = step3_1(M)
+    rs,cs = step3_2(M, a)
+    # 'if not numpy.count_nonzero(a) == maxq' should probably be enough
+    if not step4(rs,cs):
+        # step2
+        # find column minimum for each column and subtract it from the
+        # column
+        M = M - M.min(axis=0)
+        
+        a = step3_1(M)
+        rs,cs = step3_2(M, a)
+        while not step4(rs,cs):
+            # step3
+            # mark columns and rows in matrix, so that all the
+            # zeros are covered with minimum amount of covered
+            # columns and rows
+            # step4
+            # check number of covered columns and rows,
+            # if maxq then assign, else continue to step5
+            # step5
+            # find smallest unmarked value and subtract it from
+            # all the unmarked values and add it to all double-
+            # marked values, goto step3
+            M = step5(M,rs,cs)
+            
+            a = step3_1(M)
+            rs,cs = step3_2(M, a)
+
+    if numpy.count_nonzero(a) == maxq:
+        sum_ = (a[:cmtys1.q, :cmtys2.q] * overlaps).sum()
+    else:
+        print "something went wrong"
+        print "assigned:", numpy.count_nonzero(a)
+        return 0
+    
+    return float(sum_)/cmtys1.N
+
+def classification_error_python2(cmtys1, cmtys2):
+    return 1 - classification_accuracy_python2(cmtys1, cmtys2)
 
 def norm_van_dongen_python(cmtys1, cmtys2):
     assert cmtys1.N == cmtys2.N    
@@ -610,9 +760,12 @@ def norm_van_dongen_python(cmtys1, cmtys2):
     for i1, (c1, n1) in enumerate(cmtys1.iteritems()):
         for i2, (c2, n2) in enumerate(cmtys2.iteritems()):
             overlaps[i1,i2] = len(set(n1) & set(n2))
-            
-    return 1 - (1.0/(2*cmtys1.N))*(sum([max(row) for row in overlaps]) +
+
+    return 1- (1.0/(2*cmtys1.N))*(sum([max(row) for row in overlaps]) +
                                  sum([max(col) for col in overlaps.T]))
+
+def norm_van_dongen_python_rev(cmtys1, cmtys2):
+    return 1 - norm_van_dongen_python(cmtys1, cmtys2)
 
 # distance metrics do not handle overlapping currently
 # need to check if they should/can
@@ -924,8 +1077,8 @@ measures = {
          'mutual_information_python2'],
     'nmi': ['nmi_python', 'nmi_igraph', 'nmi_pcd', 'nmi_python2'],
     'nmiG': ['nmiG_python2', ],
-    'nmi_LFK': ['nmi_LFK_LF', #'nmi_LFK_pcd',
-                'nmi_LFK_pcdpy', 'nmi_LFK_python2'],
+    'nmi_LFK': ['nmi_LFK_python2'],# 'nmi_LFK_LF', 'nmi_LFK_pcd',
+                #'nmi_LFK_pcdpy'],
     'rand': ['rand_igraph', 'rand_python'],
     'adjusted_rand': ['adjusted_rand_igraph', 'adjusted_rand_python'],
     'F1':   ['F1_python2'],
@@ -969,7 +1122,7 @@ omega = omega_index_python
 fowlkes_mallows = fowlkes_mallows_python
 minkowski = minkowski_coeff_python
 gamma_coeff = gamma_coeff_python
-classification_error = classification_error_python
+classification_error = classification_accuracy_python
 nvd = norm_van_dongen_python
 distance_m = distance_moved_python
 distance_d = distance_division_python

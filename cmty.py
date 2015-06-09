@@ -24,7 +24,7 @@ The basic iterator methods are:
     example: `for nodes in cmtys.itervalues(): print len(nodes)`
   cmtys.iterkeys()
     like .iteritems() but only iterates over community  names
-    example: `for name in cmtys.itervalues(): print name`
+    example: `for name in cmtys.iterkeys(): print name`
   len(cmtys)
     number of communities.  Note that this may require internally
     iterating through all communities to calculate this, thus it may
