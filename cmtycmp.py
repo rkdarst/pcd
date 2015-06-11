@@ -635,7 +635,108 @@ def classification_accuracy_python2(cmtys1, cmtys2):
         z = numpy.full(shape, M.min())
         M = numpy.concatenate((M,z), axis=ax)
     
+    def step3_1DFS(mat):
+        # recursive DFS until assignment found, 
+        # else return assigment with the longest path (max assignments)
+        zeros = (mat==0)
+        zerorows = numpy.where(zeros)[0]
+        
+        def recr(i, j, prev):
+            # rest of the zerorows
+            freerows = set(zerorows) - set(prev[0])
+            # remove rows that have no unassigned zeros
+            discard = set()
+            adj_dict = defaultdict(set)
+            for r in freerows:
+                zerocols = set(numpy.where(zeros[r,:])[0])
+                adj = zerocols - set(prev[1])
+                if not adj:
+                    discard.add(r)
+                else:
+                    adj_dict[r] = adj
+            freerows -= discard
+            
+            if freerows:
+                i = freerows.pop()
+                adj = adj_dict[i]                
+                if adj:
+                    for a in adj:
+                        for p in recr(i,a, [prev[0]+[i], prev[1]+[a]]):
+                            yield p
+                else:
+                    yield prev
+            else:
+                yield prev
 
+        # dict for keeping track of the amount of unassigned zeros
+        # on every unassigned row and the least amount of zeros
+        # in an unassigned column in the row
+        row_z = {r: len(numpy.where(zeros[r,:])[0]) for r in xrange(maxq)
+                    if len(numpy.where(zeros[r,:])[0]) > 0}
+        col_z = {c: len(numpy.where(zeros[:,c])[0]) for c in xrange(maxq)
+                    if len(numpy.where(zeros[:,c])[0]) > 0}
+                 
+        # put all singular zeros in the path
+        # faster to do all the easy assignments before recursion
+        preassign = [[],[]]
+        while (row_z and col_z) and (min(row_z.itervalues()) == 1 or
+                                      min(col_z.itervalues()) == 1):
+            if min(row_z.itervalues()) == 1:
+                r = min(row_z, key=row_z.get)
+                rz = numpy.where(zeros[r,:])[0]
+                mincol = [c for c in rz if c in col_z][0] 
+                
+                preassign[0].append(r)
+                preassign[1].append(mincol)
+                mincol_z = [i for i in numpy.where(zeros[:,mincol])[0] 
+                                                            if i in row_z]
+                for row in mincol_z:
+                    if row == r:
+                        del row_z[row]
+                    elif row_z[row] > 1:
+                        row_z[row] -= 1
+                    else:
+                        del row_z[row]
+
+                del col_z[mincol]
+                
+            else:
+                c = min(col_z, key=col_z.get)
+                cz = numpy.where(zeros[:,c])[0]
+                minrow = [r for r in cz if r in row_z][0] 
+                
+                preassign[0].append(minrow)
+                preassign[1].append(c)
+                minrow_z = [i for i in numpy.where(zeros[minrow,:])[0] 
+                                                            if i in col_z]
+                for col in minrow_z:
+                    if col == c:
+                        del col_z[col]
+                    elif col_z[col] > 1:
+                        col_z[col] -= 1
+                    else:
+                        del col_z[col]
+
+                del row_z[minrow]
+                
+        # in the case of no zero rows/columns just assign first zero
+        if len(preassign[0])==0:
+            preassign[0].append(numpy.where(zeros)[0][0])
+            preassign[1].append(numpy.where(zeros)[1][0])
+        path = [[],[]]
+        for p in recr(preassign[0][-1],preassign[1][-1],preassign):
+            if len(p[0]) == maxq:
+                zeros[:,:] = False
+                zeros[p] = True
+                return zeros
+            elif len(p[0]) > len(path[0]):
+                path = p
+
+        zeros[:,:] = False
+        zeros[path] = True
+        return zeros
+
+    # DFS works always, this one doesn't
     def step3_1(mat):
         assigned = (mat == 0)
         assigned_rows = set()
@@ -643,7 +744,14 @@ def classification_accuracy_python2(cmtys1, cmtys2):
         
         row_q = range(maxq)
         while row_q:
-            row_q.sort(key=lambda x: len(numpy.where(assigned[x,:])[0]))
+            # sort rows so that first is the row with least zeros or
+            # the row with a column with least zeros, whichever amount
+            # is lower
+            row_q.sort(key=lambda x: 
+                    min(len(numpy.where(assigned[x,:])[0]),
+                        min([len(numpy.where(assigned[:,c])[0]) 
+                             for c in numpy.where(assigned[x,:])[0] 
+                                    if c not in assigned_cols])))
             i = row_q.pop(0)
             
             assigned_rows.add(i)
@@ -652,14 +760,16 @@ def classification_accuracy_python2(cmtys1, cmtys2):
             cols = set(numpy.where(row)[0])
             if not (cols - assigned_cols): continue
            
-            j = list(cols - assigned_cols)[0]
+#            j = list(cols - assigned_cols)[0]
             # choose column with least amount of nonassigned zeros
-            t = maxq
-            for c in (cols - assigned_cols):
-                col_zeros = len(numpy.where(assigned[:,c])[0])
-                if col_zeros < t:
-                    j = c
-                    t = col_zeros
+            j = list(cols - assigned_cols).sort(
+                    key=lambda x: len(numpy.where(assigned[:,x])[0])).pop(0)
+#            t = maxq
+#            for c in (cols - assigned_cols):
+#                col_zeros = len(numpy.where(assigned[:,c])[0])
+#                if col_zeros < t:
+#                    j = c
+#                    t = col_zeros
             assigned_cols.add(j)
 
             col = assigned[:, j]
@@ -715,18 +825,17 @@ def classification_accuracy_python2(cmtys1, cmtys2):
     # find row minimum for each row and subtract it from the row       
     M = (M.T - M.min(axis=1)).T
     # check if we can assign
-    a = step3_1(M)
-    rs,cs = step3_2(M, a)
-    # 'if not numpy.count_nonzero(a) == maxq' should probably be enough
-    if not step4(rs,cs):
+    a = step3_1DFS(M)
+    if not numpy.count_nonzero(a) == maxq:
         # step2
         # find column minimum for each column and subtract it from the
         # column
         M = M - M.min(axis=0)
         
-        a = step3_1(M)
-        rs,cs = step3_2(M, a)
-        while not step4(rs,cs):
+        a = step3_1DFS(M)
+        th = 100
+        while not (numpy.count_nonzero(a) == maxq or th==0):
+            rs,cs = step3_2(M, a)
             # step3
             # mark columns and rows in matrix, so that all the
             # zeros are covered with minimum amount of covered
@@ -739,15 +848,16 @@ def classification_accuracy_python2(cmtys1, cmtys2):
             # all the unmarked values and add it to all double-
             # marked values, goto step3
             M = step5(M,rs,cs)
-            
-            a = step3_1(M)
-            rs,cs = step3_2(M, a)
+            a = step3_1DFS(M)
+            th -= 1
 
     if numpy.count_nonzero(a) == maxq:
         sum_ = (a[:cmtys1.q, :cmtys2.q] * overlaps).sum()
     else:
-        print "something went wrong"
-        print "assigned:", numpy.count_nonzero(a)
+        print "Classification accuracy python2:"
+        print "assigned", numpy.count_nonzero(a), 'out of', minq
+        print "Overlap matrix:"
+        print overlaps
         return 0
     
     return float(sum_)/cmtys1.N
