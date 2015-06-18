@@ -1,5 +1,6 @@
+import os
 from collections import defaultdict
-from functools import partial
+#from functools import partial
 from copy import deepcopy
 import itertools
 from math import log, sqrt
@@ -149,10 +150,12 @@ def nmi_python(cmtys1, cmtys2):
 
 def nmi_max_python(cmtys1, cmtys2):
     assert cmtys1.N == cmtys2.N
-    if is_equal(cmtys1, cmtys2) or (cmtys1.q == 1 and cmtys2.q == 1):
-        return 1.0
     I = mutual_information_python(cmtys1, cmtys2)
     H = max(entropy_python(cmtys1), entropy_python(cmtys2))
+    if I == 0.0 and H == 0.0:
+        return 1.0
+    elif H == 0:
+        return float('nan')
     return I/H
     
 In = nmi_python # what is this for?
@@ -256,7 +259,7 @@ def _nmi_LFK_python2_HXY_norm(cmtys1, cmtys2):
     c2sizes = cmtys2.cmtysizes()
     # Total community sizes
     N1 = float(len(cmtys1.nodes))
-    N2 = float(len(cmtys2.nodes))
+#    N2 = float(len(cmtys2.nodes))
     N  = float(len(cmtys1.nodes | cmtys2.nodes))
 
     # These definitions correspond to the definitions in the LFK
@@ -635,15 +638,15 @@ def classification_accuracy_python2(cmtys1, cmtys2):
         z = numpy.full(shape, M.min())
         M = numpy.concatenate((M,z), axis=ax)
     
-    def step3_1DFS(mat):
+    def assignment_DFS(mat):
         # recursive DFS until assignment found, 
         # else return assigment with the longest path (max assignments)
         zeros = (mat==0)
-        zerorows = numpy.where(zeros)[0]
+        zerorows = set(numpy.where(zeros)[0])
         
         def recr(i, j, prev):
             # rest of the zerorows
-            freerows = set(zerorows) - set(prev[0])
+            freerows = zerorows - set(prev[0])
             # remove rows that have no unassigned zeros
             discard = set()
             adj_dict = defaultdict(set)
@@ -659,12 +662,12 @@ def classification_accuracy_python2(cmtys1, cmtys2):
             if freerows:
                 i = freerows.pop()
                 adj = adj_dict[i]                
-                if adj:
-                    for a in adj:
-                        for p in recr(i,a, [prev[0]+[i], prev[1]+[a]]):
-                            yield p
-                else:
-                    yield prev
+#                if adj:
+                for a in adj:
+                    for p in recr(i,a, [prev[0]+[i], prev[1]+[a]]):
+                        yield p
+#                else:
+#                    yield prev
             else:
                 yield prev
 
@@ -719,72 +722,85 @@ def classification_accuracy_python2(cmtys1, cmtys2):
 
                 del row_z[minrow]
                 
-        # in the case of no zero rows/columns just assign first zero
-        if len(preassign[0])==0:
-            preassign[0].append(numpy.where(zeros)[0][0])
-            preassign[1].append(numpy.where(zeros)[1][0])
         path = [[],[]]
-        for p in recr(preassign[0][-1],preassign[1][-1],preassign):
-            if len(p[0]) == maxq:
-                zeros[:,:] = False
-                zeros[p] = True
-                return zeros
-            elif len(p[0]) > len(path[0]):
-                path = p
+        # in the case of no zero rows/columns check all first row zeros
+        # for possible starting point
+        if len(preassign[0])==0:
+            # row with least zeros
+            r = min(row_z, key=row_z.get)
+            for c in numpy.where(zeros[r,:])[0]:
+                for p in recr(r,c,[[r],[c]]):
+                    if len(p[0]) == len(zerorows):
+                        zeros[:,:] = False
+                        zeros[p] = True
+                        return zeros
+                    elif len(p[0]) > len(path[0]):
+                        path = p
+        else:
+            for p in recr(preassign[0][-1],preassign[1][-1],preassign):
+                # jump out if a path with max possible path length
+                # is found
+                if len(p[0]) == len(row_z)+len(preassign[0]):
+                    zeros[:,:] = False
+                    zeros[p] = True
+                    return zeros
+                # otherwise keep searching
+                elif len(p[0]) > len(path[0]):
+                    path = p
 
         zeros[:,:] = False
         zeros[path] = True
         return zeros
 
-    # DFS works always, this one doesn't
-    def step3_1(mat):
-        assigned = (mat == 0)
-        assigned_rows = set()
-        assigned_cols = set()
+#    # DFS works always, this one doesn't
+#    def assignment(mat):
+#        assigned = (mat == 0)
+#        assigned_rows = set()
+#        assigned_cols = set()
+#        
+#        row_q = range(maxq)
+#        while row_q:
+#            # sort rows so that first is the row with least zeros or
+#            # the row with a column with least zeros, whichever amount
+#            # is lower
+#            row_q.sort(key=lambda x: 
+#                    min(len(numpy.where(assigned[x,:])[0]),
+#                        min([len(numpy.where(assigned[:,c])[0]) 
+#                             for c in numpy.where(assigned[x,:])[0] 
+#                                    if c not in assigned_cols])))
+#            i = row_q.pop(0)
+#            
+#            assigned_rows.add(i)
+#            row = assigned[i,:]
+#            
+#            cols = set(numpy.where(row)[0])
+#            if not (cols - assigned_cols): continue
+#           
+##            j = list(cols - assigned_cols)[0]
+#            # choose column with least amount of nonassigned zeros
+#            j = list(cols - assigned_cols).sort(
+#                    key=lambda x: len(numpy.where(assigned[:,x])[0])).pop(0)
+##            t = maxq
+##            for c in (cols - assigned_cols):
+##                col_zeros = len(numpy.where(assigned[:,c])[0])
+##                if col_zeros < t:
+##                    j = c
+##                    t = col_zeros
+#            assigned_cols.add(j)
+#
+#            col = assigned[:, j]
+#            row[:] = False
+#            col[:] = False
+#            row[j] = True    
+#        
+#        return assigned
         
-        row_q = range(maxq)
-        while row_q:
-            # sort rows so that first is the row with least zeros or
-            # the row with a column with least zeros, whichever amount
-            # is lower
-            row_q.sort(key=lambda x: 
-                    min(len(numpy.where(assigned[x,:])[0]),
-                        min([len(numpy.where(assigned[:,c])[0]) 
-                             for c in numpy.where(assigned[x,:])[0] 
-                                    if c not in assigned_cols])))
-            i = row_q.pop(0)
-            
-            assigned_rows.add(i)
-            row = assigned[i,:]
-            
-            cols = set(numpy.where(row)[0])
-            if not (cols - assigned_cols): continue
-           
-#            j = list(cols - assigned_cols)[0]
-            # choose column with least amount of nonassigned zeros
-            j = list(cols - assigned_cols).sort(
-                    key=lambda x: len(numpy.where(assigned[:,x])[0])).pop(0)
-#            t = maxq
-#            for c in (cols - assigned_cols):
-#                col_zeros = len(numpy.where(assigned[:,c])[0])
-#                if col_zeros < t:
-#                    j = c
-#                    t = col_zeros
-            assigned_cols.add(j)
-
-            col = assigned[:, j]
-            row[:] = False
-            col[:] = False
-            row[j] = True    
-        
-        return assigned
-    
-    def step3_2(mat, assigned):
+    def modify_matrix(mat, assigned):
         zeros = (mat == 0)
         marked_cols = set()
         unmarked_rows = set(range(maxq))
-        # 'drawing lines'
         
+        # 'drawing lines'
         newly_marked_rows = [i for i,row in enumerate(assigned) \
                                         if numpy.count_nonzero(row)==0]
         while newly_marked_rows:
@@ -797,45 +813,47 @@ def classification_accuracy_python2(cmtys1, cmtys2):
                     if r in unmarked_rows:
                         newly_marked_rows.append(r)
                         
-        return unmarked_rows, marked_cols
-        
-    def step4(rows, cols):
-        if len(rows) + len(cols) == maxq:
-            return True
-        return False
-    
-    def step5(mat, rows, cols):
+        # modify matrix based on lines drawn (unmarked rows and marked cols)
         # find minimum value from elements left over
         leftover = numpy.ones((maxq,maxq))
         # addition matrix
         addition = -numpy.ones((maxq,maxq))
         # check all marked cols/unmarked rows, +1 to those
         # so double marked get 1 as the multiplier while marked get 0
-        for r in rows:
-            leftover[r, :] = 0
-            addition[r, :] += 1
-        for c in cols:
-            leftover[:, c] = 0
-            addition[:, c] += 1
-        minval = numpy.min(mat[numpy.nonzero(leftover)])
-        mat += minval*addition
+        leftover[list(unmarked_rows),:] = 0
+        addition[list(unmarked_rows),:] += 1
+#        for r in unmarked_rows:
+#            leftover[r, :] = 0
+#            addition[r, :] += 1
+        leftover[:,list(marked_cols)] = 0
+        addition[:,list(marked_cols)] += 1
+#        for c in marked_cols:
+#            leftover[:, c] = 0
+#            addition[:, c] += 1
+        try:
+            minval = numpy.min(mat[numpy.nonzero(leftover)])
+            mat += minval*addition
+        except ValueError:
+            print mat
+            print assigned
+            print leftover
+            raise
         return mat
     
     # step1
     # find row minimum for each row and subtract it from the row       
     M = (M.T - M.min(axis=1)).T
     # check if we can assign
-    a = step3_1DFS(M)
+    a = assignment_DFS(M)
     if not numpy.count_nonzero(a) == maxq:
         # step2
         # find column minimum for each column and subtract it from the
         # column
         M = M - M.min(axis=0)
         
-        a = step3_1DFS(M)
+        a = assignment_DFS(M)
         th = 100
         while not (numpy.count_nonzero(a) == maxq or th==0):
-            rs,cs = step3_2(M, a)
             # step3
             # mark columns and rows in matrix, so that all the
             # zeros are covered with minimum amount of covered
@@ -847,8 +865,8 @@ def classification_accuracy_python2(cmtys1, cmtys2):
             # find smallest unmarked value and subtract it from
             # all the unmarked values and add it to all double-
             # marked values, goto step3
-            M = step5(M,rs,cs)
-            a = step3_1DFS(M)
+            M = modify_matrix(M,a)
+            a = assignment_DFS(M)
             th -= 1
 
     if numpy.count_nonzero(a) == maxq:
@@ -890,14 +908,6 @@ def calculate_meet(cmtys1, cmtys2):
             
     return meet
     
-#def distance_moved_python(cmtys1, cmtys2):
-#    assert cmtys1.N == cmtys2.N
-#    meet = calculate_meet(cmtys1, cmtys2)
-#    # NO IDEA IF THIS WORKS GENERALLY
-#    m = 2.0*len(meet) - (cmtys1.q + cmtys2.q) + 2*abs(cmtys1.q - cmtys2.q)
-#    
-#    return 1 - m/cmtys1.N
-
 def distance_moved_python(cmtys1, cmtys2):
     assert cmtys1.N == cmtys2.N
     meet = calculate_meet(cmtys1, cmtys2)
@@ -931,6 +941,7 @@ def distance_moved_python(cmtys1, cmtys2):
     
 def distance_division_python(cmtys1, cmtys2):
     assert cmtys1.N == cmtys2.N
+    
     meet = calculate_meet(cmtys1, cmtys2)
     d = 0.0
     

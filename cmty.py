@@ -28,7 +28,7 @@ The basic iterator methods are:
   len(cmtys)
     number of communities.  Note that this may require internally
     iterating through all communities to calculate this, thus it may
-    not be fast process.  Some metheds will cache this value.
+    not be fast process.  Some methods will cache this value.
 
 You will notice the similarity of this to dict methods.  This is by
 design, so that simple functions can take either dictionaries or
@@ -401,11 +401,14 @@ class _CommunitiesBase(object):
 
         Returns a dictionary {n0:set(c00,c01,...), n1:set(c10,c11), ...}
         """
+        if hasattr(self, '_ncmtys'):
+            return self._ncmtys
         nodecmtys = { }
         for c, nodes in self.iteritems():
             for n in nodes:
                 nodecmtys.setdefault(n, set())
                 nodecmtys[n].add(c)
+        self._ncmtys = nodecmtys
         return nodecmtys
         
     def nodecmtys_onetoone(self):
