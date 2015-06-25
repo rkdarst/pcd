@@ -976,7 +976,7 @@ def compute_cluster_comparison_matrix(cmtys1, cmtys2):
         for i2, (c2, n2) in enumerate(cmtys1.iteritems()):
             set1 = set(n1)
             set2 = set(n2)
-            X[i1,i2] = len(set1 & set2)**2 / (len(set1)*len(set2))
+            X[i1,i2] = len(set1 & set2)**2 / float(len(set1)*len(set2))
             row.append((n1,n2))
         cmty_pairs.append(row)
     return X,cmty_pairs
@@ -1003,19 +1003,32 @@ def binary_inclusive_python(cmtys1, cmtys2, threshold):
                 
     return nodescores
 
-# can't do bias correction without comparing multiple partitions
-# at the same time
+# bias correction is not needed when there are only 2 partitions
+# the weighted average is the same as the original node score 
 def scaled_inclusivity_python(cmtys1, cmtys2):
     X, cmty_pairs = compute_cluster_comparison_matrix(cmtys1, cmtys2)
-    nodescores = {n:0 for n in cmtys2.nodes}
-    col_maxs = numpy.argmax(X, axis=0)
-    for j,i in enumerate(col_maxs):
-        for pair in cmty_pairs[i][j]:
-            for n in set(pair[0]) & set(pair[1]):
+    nodescores = {n:0.0 for n in cmtys2.nodes}
+    for i,row in enumerate(X):
+        for j,val in enumerate(row):
+            n1,n2 = cmty_pairs[i][j]
+            for n in set(n1) & set(n2):
                 nodescores[n] += X[i,j]
-            
+                
     return nodescores
 
+def avg_scaled_inclusivity_python(cmtys1, cmtys2):
+    scores = scaled_inclusivity_python(cmtys1, cmtys2)
+    return sum(scores.itervalues())/cmtys1.N
+
+## this is the same as avg_scaled_inclusivity_python
+#def scaled_inclusivity_r_python(cmtys1, cmtys2):
+#    X, cmty_pairs = compute_cluster_comparison_matrix(cmtys1, cmtys2)
+#    for i,row in enumerate(X):
+#        for j,val in enumerate(row):
+#            n1,n2 = cmty_pairs[i][j]
+#            row[j] = float(val)*len(set(n1) & set(n2))
+#    return numpy.sum(X)/cmtys1.N
+    
 #
 # Old implementation from my pcd C code
 #
@@ -1219,7 +1232,8 @@ measures = {
     'classification_error': ['classification_error_python2'],
     'nvd': ['norm_van_dongen_python'],
     'distance_m': ['distance_moved_python'],
-    'distance_d': ['distance_division_python']
+    'distance_d': ['distance_division_python'],
+    'SI': ['avg_scaled_inclusivity_python']
     }
 
 # Standard implementations
@@ -1249,3 +1263,4 @@ classification_error = classification_error_python2
 nvd = norm_van_dongen_python
 distance_m = distance_moved_python
 distance_d = distance_division_python
+SI = avg_scaled_inclusivity_python
