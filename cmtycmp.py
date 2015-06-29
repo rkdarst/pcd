@@ -91,6 +91,20 @@ def confusion(cmtys1, cmtys2):
     d = _get_data(cmtys1, cmtys2)
     return d[0]
 
+def overlap(cmtys1, cmtys2):
+    """Returns: numpy array of size (cmtys1.q,cmtys2.q) with overlaps
+    between communities
+    """
+    assert cmtys1.N == cmtys2.N
+
+    overlaps = numpy.zeros(shape=(cmtys1.q, cmtys2.q), dtype=int)    
+
+    for i1, (c1, n1) in enumerate(cmtys1.iteritems()):
+        for i2, (c2, n2) in enumerate(cmtys2.iteritems()):
+            overlaps[i1,i2] = len(set(n1) & set(n2))
+    
+    return overlaps
+    
 # Simple python-based implementations. These are naive O(n^2)
 # implementations, whose only purpose is for pedagogy and unit-testing
 # comparison with the efficient python2 implementations.
@@ -237,10 +251,13 @@ def nmiG_python2(cmtys1, cmtys2):
     Multiple Partitions, A. Strehl and J. Ghosh, Journal of Machine
     Learning Research 3 (2002) 583-617
     """
+    if is_nodewise_equal(cmtys1,cmtys2):
+        return 1.0
+        
     I = mutual_information_python2(cmtys1, cmtys2)
     Hs = entropy_python(cmtys1) * entropy_python(cmtys2)
     if Hs == 0 and I == 0:
-        return 1.0
+        return 0.0
     if Hs == 0:
         return float('nan')
     In = I / sqrt(Hs)
@@ -613,13 +630,7 @@ def classification_error_python(cmtys1, cmtys2):
     return 1 - classification_accuracy_python(cmtys1, cmtys2)
 
 def classification_accuracy_python2(cmtys1, cmtys2):
-    assert cmtys1.N == cmtys2.N
-
-    overlaps = numpy.zeros(shape=(cmtys1.q, cmtys2.q), dtype=int)    
-
-    for i1, (c1, n1) in enumerate(cmtys1.iteritems()):
-        for i2, (c2, n2) in enumerate(cmtys2.iteritems()):
-            overlaps[i1,i2] = len(set(n1) & set(n2))
+    overlaps = overlap(cmtys1, cmtys2)
 
     maxq = max(cmtys1.q, cmtys2.q) 
     minq = min(cmtys1.q, cmtys2.q)
@@ -852,8 +863,7 @@ def classification_accuracy_python2(cmtys1, cmtys2):
         M = M - M.min(axis=0)
         
         a = assignment_DFS(M)
-        th = 100
-        while not (numpy.count_nonzero(a) == maxq or th==0):
+        while not numpy.count_nonzero(a) == maxq:
             # step3
             # mark columns and rows in matrix, so that all the
             # zeros are covered with minimum amount of covered
@@ -867,7 +877,6 @@ def classification_accuracy_python2(cmtys1, cmtys2):
             # marked values, goto step3
             M = modify_matrix(M,a)
             a = assignment_DFS(M)
-            th -= 1
 
     if numpy.count_nonzero(a) == maxq:
         sum_ = (a[:cmtys1.q, :cmtys2.q] * overlaps).sum()
@@ -883,16 +892,17 @@ def classification_accuracy_python2(cmtys1, cmtys2):
 def classification_error_python2(cmtys1, cmtys2):
     return 1 - classification_accuracy_python2(cmtys1, cmtys2)
 
-def norm_van_dongen_python(cmtys1, cmtys2):
-    assert cmtys1.N == cmtys2.N    
-    overlaps = numpy.zeros(shape=(cmtys1.q, cmtys2.q), dtype=int)
-    
-    for i1, (c1, n1) in enumerate(cmtys1.iteritems()):
-        for i2, (c2, n2) in enumerate(cmtys2.iteritems()):
-            overlaps[i1,i2] = len(set(n1) & set(n2))
+def van_dongen_python(cmtys1, cmtys2):
+    overlaps = overlap(cmtys1, cmtys2)
 
-    return 1- (1.0/(2*cmtys1.N))*(sum([max(row) for row in overlaps]) +
+    return (2*cmtys1.N) - (sum([max(row) for row in overlaps]) +
                                  sum([max(col) for col in overlaps.T]))
+
+def norm_van_dongen_python(cmtys1, cmtys2, norm_w_2N=True):
+    norm = 2*cmtys1.N
+    if not norm_w_2N:
+        norm = int(norm - 2*sqrt(cmtys1.N))
+    return float(van_dongen_python(cmtys1, cmtys2))/norm
 
 def norm_van_dongen_python_rev(cmtys1, cmtys2):
     return 1 - norm_van_dongen_python(cmtys1, cmtys2)
@@ -908,8 +918,19 @@ def calculate_meet(cmtys1, cmtys2):
             
     return meet
     
-def distance_moved_python(cmtys1, cmtys2):
+def distance_moved_python(cmtys1, cmtys2, norm_w_N=True, use_van_dongen=True):
+    norm = cmtys1.N
+    if not norm_w_N:
+        # this is the maximum moves required
+        # but it is very rarely reached
+        norm = int(2*norm - 2*sqrt(cmtys1.N))
+
+    if use_van_dongen:
+        mov = van_dongen_python(cmtys1, cmtys2)
+        return 1 - float(mov)/norm
+
     assert cmtys1.N == cmtys2.N
+        
     meet = calculate_meet(cmtys1, cmtys2)
     mov = 0.0
     
@@ -936,12 +957,27 @@ def distance_moved_python(cmtys1, cmtys2):
         if subsets:
             for set_ in subsets[1:]:
                 mov += len(set_)
+                
+    return 1 - mov/norm
     
-    return 1 - mov/cmtys1.N
+def distance_division_python(cmtys1, cmtys2, norm_w_N=True, calc_wo_meet=True):
+    # this could probably be calculated from ovelap matrix by counting
+    # the amount of non-zero elements and multiplying it with 2 and 
+    # subtracting the sum of clusters of both partitions 
+    # 2*numpy.count_nonzero(overlap) - (cmtys1.q+cmtys2.q)
+    norm = cmtys1.N
+    if not norm_w_N:
+        # this is the maximum moves required
+        # but it is very rarely reached
+        norm = int(2*norm - 2*sqrt(cmtys1.N))
     
-def distance_division_python(cmtys1, cmtys2):
+    if calc_wo_meet:
+        overlaps = overlap(cmtys1, cmtys2)
+        d = 2 * numpy.count_nonzero(overlaps) - (cmtys1.q+cmtys2.q)
+        return 1 - float(d)/norm
+    
     assert cmtys1.N == cmtys2.N
-    
+
     meet = calculate_meet(cmtys1, cmtys2)
     d = 0.0
     
@@ -960,7 +996,7 @@ def distance_division_python(cmtys1, cmtys2):
                 d += 1
                 n = n-m
                 
-    return 1 - d/cmtys1.N
+    return 1 - d/norm
 
 
 # binary in- and exclusivity and scaled inclusivity
