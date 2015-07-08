@@ -91,7 +91,7 @@ def confusion(cmtys1, cmtys2):
     d = _get_data(cmtys1, cmtys2)
     return d[0]
 
-def overlap(cmtys1, cmtys2):
+def overlap_matrix(cmtys1, cmtys2):
     """Returns: numpy array of size (cmtys1.q,cmtys2.q) with overlaps
     between communities
     """
@@ -195,7 +195,7 @@ def jaccard_python(cmtys1, cmtys2):
 def mutual_information_python2(cmtys1, cmtys2):
     N = cmtys1.N
     assert N == cmtys2.N
-    # Compute cofusion matrix
+    # Compute confusion matrix
     confusion = defaultdict(int)
     nodecmtys2 = cmtys2.nodecmtys_onetoone()
     for cname, cnodes in cmtys1.iteritems():
@@ -466,26 +466,6 @@ def jaccard_python2(cmtys1, cmtys2):
     Returns:
         the score (float)
     """
-
-    # reusable functionality moved to count_pairs()    
-      
-#    same = 0
-#    c1pairs = 0
-#    c2pairs = 0
-#
-#    def comb2(n):
-#        return n*(n-1)/2.0
-#
-#    confusion, sizes1, sizes2 = _get_data(cmtys1, cmtys2)
-#    #for c1name, others in confusion.iteritems():
-#    #    for c2name, overlap in others.iteritems():
-#    #        same += comb2(overlap)
-#    ovPairs = sum(comb2(overlap) for c1name, others in confusion.iteritems()
-#                                     for overlap in others.itervalues())
-#    c1pairs = sum(comb2(n) for n in sizes1.itervalues())
-#    c2pairs = sum(comb2(n) for n in sizes2.itervalues())
-#
-#    return ovPairs / float(c1pairs + c2pairs - ovPairs)
     
     pairs = count_pairs(cmtys1, cmtys2)
     return pairs['a'] / (pairs['all'] - pairs['d'])
@@ -511,6 +491,7 @@ def adjusted_rand_python(cmtys1, cmtys2):
     
     return (pairs['a'] - M) / (0.5*(ab+ac) - M)
 
+# Not tested with fuzzy partitions
 def omega_index_python(cmtys1, cmtys2):
     assert cmtys1.N == cmtys2.N
     
@@ -593,9 +574,6 @@ def gamma_coeff_python(cmtys1, cmtys2):
     return ((pairs['all'] * pairs['a'] - ab*ac) / 
                 sqrt(ab*ac*(pairs['all']-ab)*(pairs['all']-ac)))
 
-# there is something similar in cmty.cmty_mapping but it doesn't
-# seem to maximize the overlap sum
-# there is probably some nicer solution for this (hungarian algorithm)
 def classification_accuracy_python(cmtys1, cmtys2):
     assert cmtys1.N == cmtys2.N
 
@@ -630,7 +608,7 @@ def classification_error_python(cmtys1, cmtys2):
     return 1 - classification_accuracy_python(cmtys1, cmtys2)
 
 def classification_accuracy_python2(cmtys1, cmtys2):
-    overlaps = overlap(cmtys1, cmtys2)
+    overlaps = overlap_matrix(cmtys1, cmtys2)
 
     maxq = max(cmtys1.q, cmtys2.q) 
     minq = min(cmtys1.q, cmtys2.q)
@@ -655,12 +633,16 @@ def classification_accuracy_python2(cmtys1, cmtys2):
         zeros = (mat==0)
         zerorows = set(numpy.where(zeros)[0])
         
+        maxlenpath = [0]
         def recr(i, j, prev):
+            if len(prev[0]) > maxlenpath[0]:
+                maxlenpath[0] = len(prev[0])
             # rest of the zerorows
             freerows = zerorows - set(prev[0])
             # remove rows that have no unassigned zeros
             discard = set()
             adj_dict = defaultdict(set)
+            freecols = set()
             for r in freerows:
                 zerocols = set(numpy.where(zeros[r,:])[0])
                 adj = zerocols - set(prev[1])
@@ -668,17 +650,18 @@ def classification_accuracy_python2(cmtys1, cmtys2):
                     discard.add(r)
                 else:
                     adj_dict[r] = adj
+                    freecols.update(adj)
             freerows -= discard
-            
-            if freerows:
+            if min(len(freerows),len(freecols))+len(prev[0]) > maxlenpath[0]:
+                # maybe take the row with least zeros?
+                # check in the previous for r in freerows loop
+                # for min len(adj) (>0) and choose that for
+                # looping here
                 i = freerows.pop()
                 adj = adj_dict[i]                
-#                if adj:
                 for a in adj:
-                    for p in recr(i,a, [prev[0]+[i], prev[1]+[a]]):
+                    for p in recr(i, a, [prev[0]+[i], prev[1]+[a]]):
                         yield p
-#                else:
-#                    yield prev
             else:
                 yield prev
 
@@ -737,21 +720,24 @@ def classification_accuracy_python2(cmtys1, cmtys2):
         # in the case of no zero rows/columns check all first row zeros
         # for possible starting point
         if len(preassign[0])==0:
+            maxassigns = min(len(row_z),len(col_z))
             # row with least zeros
             r = min(row_z, key=row_z.get)
             for c in numpy.where(zeros[r,:])[0]:
                 for p in recr(r,c,[[r],[c]]):
-                    if len(p[0]) == len(zerorows):
+                    if len(p[0]) == maxassigns:
                         zeros[:,:] = False
                         zeros[p] = True
                         return zeros
                     elif len(p[0]) > len(path[0]):
                         path = p
         else:
+            maxassigns = min(len(row_z)+len(preassign[0]),
+                             len(col_z)+len(preassign[1]))
             for p in recr(preassign[0][-1],preassign[1][-1],preassign):
                 # jump out if a path with max possible path length
                 # is found
-                if len(p[0]) == len(row_z)+len(preassign[0]):
+                if len(p[0]) == maxassigns:
                     zeros[:,:] = False
                     zeros[p] = True
                     return zeros
@@ -762,49 +748,6 @@ def classification_accuracy_python2(cmtys1, cmtys2):
         zeros[:,:] = False
         zeros[path] = True
         return zeros
-
-#    # DFS works always, this one doesn't
-#    def assignment(mat):
-#        assigned = (mat == 0)
-#        assigned_rows = set()
-#        assigned_cols = set()
-#        
-#        row_q = range(maxq)
-#        while row_q:
-#            # sort rows so that first is the row with least zeros or
-#            # the row with a column with least zeros, whichever amount
-#            # is lower
-#            row_q.sort(key=lambda x: 
-#                    min(len(numpy.where(assigned[x,:])[0]),
-#                        min([len(numpy.where(assigned[:,c])[0]) 
-#                             for c in numpy.where(assigned[x,:])[0] 
-#                                    if c not in assigned_cols])))
-#            i = row_q.pop(0)
-#            
-#            assigned_rows.add(i)
-#            row = assigned[i,:]
-#            
-#            cols = set(numpy.where(row)[0])
-#            if not (cols - assigned_cols): continue
-#           
-##            j = list(cols - assigned_cols)[0]
-#            # choose column with least amount of nonassigned zeros
-#            j = list(cols - assigned_cols).sort(
-#                    key=lambda x: len(numpy.where(assigned[:,x])[0])).pop(0)
-##            t = maxq
-##            for c in (cols - assigned_cols):
-##                col_zeros = len(numpy.where(assigned[:,c])[0])
-##                if col_zeros < t:
-##                    j = c
-##                    t = col_zeros
-#            assigned_cols.add(j)
-#
-#            col = assigned[:, j]
-#            row[:] = False
-#            col[:] = False
-#            row[j] = True    
-#        
-#        return assigned
         
     def modify_matrix(mat, assigned):
         zeros = (mat == 0)
@@ -833,14 +776,10 @@ def classification_accuracy_python2(cmtys1, cmtys2):
         # so double marked get 1 as the multiplier while marked get 0
         leftover[list(unmarked_rows),:] = 0
         addition[list(unmarked_rows),:] += 1
-#        for r in unmarked_rows:
-#            leftover[r, :] = 0
-#            addition[r, :] += 1
+
         leftover[:,list(marked_cols)] = 0
         addition[:,list(marked_cols)] += 1
-#        for c in marked_cols:
-#            leftover[:, c] = 0
-#            addition[:, c] += 1
+
         try:
             minval = numpy.min(mat[numpy.nonzero(leftover)])
             mat += minval*addition
@@ -863,7 +802,14 @@ def classification_accuracy_python2(cmtys1, cmtys2):
         M = M - M.min(axis=0)
         
         a = assignment_DFS(M)
+        th = 100
         while not numpy.count_nonzero(a) == maxq:
+            if not th:
+                raise ValueError,'\n'+'Classification accuracy python2: '+\
+                '\n'+'assigned '+str(numpy.count_nonzero(a))+' out of '+minq+\
+                ' before reaching threshold'+'\n'+'Overlap matrix:'+'\n'+\
+                str(overlaps)
+            th -= 1
             # step3
             # mark columns and rows in matrix, so that all the
             # zeros are covered with minimum amount of covered
@@ -892,16 +838,129 @@ def classification_accuracy_python2(cmtys1, cmtys2):
 def classification_error_python2(cmtys1, cmtys2):
     return 1 - classification_accuracy_python2(cmtys1, cmtys2)
 
+def classification_accuracy_python3(cmtys1, cmtys2):
+    # ecole polytechnique - c.durr - 2009
+    
+    # Kuhn-Munkres, The hungarian algorithm.  Complexity O(n^3)
+    # Computes a max weight perfect matching in a bipartite graph
+    # for min weight matching, simply negate the weights.
+    
+    """ 
+    variables:
+        U,V vertex sets
+        lu,lv are the labels of U and V resp.
+        the matching is encoded as 
+        - a mapping Mu from U to V, 
+        - and Mv from V to U.
+        
+    The algorithm repeatedly builds an alternating tree, rooted in a
+    free vertex u0. S is the set of vertices in U covered by the tree.
+    For every vertex v, T[v] is the parent in the tree and Mv[v] the
+    child.
+    The algorithm maintains minSlack, s.t. for every vertex v not in
+    T, minSlack[v]=(val,u1), where val is the minimum slack
+    lu[u]+lv[v]-M[u,v] over u in S, and u1 is the vertex that
+    realizes this minimum.
+    Complexity is O(n^3), because there are n iterations in
+    maxWeightMatching, and each call to augment costs O(n^2). This is
+    because augment() makes at most n iterations itself, and each
+    updating of minSlack costs O(n).
+    """
+    overlaps = overlap_matrix(cmtys1, cmtys2)
+
+    maxq = max(cmtys1.q, cmtys2.q) 
+    minq = min(cmtys1.q, cmtys2.q)
+    dq = maxq-minq
+    
+    if dq:
+        if cmtys2.q > cmtys1.q:
+            shape = (dq,maxq)
+            ax = 0
+        else:    
+            shape = (maxq,dq)
+            ax = 1
+        # add maxval rows/columns to fill the matrix to square matrix
+        z = numpy.full(shape, overlaps.max())
+        overlaps = numpy.concatenate((overlaps,z), axis=ax)
+    
+    def improveLabels(val):
+        """ change the labels, and maintain minSlack. """
+        for u in S:
+            lu[u] -= val
+        for v in V:
+            if v in T:
+                lv[v] += val
+            else:
+                minSlack[v][0] -= val
+    
+    def improveMatching(v):
+        """ apply the alternating path from v to the root in the tree.
+        """
+        u = T[v]
+        if u in Mu:
+            improveMatching(Mu[u])
+        Mu[u] = v
+        Mv[v] = u
+    
+    def slack(u,v):
+        return lu[u]+lv[v]-overlaps[u,v]
+    
+    def augment():
+        """ augment the matching, possibly improving the labels on the 
+        way.
+        """
+        while True:
+            # select edge (u,v) with u in S, v not in T and min slack
+            ((val, u), v) = min([(minSlack[v], v) for v in V if v not in T])
+            assert u in S
+            assert val>=0
+            if val>0:        
+                improveLabels(val)
+            # now we are sure that (u,v) is saturated
+            assert slack(u,v)==0
+            T[v] = u                            # add (u,v) to the tree
+            if v in Mv:
+                u1 = Mv[v]                      # matched edge, 
+                assert not u1 in S
+                S[u1] = True                    # ... add endpoint to tree 
+                for v in V:                     # maintain minSlack
+                    if not v in T and minSlack[v][0] > slack(u1,v):
+                        minSlack[v] = [slack(u1,v), u1]
+            else:
+                improveMatching(v)              # v is a free vertex
+                return
+
+    """ given overlaps, the weight matrix of a complete bipartite graph,
+    returns the mappings Mu : U->V ,Mv : V->U encoding the matching
+    as well as the value of it.
+    """
+    U  = V = range(maxq)
+    lu = [ max([overlaps[u,v] for v in V]) for u in U]
+    lv = [ 0                        for v in V]
+    Mu = {}
+    Mv = {}
+    while len(Mu)<maxq:
+        free = [u for u in U if u not in Mu]
+        u0 = free[0]
+        S = {u0: True}
+        T = {}
+        minSlack = [[slack(u0,v), u0] for v in V]
+        augment()
+
+    a = numpy.zeros_like(overlaps)
+    for i,j in Mu.iteritems():
+        a[i,j] = 1
+    sum_ = (a[:cmtys1.q, :cmtys2.q] * overlaps[:cmtys1.q, :cmtys2.q]).sum()
+    return float(sum_)/cmtys1.N
+
 def van_dongen_python(cmtys1, cmtys2):
-    overlaps = overlap(cmtys1, cmtys2)
+    overlaps = overlap_matrix(cmtys1, cmtys2)
 
     return (2*cmtys1.N) - (sum([max(row) for row in overlaps]) +
                                  sum([max(col) for col in overlaps.T]))
 
-def norm_van_dongen_python(cmtys1, cmtys2, norm_w_2N=True):
+def norm_van_dongen_python(cmtys1, cmtys2):
     norm = 2*cmtys1.N
-    if not norm_w_2N:
-        norm = int(norm - 2*sqrt(cmtys1.N))
     return float(van_dongen_python(cmtys1, cmtys2))/norm
 
 def norm_van_dongen_python_rev(cmtys1, cmtys2):
@@ -918,12 +977,18 @@ def calculate_meet(cmtys1, cmtys2):
             
     return meet
     
-def distance_moved_python(cmtys1, cmtys2, norm_w_N=True, use_van_dongen=True):
+def distance_moved_python(cmtys1, cmtys2, 
+                          norm_w_N=False, use_van_dongen=True):
     norm = cmtys1.N
     if not norm_w_N:
         # this is the maximum moves required
         # but it is very rarely reached
-        norm = int(2*norm - 2*sqrt(cmtys1.N))
+        # better used only for cases where one of the Communities is not
+        # a subclustering of the other one
+        norm = 2*norm
+        # use 2*N instead of 2*N - 2*sqrt(N) because
+        # we use N instead of N-1 to show that there is always some
+        # similarity between two partitions of the same network
 
     if use_van_dongen:
         mov = van_dongen_python(cmtys1, cmtys2)
@@ -960,8 +1025,9 @@ def distance_moved_python(cmtys1, cmtys2, norm_w_N=True, use_van_dongen=True):
                 
     return 1 - mov/norm
     
-def distance_division_python(cmtys1, cmtys2, norm_w_N=True, calc_wo_meet=True):
-    # this could probably be calculated from ovelap matrix by counting
+def distance_division_python(cmtys1, cmtys2, 
+                             norm_w_N=False, calc_wo_meet=True):
+    # this can be calculated from ovelap matrix by counting
     # the amount of non-zero elements and multiplying it with 2 and 
     # subtracting the sum of clusters of both partitions 
     # 2*numpy.count_nonzero(overlap) - (cmtys1.q+cmtys2.q)
@@ -969,10 +1035,15 @@ def distance_division_python(cmtys1, cmtys2, norm_w_N=True, calc_wo_meet=True):
     if not norm_w_N:
         # this is the maximum moves required
         # but it is very rarely reached
-        norm = int(2*norm - 2*sqrt(cmtys1.N))
+        # better used only for cases where one of the Communities is not
+        # a subclustering of the other one
+        norm = 2*norm
+        # use 2*N instead of 2*N - 2*sqrt(N) because
+        # we use N instead of N-1 to show that there is always some
+        # similarity between two partitions of the same network
     
     if calc_wo_meet:
-        overlaps = overlap(cmtys1, cmtys2)
+        overlaps = overlap_matrix(cmtys1, cmtys2)
         d = 2 * numpy.count_nonzero(overlaps) - (cmtys1.q+cmtys2.q)
         return 1 - float(d)/norm
     
@@ -1017,7 +1088,8 @@ def compute_cluster_comparison_matrix(cmtys1, cmtys2):
         cmty_pairs.append(row)
     return X,cmty_pairs
 
-# what to do in the case of two equally good clusters?, which nodes get points
+# what to do in the case of two equally good clusters?
+# which nodes get points
 def binary_exclusive_python(cmtys1, cmtys2):
     X, cmty_pairs = compute_cluster_comparison_matrix(cmtys1, cmtys2)
     nodescores = {n:0 for n in cmtys2.nodes}
@@ -1055,15 +1127,6 @@ def scaled_inclusivity_python(cmtys1, cmtys2):
 def avg_scaled_inclusivity_python(cmtys1, cmtys2):
     scores = scaled_inclusivity_python(cmtys1, cmtys2)
     return sum(scores.itervalues())/cmtys1.N
-
-## this is the same as avg_scaled_inclusivity_python
-#def scaled_inclusivity_r_python(cmtys1, cmtys2):
-#    X, cmty_pairs = compute_cluster_comparison_matrix(cmtys1, cmtys2)
-#    for i,row in enumerate(X):
-#        for j,val in enumerate(row):
-#            n1,n2 = cmty_pairs[i][j]
-#            row[j] = float(val)*len(set(n1) & set(n2))
-#    return numpy.sum(X)/cmtys1.N
     
 #
 # Old implementation from my pcd C code
