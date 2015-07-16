@@ -1069,6 +1069,49 @@ def distance_division_python(cmtys1, cmtys2,
                 
     return 1 - d/norm
 
+def distance_joined_python(cmtys1, cmtys2):
+    N = cmtys1.N
+    parts = []
+    for name1,nodes1 in cmtys1.iteritems():
+        part = set()
+        for name2, nodes2 in cmtys2.iteritems():
+            if set(nodes1) & set(nodes2):
+                part.update(nodes2)
+        if part and part not in parts:
+            parts.append(part)
+
+    counter = 0    
+    partsoverlap = True
+    while partsoverlap:
+        if counter == 100:
+            raise ValueError, "oh no, everything is terrible"
+        counter += 1
+        join = []
+        partsoverlap = False
+        for part1 in parts:
+            joined = part1.copy()
+            for part2 in parts:
+                if part1 == part2: continue
+                if part1 & part2:
+                    joined.update(part2)
+                    partsoverlap = True
+            if joined not in join:
+                join.append(joined)
+        parts = join
+    join = parts
+    try:
+        assert sum([len(j) for j in join]) == N, \
+                    "The amount of nodes in join is not equal to N."
+    except AssertionError:
+        print join
+        raise
+    
+    cmtys = pcd.cmty.Communities({i:j for i,j in enumerate(join)})
+    m = overlap_matrix(cmtys, cmtys)
+    assert numpy.array_equal((m != 0), (numpy.eye(len(join)) != 0)), \
+                "There is overlap between clusters in join."
+    # maybe normalisation should be just N just like with the other distances?
+    return 1 - (cmtys1.q + cmtys2.q - 2 * len(join))/float(N - 1) # 1 + N - 2*1
 
 # binary in- and exclusivity and scaled inclusivity
 # only give scores for node classification similarity
