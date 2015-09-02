@@ -101,7 +101,7 @@ def test_same():
 
 def _do_test_one(measure, cmtys=None):
     implementations = cmtycmp.measures[measure]
-    funcs = [ getattr(cmtycmp, name) for name in implementations ]
+#    funcs = [ getattr(cmtycmp, name) for name in implementations ]
 
     #cmtys = (cmtys_one, cmtys_one)
     #cmtys = (cmtys_random_1A, cmtys_random_1A)
@@ -167,30 +167,31 @@ def test_distance3():
 
 def test_measures():
     answers = {
-    'mutual_information' : (0, 0, 0.954434003),
-    'vi' : (0, 3, 0.856844122),
-    'vi_norm' : (0, 1, 0.285614707),
-    'nmi' : (1, 0, 0.690190417),
-    #'nmiG' : (0,0,0),
-    'nmi_LFK' : (1, 0.5, 0.554047694),
-    'nmi_max' : (1, 0, 0.526939508),
-    'rand' : (1, 0, 0.75),
-    'adjusted_rand' : (1, 0, 0.478723404),
-    #'F1' : (0,0,0),
-    #'recl' : (0,0,0),
-    #'prec' : (0,0,0),
-    #'F1_uw' : (0,0,0),
-    #'recl_uw' : (0,0,0),
-    #'prec_uw' : (0,0,0),
-    'jaccard' : (1, 0, 0.461538462),
-    'omega' : (float('nan'), 0, 0.478723404),
-    'fowlkes_mallows' : (1, float('nan'), 0.67936622),
-    'minkowski' : (0, 1, 0.733799386),
-    'gamma_coeff' : (float('nan'), float('nan'), 0.560968194),
-    'classification_error' : (0, 0.875, 0.25),
-    'nvd' : (0, 0.4375, 0.125),
-    'distance_m' : (1, 0.125, 0.75),
-    'distance_d' : (1, 0.125, 0.75)}
+                'mutual_information' : (0, 0, 0.954434003),
+                'vi' : (0, 3, 0.856844122),
+                'vi_norm' : (0, 1, 0.285614707),
+                'nmi' : (1, 0, 0.690190417),
+#                'nmiG' : (0,0,0),
+                'nmi_LFK' : (1, 0.5, 0.554047694),
+                'nmi_max' : (1, 0, 0.526939508),
+                'rand' : (1, 0, 0.75),
+                'adjusted_rand' : (1, 0, 0.478723404),
+#                'F1' : (0,0,0),
+#                'recl' : (0,0,0),
+#                'prec' : (0,0,0),
+#                'F1_uw' : (0,0,0),
+#                'recl_uw' : (0,0,0),
+#                'prec_uw' : (0,0,0),
+                'jaccard' : (1, 0, 0.461538462),
+                'omega' : (float('nan'), 0, 0.478723404),
+#                'fowlkes_mallows' : (1, float('nan'), 0.67936622),
+                'minkowski' : (0, 1, 0.733799386),
+                'gamma_coeff' : (float('nan'), float('nan'), 0.560968194),
+                'classification_error' : (0, 0.875, 0.25),
+                'nvd' : (0, 0.4375, 0.125),
+#                'distance_m' : (1, 0.125, 0.75),
+#                'distance_d' : (1, 0.125, 0.75)
+              }
 
     t = 8
     l = range(t)

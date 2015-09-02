@@ -413,7 +413,23 @@ def prec_uw_python2(cmtys1, cmtys2):
 def F1_uw_python2(cmtys1, cmtys2):
     """Unweighted F1"""
     return F1_python2(cmtys1, cmtys2, weighted=False)
+
+def prec_overlap_python(cmtys1, cmtys2):
+    overlaps = overlap_matrix(cmtys1, cmtys2)
+    return overlaps.max(axis=1).sum() / float(cmtys1.N)
     
+def recl_overlap_python(cmtys1, cmtys2):
+    return prec_overlap_python(cmtys2, cmtys1)
+
+def F1_overlap_python(cmtys1, cmtys2):
+    prec = prec_overlap_python(cmtys1,cmtys2)
+    recl = recl_overlap_python(cmtys1,cmtys2)
+    return (2.0 * prec * recl) / (prec + recl)
+
+def fowlkes_mallows_python2(cmtys1, cmtys2):
+    return sqrt(prec_overlap_python(cmtys1, cmtys2)*
+                recl_overlap_python(cmtys1, cmtys2))
+
 def count_pairs(cmtys1, cmtys2):
     """Counts pairs that are used in pair counting methods.
     a = pairs of nodes that are in the same community in both partitions
@@ -438,7 +454,6 @@ def count_pairs(cmtys1, cmtys2):
     ab = sum(comb2(n) for n in sizes1.itervalues())
     ac = sum(comb2(n) for n in sizes2.itervalues())
     
-    
     pairs['all'] = comb2(cmtys1.N)   
     pairs['a'] = a
     pairs['b'] = ab-a
@@ -446,7 +461,21 @@ def count_pairs(cmtys1, cmtys2):
     pairs['d'] = pairs['all'] - ab - ac + a
     
     return pairs
+
+def prec_pairs_python(cmtys1, cmtys2):
+    pairs = count_pairs(cmtys1, cmtys2)
+    ab = pairs['a'] + pairs['b']
+    if ab==0: return float('nan')
+    return float(pairs['a']) / ab
     
+def recl_pairs_python(cmtys1, cmtys2):
+    return prec_pairs_python(cmtys2, cmtys1)
+
+def F1_pairs_python(cmtys1, cmtys2):
+    prec = prec_pairs_python(cmtys1,cmtys2)
+    recl = recl_pairs_python(cmtys1,cmtys2)
+    return (2.0 * prec * recl) / (prec + recl)
+  
 def jaccard_python2(cmtys1, cmtys2):
     """Jaccard index of two partitions.
 
@@ -832,7 +861,8 @@ def classification_accuracy_python2(cmtys1, cmtys2):
         print "Overlap matrix:"
         print overlaps
         return 0
-    
+    if numpy.around(float(sum_), decimals=10) == 0:
+        print overlaps
     return float(sum_)/cmtys1.N
 
 def classification_error_python2(cmtys1, cmtys2):
@@ -951,13 +981,21 @@ def classification_accuracy_python3(cmtys1, cmtys2):
     for i,j in Mu.iteritems():
         a[i,j] = 1
     sum_ = (a[:cmtys1.q, :cmtys2.q] * overlaps[:cmtys1.q, :cmtys2.q]).sum()
+    if numpy.around(float(sum_), decimals=10) == 0:
+        print overlaps
     return float(sum_)/cmtys1.N
+
+def classification_error_python3(cmtys1, cmtys2):
+    return 1 - classification_accuracy_python3(cmtys1, cmtys2)
 
 def van_dongen_python(cmtys1, cmtys2):
     overlaps = overlap_matrix(cmtys1, cmtys2)
 
-    return (2*cmtys1.N) - (sum([max(row) for row in overlaps]) +
-                                 sum([max(col) for col in overlaps.T]))
+    return (2*cmtys1.N) - (overlaps.max(axis=0).sum() +  # sum of col maxs
+                           overlaps.max(axis=1).sum())   # sum of row maxs
+    
+#    sum([max(row) for row in overlaps]) +
+#                                 sum([max(col) for col in overlaps.T]))
 
 def norm_van_dongen_python(cmtys1, cmtys2):
     norm = 2*cmtys1.N
@@ -1368,10 +1406,11 @@ measures = {
     'jaccard': ['jaccard_python2', 'jaccard_python'],
     'omega': ['omega_index_python'],
     'nmi_max': ['nmi_max_python'],
-    'fowlkes_mallows': ['fowlkes_mallows_python'],
+    'fowlkes_mallows': ['fowlkes_mallows_python','fowlkes_mallows_python2'],
     'minkowski': ['minkowski_coeff_python'],
     'gamma_coeff': ['gamma_coeff_python'],
-    'classification_error': ['classification_error_python2'],
+    'classification_error': ['classification_error_python2',
+                             'classification_error_python3'],
     'nvd': ['norm_van_dongen_python'],
     'distance_m': ['distance_moved_python'],
     'distance_d': ['distance_division_python'],
