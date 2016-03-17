@@ -12,7 +12,8 @@ import types
 import logging
 logger = logging.getLogger('pcd.mr')
 
-from .. import util
+from .. import util as util2
+from . import util
 from ..util import LogInterval
 from ..util import Averager
 
@@ -476,7 +477,7 @@ class MultiResolution(object):
             #maximum = table[name][mask][maxarg]
             #returns[name] = (maxgamma, maximum)
 
-            maxwhere = util.extremawhere(table[nameWhere], mask,
+            maxwhere = util2.extremawhere(table[nameWhere], mask,
                                              func=extremaFunc)
             maxgamma = table['gamma'][maxwhere]
             if name in table:
@@ -549,7 +550,7 @@ class MultiResolution(object):
             #maximum = table[name][mask][maxarg]
             #returns[name] = (maxgamma, maximum)
 
-            maxwhere = util.extremawhere(table[nameWhere], mask,
+            maxwhere = util2.extremawhere(table[nameWhere], mask,
                                              func=extremaFunc)
             maxgamma = table['gamma'][maxwhere]
             maximum = table[selectWhere][maxwhere]

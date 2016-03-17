@@ -2,7 +2,7 @@
 
 import numpy
 
-from pcd import Graph, MultiResolution
+from pcd.old import Graph, MultiResolution
 import pcd.util
 
 class Auto(object):
