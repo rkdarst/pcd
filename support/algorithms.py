@@ -216,7 +216,13 @@ class CDMethod(object):
         with chdir_context(self.dir):
             # Get the respective writing method and run it.
             if isinstance(g, GraphFile):
-                self.g.setup(self)
+                if self._input_format == 'null':
+                    # We do not use a file on disk, so we have to load
+                    # to nx.
+                    self._g_graphfile = self.g
+                    self.g = networkx.read_edgelist(self.g.fname)
+                else:
+                    self.g.setup(self)
             else:
                 # if self.graphfile is a symlink, it might be pointing
                 # to some other important file that would then be
