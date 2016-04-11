@@ -522,12 +522,13 @@ def adjusted_rand_python(cmtys1, cmtys2):
 
 # Not tested with fuzzy partitions
 def omega_index_python(cmtys1, cmtys2):
-    assert cmtys1.N == cmtys2.N
+#    assert cmtys1.N == cmtys2.N
+    N = max(cmtys1.N, cmtys2.N)
     
-    if (cmtys1.q == 1 and cmtys2.q == 1) or is_nodewise_equal(cmtys1, cmtys2):
+#    if (cmtys1.q == 1 and cmtys2.q == 1) or is_nodewise_equal(cmtys1, cmtys2):
         # need to check if this measure would scale so that same
         # partitions would mean value 1.0 rather than returning 'nan'
-        return float('nan')
+#        return float('nan')
     
     pairs = {frozenset((a,b)): 0
                         for a,b in itertools.combinations(cmtys1.nodes, 2)}
@@ -563,8 +564,8 @@ def omega_index_python(cmtys1, cmtys2):
     for i in xrange(max(cmtys1.q, cmtys2.q)+1):
         omega_u += len(t1.get(i, set()) & t2.get(i, set()))
         omega_e += len(t1.get(i, set())) * len(t2.get(i, set()))
-    omega_u = omega_u / comb2(cmtys1.N)
-    omega_e = omega_e / comb2(cmtys1.N)**2
+    omega_u = omega_u / comb2(N)
+    omega_e = omega_e / comb2(N)**2
     
     return (omega_u - omega_e) / (1 - omega_e)
     
