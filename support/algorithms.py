@@ -21,6 +21,7 @@ from pcd.util import chdir_context
 
 global_code_path = ["/home/richard/research/cd/cd-code/",
                     "/proj/networks/darst/cd-code/",
+                    "/triton/work/hricd1/cdas/",
                     ]
 if os.uname()[1] == 'amor':
     pass
