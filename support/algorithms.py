@@ -1589,6 +1589,11 @@ class PCDmodGreedy(_PCDmod, _PCD_single):
 class PCDmodSA(_PCD_SA, _PCDmod, _PCD_single):
     pass
 
+# hacks that fix the number of communities to 2
+class PCDmodSA_q2(PCDmodSA):
+    const_q = 2
+class APMAnneal_q2(APMAnneal):
+    const_q = 2
 
 
 class BeliefPropogationq(CDMethod):
