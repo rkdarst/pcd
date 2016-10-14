@@ -169,6 +169,13 @@ class CDMethod(object):
             write the file names: getattr(self,
             'write_'+self.`self._input_format`) and it is called with
             the arguments (g, graphfile)
+            Input format are:
+            * edgelist
+            * edgelistWeighted
+            * gml
+            * null (Nothing will be written?)
+            * pajek
+            
 
           - self.run() is called.  This is the central entry point to
             all CD methods, and is the only thing that needs
@@ -177,6 +184,30 @@ class CDMethod(object):
             and stores them in self.cmtys (for single-best results),
             and self.results for a list of all hierarchical
             levels/partitions/layers returned.
+            
+        How to use this class when adding new community detection methods:
+        
+        - This is a virtual class that should be inherited by all
+        implementations of community detection methods
+        
+        - A class inheriting this class should overload the method run,
+        and save a list of pcd.cmty.Communities objects to the member
+        self.results and one pcd.cmty.Communities object to the member
+        self.cmtys
+        
+        - The input network is saved in undefined format in self.g
+        (one of the networkx graph objects?) and also in the file
+        named self.graphfile See above how to set the file format
+            
+        - The behavior of this class can be controlled by the class
+        inheriting this class by setting the private (starting with _)
+        members of the class (these are probably the ones that are set
+        in the beginning of this class?)
+        
+        - The parameters to the community detection methods are not given
+        as arguments to any function. It seems that if your community detection
+        method has parameters you can create class members that are presumably
+        set by someone?
 
         """
         self.g = g
