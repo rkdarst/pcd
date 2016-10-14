@@ -2913,8 +2913,32 @@ class IgraphWalktrap(_IGraphAlgorithmDendogram):
     _weightable = True
     _argmap = dict(steps='steps')
 
+class BlockModel(CDMethod):
+    _input_format = "gml" #We assume that this is the format CDMethod is using
+    _nodemapZeroIndexed = True #CDMethod uses this?
+    
+    deg_corr = True #The degree-corrected version of the model will be used.
+        
+    def run(self):
+        import graph_tool as gt
+        from graph_tool import inference
 
+        #We will use the edge file instead of networkx
+        #Graph? object because the content of the networkx
+        #object that is given to us is not documented
+        
+        gtg=gt.load_graph(self.graphfile,fmt="gml")
+        
+        state = inference.minimize_nested_blockmodel_dl(gtg,
+                                                 overlap=False,
+                                                 deg_corr=self.deg_corr)
+        
+        self.results=[]
+        for level in state.levels:
+            self.results.append(pcd.cmty.Communities.from_nodecmtys(dict(((int(v),level.b[v]) for v in gtg.vertices()))))
 
+        self.cmtys=self.results[0]
+        
 
 
 def get(name, search=()):
