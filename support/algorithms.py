@@ -462,7 +462,7 @@ class CDMethod(object):
     def write_edgelistWeighted(self, g, fname, weighted=True):
         """Write an edgelist with forced weights."""
         self.write_edgelist(g, fname, weighted=True)
-    def write_gml(self, g, fname):
+    def write_gml(self, g, fname, weighted=None):
         # networkx writes nodes in order of g.nodes()
         #self.node_order = g.nodes()
         #for i, n in enumerate(g.nodes_iter()):
