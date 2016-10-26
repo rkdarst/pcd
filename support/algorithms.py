@@ -902,7 +902,29 @@ class _Oslom(CDMethod):
                     print "*** Breaking at: level %s"%level
                 break
 
-            cmtys = self.read_oslom_cmtys(fname=fname)
+            # This function is a callback to return a list of all
+            # nodes in the graph.  Before, we just used
+            # self.g.nodes(), but that does not work when you are
+            # operating on a GraphFile (direct edgelist).  This
+            # function either returns self.g.nodes(), or reads from
+            # the other Oslom tp file and returns all of the nodes
+            # present in there (note that some may still be missing in
+            # the event that no edge touched them in the original
+            # graph!)
+            def get_all_nodes():
+                if isinstance(self.g, networkx.Graph):
+                    # This is a networkx graph object.  We can
+                    # directly return all nodes.
+                    return self.g.nodes()
+                else:
+                    # This was not a networkx graph object, so it
+                    # existed only as a file on disk.
+                    fname_ns = fname.split('_without_singletons')[0]
+                    cmtys_singletons = self.read_oslom_cmtys(fname=fname_ns)
+                    return cmtys_singletons.nodes
+
+            cmtys = self.read_oslom_cmtys(fname=fname,
+                                          get_all_nodes=get_all_nodes)
             cmtys.label = "level%02d"%level
 
             self.results.append(cmtys)
@@ -911,7 +933,7 @@ class _Oslom(CDMethod):
                        "Too few nodes detected - Graph disconnected?"
         self.cmtys = self.results[self.which_level]
         return self.results
-    def read_oslom_cmtys(self, fname):
+    def read_oslom_cmtys(self, fname, get_all_nodes=None):
         """Read Oslom communities from a single hierachical level"""
         f = open(fname)
         cmtynodes = { }
@@ -932,16 +954,14 @@ class _Oslom(CDMethod):
         # structure.  Return one community covering the whole graph,
         # since we tend to have problems with null-graphs.
         if len(cmtynodes) == 0:
-            if not isinstance(self.g, networkx.Graph): raise NotImplemented
-            cmtynodes[0] = set(self.g.nodes())
+            cmtynodes[0] = get_all_nodes()
         # If we can strip singletons, then we can end up not spanning
         # the whole network.  In that case we must specify nodes= to
         # the communities object, or else it won't be able to
         # recalculate the universe correctly when asked.
         nodes = None
         if self.strip_singletons:
-            if not isinstance(self.g, networkx.Graph): raise NotImplemented
-            nodes = set(self.g.nodes())
+            nodes = get_all_nodes()
         return pcd.cmty.Communities(cmtynodes,
                                     nodes=nodes,
                                     )
