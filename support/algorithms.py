@@ -2960,6 +2960,19 @@ class BlockModel(CDMethod):
 
         self.cmtys=self.results[0]
         
+class LG_Louvain(CDMethod):
+    """For now, an epmty class necessary to run the rest of the code currently
+    in drvo/code/cdfd.py. Should be made into a proper method (moving all that
+    code here)."""
+class LG_Infomap(CDMethod):
+    """For now, an epmty class necessary to run the rest of the code currently
+    in drvo/code/cdfd.py. Should be made into a proper method (moving all that
+    code here)."""
+class LG_Oslom(CDMethod):
+    """For now, an epmty class necessary to run the rest of the code currently
+    in drvo/code/cdfd.py. Should be made into a proper method (moving all that
+    code here)."""
+
 
 
 def get(name, search=()):
