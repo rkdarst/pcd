@@ -1144,6 +1144,12 @@ class APM_dir(APM):
 class Louvain(CDMethod):
     """Louvain community detection method.
 
+    This is the Louvain method code from the original authors (Vincent
+    Blondel, Jean-Loup Guillaume, Renaud Lambiotte, and Etienne
+    Lefebvre).
+
+    Homepage: https://sites.google.com/site/findcommunities/
+
     weighted: bool
         Runs in weigted mode (-w option).
 
@@ -1156,35 +1162,37 @@ class Louvain(CDMethod):
         itself.
 
     which_partition: int
-        Louvain returns a hierarchy of partitions.  If which_partition
-        is 0, maximize modularity of the the lowest level (smallest
+        Determines which hierarchical level to return.  If which_partition
+        is 0, maximize modularity of the the lowest level (most granular
         communities).  If which_partition is 1, maximize modularity of
         the level with second-smallest communities.  If
-        which_partition is -1, maximize the modularity of the
-        partition with largest communities (this is the level with the
-        greatest modularity.)
+        which_partition is -1, return the overall, global highest
+        modularity found.
 
         All partitions are stored in self.results.  One partition is
         stored in self.cmtys.  which_partition is either an index (0,
         1, ... -1) of the results list.  0 is the most granular
         (smallest communty size), and -1 is the least granular
-        (largest community size).  which_partition can also be the
-        string 'modmax', in which case the partition of maximum
-        modularity is taken.  If we have multiple trials, return the
-        set of partition with the maximum modularity of this level.
+        (largest community size).  If we have multiple trials, return
+        the set of partition with the maximum modularity of this level.
 
+
+    References:
+        Fast unfolding of communities in large networks, Vincent D
+        Blondel, Jean-Loup Guillaume, Renaud Lambiotte, Etienne
+        Lefebvre, Journal of Statistical Mechanics: Theory and
+        Experiment 2008 (10), P1000
+        http://arxiv.org/abs/0803.0476
+
+    ...
 
     At the end, the class has these attributes as information:
-
-    num_levels: number of levels in the results returned.
-
-    avg_num_levels: number of levels detected, average over all trials.
-
-    modularity: modularity of the partition returned (self.cmtys)
-
-    results_modularity: modularity of each partition in self.results.
-
+        num_levels: number of levels in the results returned.
+        avg_num_levels: number of levels detected, average over all trials.
+        modularity: modularity of the partition returned (self.cmtys)
+        results_modularity: modularity of each partition in self.results.
     """
+
     _input_format = 'edgelist'
     _binary_convert = 'louvain/Community_latest/convert'
     _binary_community = 'louvain/Community_latest/community'
