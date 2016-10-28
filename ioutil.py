@@ -22,6 +22,7 @@ zlistdir instead of os.listdir.
 
 """
 
+from functools import partial
 import os
 import re
 
@@ -82,7 +83,9 @@ def read_any(fname):
     # Look inside for the schema:
     data = open(fname).read(512)
     if _test_pajek(data):    return networkx.read_pajek(fname)
-    if _test_gml(data):      return networkx.read_gml(fname)
+    # label='id' handles networkx now trying to use a 'label' field by
+    # default.  Revert to old behavior.
+    if _test_gml(data):      return networkx.read_gml(fname, label='id')
     if _test_edgelist(data): return networkx.read_edgelist(fname, data=[('weight', float)])
     if _test_gexf(data):     return networkx.read_gexf(fname)
     if _test_graphml(data):  return networkx.read_graphml(fname)
@@ -99,7 +102,14 @@ def _get_reader(name):
     Current search path:
     - networkx.read_NAME
     """
-    return getattr(networkx, 'read_'+name, None)
+    reader = getattr(networkx, 'read_'+name, None)
+    # recent networkx versions try to relabel based on "label" field,
+    # which isn't always there and thus it fails.  Don't do this
+    # automatically.
+    if name == 'gml':
+        reader = partial(reader, label='id')
+        print "reader -partial|"
+    return reader
 
 def _test_pajek(data):
     """Does this look like a pajek file?
