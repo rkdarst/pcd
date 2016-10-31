@@ -2943,6 +2943,31 @@ class IgraphWalktrap(_IGraphAlgorithmDendogram):
     _argmap = dict(steps='steps')
 
 class BlockModel(CDMethod):
+    """Stochastic Block Modeling method. 
+
+    This is the nested block modeling method implemented in graph-tool. Note that
+    block models are not communities in the usual sense. Instead the method can
+    find any type of blocks where the nodes are connected similarly between the
+    blocks. For example, bipartite networks have a block structure where one part
+    corresponds to one block. For more details see,
+
+    https://graph-tool.skewed.de/static/doc/index.html
+
+    deg_corr: bool
+       Determines if the degree correted version of the stochastic block model is
+       used. As a rule of thumb you should use degree corrections if you are not
+       sure what you are doing. If degree correction is not used the blocks will 
+       reflect the degrees of nodes. For example, the method might put high degree
+       nodes in one block and low degree nodes in another and disregards any other
+       structure in the network.
+
+    References:
+       Brian Karrer, M. E. J. Newman: Stochastic blockmodels and community structure 
+       in networks, Phys. Rev. E 83, 016107 (2011)
+
+       Tiago P. Peixoto: Hierarchical Block Structures and High-Resolution Model 
+       Selection in Large Networks Phys. Rev. X 4, 011047 (2014)
+    """
     _input_format = "gml" #We assume that this is the format CDMethod is using
     _nodemapZeroIndexed = True #CDMethod uses this?
     
