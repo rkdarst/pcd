@@ -76,6 +76,10 @@ class TNet(object):
         c = self.conn.cursor()
         c.execute('''CREATE TABLE if not exists edge
                      (a int not null, b int not null, t int)''')
+        c.execute('PRAGMA mmap_size = 1073741824')
+        c.execute('PRAGMA cache_size = -2000000')
+        c.execute('PRAGMA journal_mode = OFF')
+        self.conn.commit()
         c.close()
     def _make_indices(self):
         """Create database indices, if they don't exist already.
@@ -97,9 +101,9 @@ class TNet(object):
         # suit a particular problem, for example.
         for fields in self._indices:
             c.execute('''CREATE INDEX if not exists '''
-                      '''index_edge_%s ON edge (%s)'''%(
+                      '''index_edge_%s ON edge (%s)'''%
                           ('_'.join(fields), ', '.join(fields)),
-                          ))
+                          )
 
         c.close()
     def dump(self):
