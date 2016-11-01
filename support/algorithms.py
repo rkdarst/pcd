@@ -104,6 +104,8 @@ class NullMap(object):
         self.unmap = unmap
     def __getitem__(self, x):
         return self.map(x)
+    def get(self, x, default=None):
+        return self.map(x)
     def __call__(self, iterable):
         """Unmap entire set of items - return generator, so wrap in object creator."""
         map = self.map
