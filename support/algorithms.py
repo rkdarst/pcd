@@ -2978,6 +2978,11 @@ class BlockModel(CDMethod):
        Determines if edge weights are taken into account. If the weight data is
        missing, this effectivelly has no effect, because weights=1 are assumed.
 
+    B_min, B_max: int
+       Setting these attributes puts a limit on the number of blocks the method
+       will find. Usefull when one is interested in finding the best fit for a
+       given number of blocks.
+
     References:
        Brian Karrer, M. E. J. Newman: Stochastic blockmodels and community structure 
        in networks, Phys. Rev. E 83, 016107 (2011)
@@ -2992,6 +2997,8 @@ class BlockModel(CDMethod):
     directed = False
     weighted = False
     nested = True
+    B_min = None
+    B_max = None
         
     def run(self):
         import graph_tool as gt
@@ -3010,13 +3017,15 @@ class BlockModel(CDMethod):
         
         if self.nested:
             state = inference.minimize_nested_blockmodel_dl(gtg,
-                                                            overlap=False,
-                                                            deg_corr=self.deg_corr)
+                        overlap=False,
+                        B_min=self.B_min, B_max=self.B_max,
+                        deg_corr=self.deg_corr)
             levels = state.levels
         else:
             state = inference.minimize_blockmodel_dl(gtg,
-                                                     overlap=False,
-                                                     deg_corr=self.deg_corr)
+                        overlap=False,
+                        B_min=self.B_min, B_max=self.B_max,
+                        deg_corr=self.deg_corr)
             levels = [state]
 
         self.results = []
