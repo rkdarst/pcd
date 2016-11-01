@@ -2954,12 +2954,29 @@ class BlockModel(CDMethod):
     https://graph-tool.skewed.de/static/doc/index.html
 
     deg_corr: bool
-       Determines if the degree correted version of the stochastic block model is
+       Determines if the degree corrected version of the stochastic block model is
        used. As a rule of thumb you should use degree corrections if you are not
        sure what you are doing. If degree correction is not used the blocks will 
        reflect the degrees of nodes. For example, the method might put high degree
        nodes in one block and low degree nodes in another and disregards any other
        structure in the network.
+
+    nested: bool
+       Determines if we are using nested or "flat" version of stochastic block
+       model. The flat one is the traditional SBM, and nested is an extension in
+       which the resulting blocks are considered as new nodes and are grouped
+       together into their blocks untill there is only one block. The algorithm
+       goes through the hierarchy several times optimizing the blocks at each
+       level.
+
+    directed: bool
+       Determines if the graph should be considered as directed or undirected.
+       If using directed, make sure to use the input format that makes clear the
+       directedness of edges (and that you know what is it).
+
+    weighted: bool
+       Determines if edge weights are taken into account. If the weight data is
+       missing, this effectivelly has no effect, because weights=1 are assumed.
 
     References:
        Brian Karrer, M. E. J. Newman: Stochastic blockmodels and community structure 
@@ -2972,26 +2989,42 @@ class BlockModel(CDMethod):
     _nodemapZeroIndexed = True #CDMethod uses this?
     
     deg_corr = True #The degree-corrected version of the model will be used.
+    directed = False
+    weighted = False
+    nested = True
         
     def run(self):
         import graph_tool as gt
         from graph_tool import inference
 
-        #We will use the edge file instead of networkx
-        #Graph? object because the content of the networkx
-        #object that is given to us is not documented
+        vmap = self.vmap
+        vmap_inv = self.vmap_inv
+        weight_ep = None
+        gtg = gt.Graph(directed=self.directed)
+        if self.weighted:
+            weight_ep = gtg.new_edge_property(float, val=1)
+        gtg.add_edge_list([(vmap[a],vmap[b],data.get('weight',1.0))\
+                           for a, b, data in\
+                           self.g.edges_iter(data=True)],
+                           eprops=weight_ep)
         
-        gtg=gt.load_graph(self.graphfile,fmt="gml")
-        
-        state = inference.minimize_nested_blockmodel_dl(gtg,
-                                                 overlap=False,
-                                                 deg_corr=self.deg_corr)
-        
-        self.results=[]
-        for level in state.levels:
-            self.results.append(pcd.cmty.Communities.from_nodecmtys(dict(((int(v),level.b[v]) for v in gtg.vertices()))))
+        if self.nested:
+            state = inference.minimize_nested_blockmodel_dl(gtg,
+                                                            overlap=False,
+                                                            deg_corr=self.deg_corr)
+            levels = state.levels
+        else:
+            state = inference.minimize_blockmodel_dl(gtg,
+                                                     overlap=False,
+                                                     deg_corr=self.deg_corr)
+            levels = [state]
 
-        self.cmtys=self.results[0]
+        self.results = []
+        self.results.append( pcd.cmty.Communities.from_nodecmtys(dict(((vmap_inv[int(v)],levels[0].b[v]) for v in gtg.vertices()))))
+        for level in levels[1:]:
+            self.results.append( pcd.cmty.Communities.from_nodecmtys(dict(((int(v),level.b[v]) for v in gtg.vertices()))))
+
+        self.cmtys = self.results[0]
         
 class LG_Louvain(CDMethod):
     """For now, an epmty class necessary to run the rest of the code currently
