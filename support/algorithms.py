@@ -2945,63 +2945,76 @@ class IgraphWalktrap(_IGraphAlgorithmDendogram):
     _argmap = dict(steps='steps')
 
 class BlockModel(CDMethod):
-    """Stochastic Block Modeling method. 
+    """Stochastic Block Modeling method.
 
-    This is the nested block modeling method implemented in graph-tool. Note that
-    block models are not communities in the usual sense. Instead the method can
-    find any type of blocks where the nodes are connected similarly between the
-    blocks. For example, bipartite networks have a block structure where one part
-    corresponds to one block. For more details see,
+    This is the Peixoto's nested block modeling method implemented in
+    graph-tool. Note that block models are not communities in the usual
+    sense. Instead the method can find any type of blocks where the
+    nodes are connected similarly between the blocks. For example,
+    bipartite networks have a block structure where one part corresponds
+    to one block. For more details see,
 
     https://graph-tool.skewed.de/static/doc/index.html
 
     deg_corr: bool
-       Determines if the degree corrected version of the stochastic block model is
-       used. As a rule of thumb you should use degree corrections if you are not
-       sure what you are doing. If degree correction is not used the blocks will 
-       reflect the degrees of nodes. For example, the method might put high degree
-       nodes in one block and low degree nodes in another and disregards any other
+       Determines if the degree corrected version of the stochastic
+       block model is used. As a rule of thumb you should use degree
+       corrections if you are not sure what you are doing. If degree
+       correction is not used the blocks will reflect the degrees of
+       nodes. For example, the method might put high degree nodes in one
+       block and low degree nodes in another and disregards any other
        structure in the network.
 
     nested: bool
-       Determines if we are using nested or "flat" version of stochastic block
-       model. The flat one is the traditional SBM, and nested is an extension in
-       which the resulting blocks are considered as new nodes and are grouped
-       together into their blocks untill there is only one block. The algorithm
-       goes through the hierarchy several times optimizing the blocks at each
-       level.
+       Determines if we are using nested or "flat" version of stochastic
+       block model. The flat one is the traditional SBM, and nested is
+       an extension in which the resulting blocks are considered as new
+       nodes and are grouped together into their blocks untill there is
+       only one block. The algorithm goes through the hierarchy several
+       times optimizing the blocks at each level.
 
     directed: bool
-       Determines if the graph should be considered as directed or undirected.
-       If using directed, make sure to use the input format that makes clear the
-       directedness of edges (and that you know what is it).
+       Determines if the graph should be considered as directed or
+       undirected.  If using directed, make sure to use the input format
+       that makes clear the directedness of edges (and that you know
+       what is it).
 
     weighted: bool
-       Determines if edge weights are taken into account. If the weight data is
-       missing, this effectivelly has no effect, because weights=1 are assumed.
+       Determines if edge weights are taken into account. If the weight
+       data is missing, this effectivelly has no effect, because
+       weights=1 are assumed.
 
-    B_min, B_max: int
-       Setting these attributes puts a limit on the number of blocks the method
-       will find. Usefull when one is interested in finding the best fit for a
-       given number of blocks.
+    B_min: int
+       Setting this attribute puts a limit on the number of blocks the
+       method will find (minimum). Useful when one is interested in
+       finding the best fit for a given number of blocks.
+
+    B_max: int
+       Same as B_min but maximum.
 
     References:
-       Brian Karrer, M. E. J. Newman: Stochastic blockmodels and community structure 
-       in networks, Phys. Rev. E 83, 016107 (2011)
+       The method itself:
+         Tiago P. Peixoto: Hierarchical Block Structures and
+         High-Resolution Model Selection in Large Networks Phys. Rev. X 4,
+         011047 (2014)
+         https://doi.org/10.1103/PhysRevX.4.011047
 
-       Tiago P. Peixoto: Hierarchical Block Structures and High-Resolution Model 
-       Selection in Large Networks Phys. Rev. X 4, 011047 (2014)
+       Stochastic block models:
+         Brian Karrer, M. E. J. Newman: Stochastic blockmodels and
+         community structure in networks, Phys. Rev. E 83, 016107 (2011)
+         http://arxiv.org/pdf/1008.3926
+
     """
     _input_format = "null" #We assume that this is the format CDMethod is using
     _nodemapZeroIndexed = True #CDMethod uses this?
-    
+
     deg_corr = True #The degree-corrected version of the model will be used.
     directed = False
     weighted = False
     nested = True
     B_min = None
     B_max = None
-        
+
     def run(self):
         import graph_tool as gt
         from graph_tool import inference
@@ -3012,11 +3025,11 @@ class BlockModel(CDMethod):
         gtg = gt.Graph(directed=self.directed)
         if self.weighted:
             weight_ep = gtg.new_edge_property(float, val=1)
-        gtg.add_edge_list([(vmap[a],vmap[b],data.get('weight',1.0))\
-                           for a, b, data in\
+        gtg.add_edge_list([(vmap[a],vmap[b],data.get('weight',1.0))
+                           for a, b, data in
                            self.g.edges_iter(data=True)],
                            eprops=weight_ep)
-        
+
         if self.nested:
             state = inference.minimize_nested_blockmodel_dl(gtg,
                         overlap=False,
@@ -3032,10 +3045,11 @@ class BlockModel(CDMethod):
 
         self.results = []
         for level in levels:
-            self.results.append( pcd.cmty.Communities.from_nodecmtys(dict(((vmap_inv[int(v)],level.b[v]) for v in gtg.vertices()))))
+            self.results.append( pcd.cmty.Communities.from_nodecmtys(
+                  dict(((vmap_inv[int(v)],level.b[v]) for v in gtg.vertices()))))
 
         self.cmtys = self.results[0]
-        
+
 class LG_Louvain(CDMethod):
     """For now, an epmty class necessary to run the rest of the code currently
     in drvo/code/cdfd.py. Should be made into a proper method (moving all that
