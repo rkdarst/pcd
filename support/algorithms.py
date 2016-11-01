@@ -3020,9 +3020,8 @@ class BlockModel(CDMethod):
             levels = [state]
 
         self.results = []
-        self.results.append( pcd.cmty.Communities.from_nodecmtys(dict(((vmap_inv[int(v)],levels[0].b[v]) for v in gtg.vertices()))))
-        for level in levels[1:]:
-            self.results.append( pcd.cmty.Communities.from_nodecmtys(dict(((int(v),level.b[v]) for v in gtg.vertices()))))
+        for level in levels:
+            self.results.append( pcd.cmty.Communities.from_nodecmtys(dict(((vmap_inv[int(v)],level.b[v]) for v in gtg.vertices()))))
 
         self.cmtys = self.results[0]
         
