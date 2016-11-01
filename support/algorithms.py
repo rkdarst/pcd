@@ -2992,7 +2992,7 @@ class BlockModel(CDMethod):
        Tiago P. Peixoto: Hierarchical Block Structures and High-Resolution Model 
        Selection in Large Networks Phys. Rev. X 4, 011047 (2014)
     """
-    _input_format = "gml" #We assume that this is the format CDMethod is using
+    _input_format = "null" #We assume that this is the format CDMethod is using
     _nodemapZeroIndexed = True #CDMethod uses this?
     
     deg_corr = True #The degree-corrected version of the model will be used.
